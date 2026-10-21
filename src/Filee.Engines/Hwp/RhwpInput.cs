@@ -1,6 +1,8 @@
 // What Filee changes in an HWPX before rhwp renders it to PDF, in a copy (the user's file is never touched):
 //
 // - Fonts (RhwpFonts): installed fonts for the text's language and characters, no CFF2 variable fonts (#61, #64).
+// - Punctuation widths (RhwpInput.Punctuation): quotes and CJK punctuation in Chinese and Japanese fonts get letter
+//   spacing up to their real width, which rhwp guesses as half a character (#237).
 // - Shape sizes: a box inside a text box stores its size relative to the column (hp:sz widthRelTo="COLUMN", 9920 =
 //   99.2 %); rhwp takes the number as absolute there and drew the exam paper's "보기" boxes 35 mm wide with their
 //   pictures shrunk to a few pixels (#65). The size 한글 laid the object out at (hp:curSz) is written instead.
@@ -85,8 +87,15 @@ internal static partial class RhwpInput
                 foreach (var t in xml.Descendants().Where(e => e.Name.LocalName == "t"))
                     if (text.Length < 200_000)
                         text.Append(t.Value);
-            if (ApplyFonts(header, text.ToString(), lookup ?? RhwpFonts.Find))
+            lookup ??= RhwpFonts.Find;
+            if (ApplyFonts(header, text.ToString(), lookup))
                 changed["Contents/header.xml"] = header;
+            if (WidenPunctuation(header, sections.Select(s => s.Xml).ToList(), lookup))
+            {
+                changed["Contents/header.xml"] = header;
+                foreach (var (name, xml) in sections)
+                    changed[name] = xml;
+            }
 
             foreach (var (name, xml) in sections)
             {

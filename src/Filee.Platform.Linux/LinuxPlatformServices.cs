@@ -101,7 +101,37 @@ public sealed class LinuxPlatformServices : IPlatformServices
         using var process = Process.Start(opener) ?? throw new InvalidOperationException("Could not start xdg-open.");
     }
 
+    /// <summary>
+    /// Through xdg-open, never by starting the file itself: Process.Start with UseShellExecute would run a file that
+    /// has the executable bit.
+    /// </summary>
+    public void OpenFile(string path)
+    {
+        var opener = new ProcessStartInfo("xdg-open") { UseShellExecute = false };
+        opener.ArgumentList.Add(Path.GetFullPath(path));
+        using var process = Process.Start(opener) ?? throw new InvalidOperationException("Could not start xdg-open.");
+    }
+
     public void RaiseTopmost(nint windowHandle) => X11WindowSystem.RaiseTopmost(windowHandle);
+
+    /// <summary>XDG_DOWNLOAD_DIR from user-dirs.dirs (a localized desktop calls it "다운로드"), else ~/Downloads.</summary>
+    public string DownloadsFolder
+    {
+        get
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var file = Path.Combine(XdgDirectory("XDG_CONFIG_HOME", ".config"), "user-dirs.dirs");
+            try
+            {
+                if (File.Exists(file) && XdgUserDirs.Download(File.ReadAllText(file), home) is { } configured)
+                    return configured;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+            return Path.Combine(home, "Downloads");
+        }
+    }
 
     private static string XdgDirectory(string variable, string fallback)
     {

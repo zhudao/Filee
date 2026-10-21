@@ -4,6 +4,8 @@
 // audio and GIF, APNG or a still picture → video, and images → HEIC (FFmpeg's HEVC encoder, Filee's own container
 // writer). Container and codec choices live in MediaEncoding, the process handling in FfmpegRunner, hardware encoders
 // in HardwareVideo (options) and HardwareProbe (which one works here).
+// Live / Motion Photos (Android, iPhone) give their video when a preset asks for it (LivePhotoSource, MotionPhoto), and
+// a clip of a video becomes one (LivePhotoWriter).
 
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
@@ -44,7 +46,7 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
     public int MaxParallelism => 2;
 
     /// <summary>Only HEIC, which ImageMagick reads and turns before x265 encodes it (Heic/HeicWriter); never video.</summary>
-    public bool Transforms(string from, string to) => to == "heic";
+    public bool Transforms(string from, string to) => to == "heic" && FormatRegistry.FindById(from)?.Category != FormatCategory.Video;
 
     public IReadOnlyList<ConversionEdge> Edges { get; } = BuildEdges();
 
@@ -67,16 +69,19 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
     {
         var videos = FormatRegistry.Known.Where(f => f.Category == FormatCategory.Video).Select(f => f.Id).ToList();
         var audios = FormatRegistry.Known.Where(f => f.Category == FormatCategory.Audio).Select(f => f.Id);
-        var videoTargets = MediaEncoding.VideoTargets.Keys.Concat(MediaEncoding.AudioTargets.Keys).Append("png").ToList();
+        var videoTargets = MediaEncoding.VideoTargets.Keys.Append("png").ToList();
         return
         [
             .. from source in videos from target in videoTargets select new ConversionEdge(source, target),
+            // A picture turned into a video has no sound: picture → video → audio would only make a silent file.
+            .. from source in videos from target in MediaEncoding.AudioTargets.Keys
+               select new ConversionEdge(source, target, NotForImageSources: true),
             // "Save every frame": a folder of numbered pictures, only when a preset asks for it (never in another route).
             .. from source in videos from target in MediaOptions.FrameTargets select new ConversionEdge(source, target, FrameSequence: true),
             // Subtitles out of a video. SRT is the hub to the other subtitle formats (the subtitle engine takes it on),
             // so ASS and WebVTT cost a little more and are only taken when they are the target.
             .. from source in videos from target in MediaEncoding.SubtitleTargets.Keys
-               select new ConversionEdge(source, target, target == "srt" ? 10 : 11),
+               select new ConversionEdge(source, target, target == "srt" ? 10 : 11, NotForImageSources: true),
             .. videos.Select(source => new ConversionEdge(source, "gif", 15)),
             .. videos.Select(source => new ConversionEdge(source, "apng", 15)),
             .. from source in audios from target in MediaEncoding.AudioTargets.Keys select new ConversionEdge(source, target),
@@ -85,6 +90,13 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
             .. MediaEncoding.PictureToVideoTargets.Select(target => new ConversionEdge("png", target, 11)),
             // HEIC: ImageMagick reads, x265 encodes, Filee writes the container (see Heic/HeicWriter).
             .. ImageEncoder.Sources.Select(source => new ConversionEdge(source, "heic")),
+            // The video of a Live / Motion Photo, only when a preset asks for it (see ConversionEdge.MotionPhoto).
+            .. from source in MediaOptions.MotionPhotoSources from target in MediaOptions.MotionPhotoTargets
+               select new ConversionEdge(source, target, MotionPhoto: true),
+            // A clip of a video as a Live / Motion Photo, only when a preset asks for it (see ConversionEdge.LivePhoto).
+            .. from source in videos
+               from target in MediaOptions.LivePhotoTargets(LivePhotoKind.Apple).Union(MediaOptions.LivePhotoTargets(LivePhotoKind.Android))
+               select new ConversionEdge(source, target, LivePhoto: true),
         ];
     }
 
@@ -107,6 +119,11 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
     public async Task<IReadOnlyList<string>> ConvertAsync(ConversionStep step, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         var (ffmpeg, ffprobe) = _tools ?? Locate() ?? throw new InvalidOperationException("FFmpeg was not found.");
+        if (step.MotionPhoto)
+            return await ExtractMotionAsync(step, progress, cancellationToken);
+        if (step.LivePhoto)
+            return await LivePhotoWriter.ConvertAsync(ffmpeg, ffprobe, step, EncodersOf(ffmpeg), filter => HasFilter(ffmpeg, filter),
+                progress, cancellationToken);
         if (step.To == "heic")
             return await HeicWriter.ConvertAsync(ffmpeg, step, progress, cancellationToken);
         var input = Path.GetFullPath(step.InputPath);
@@ -163,6 +180,52 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
 
         progress?.Report(1);
         return [output];
+    }
+
+    /// <summary>
+    /// The video of a Live / Motion Photo as <see cref="ConversionStep.To"/>: copied out of the photo (or from next to
+    /// it) into the work directory, converted there like any video and moved into place once finished, so a failure
+    /// never touches a file the output would replace.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> ExtractMotionAsync(ConversionStep step, IProgress<double>? progress, CancellationToken cancellationToken)
+    {
+        var (video, companion) = await LivePhotoSource.ExtractAsync(step.InputPath, step.From, step.WorkDirectory, _logger, cancellationToken);
+        var staged = new StagedOutput(step.Output, step.WorkDirectory, companion);
+        var written = await ConvertAsync(step with { InputPath = video, From = "mov", MotionPhoto = false, Output = staged },
+            progress, cancellationToken);
+        return staged.Commit(written);
+    }
+
+    /// <summary>
+    /// Hands out paths in the work directory for outputs whose real path comes from <paramref name="final"/>. That one
+    /// is never <paramref name="companion"/>: with "overwrite", IMG_0001.HEIC → MOV would otherwise be written over
+    /// IMG_0001.MOV, the Live Photo's own video, so it gets a numbered name instead.
+    /// </summary>
+    private sealed class StagedOutput(IOutputAllocator final, string workDirectory, string? companion) : IOutputAllocator
+    {
+        private readonly Dictionary<string, string> _paths = [];
+
+        public string? Allocate(string extension, string? suffix = null)
+        {
+            var path = final.Allocate(extension, suffix);
+            for (var n = 2; path is not null && companion is not null && SamePath(path, companion); n++)
+                path = final.Allocate(extension, $"{suffix} ({n})");
+            if (path is null)
+                return null;
+            var temp = Path.Combine(workDirectory, Guid.NewGuid().ToString("N") + "." + extension.TrimStart('.'));
+            _paths[temp] = path;
+            return temp;
+        }
+
+        public IReadOnlyList<string> Commit(IReadOnlyList<string> written) =>
+            written.Select(temp =>
+            {
+                File.Move(temp, _paths[temp], overwrite: true);
+                return _paths[temp];
+            }).ToList();
+
+        private static bool SamePath(string a, string b) =>
+            string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -282,6 +345,35 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
                 return null;
             }
         });
+
+    private static readonly ConcurrentDictionary<string, IReadOnlySet<string>?> Filters = new();
+
+    /// <summary>
+    /// True when <paramref name="ffmpeg"/> has the filter <paramref name="name"/> (<c>ffmpeg -filters</c>, cached per
+    /// executable): a copy the user picked may lack zscale. Assumed when the list can't be read.
+    /// </summary>
+    internal static bool HasFilter(string ffmpeg, string name) =>
+        Filters.GetOrAdd($"{ffmpeg}|{File.GetLastWriteTimeUtc(ffmpeg).Ticks}", _ =>
+        {
+            try
+            {
+                var result = FfmpegRunner.RunBriefly(ffmpeg, ["-hide_banner", "-filters"], QueryTimeout);
+                return result.ExitCode == 0 ? ParseFilters(result.StandardOutput) : null;
+            }
+            catch (Exception ex) when (ex is TimeoutException or InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
+            {
+                return null;
+            }
+        }) is not { } filters || filters.Contains(name);
+
+    /// <summary>The filter names in <c>ffmpeg -filters</c> output (" .S zscale  V->V  Apply resizing, …").</summary>
+    internal static IReadOnlySet<string> ParseFilters(string list) =>
+        list.Split('\n')
+            .Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Where(parts => parts.Length >= 3 && parts[0].Length is 2 or 3 && parts[0].All(c => c is '.' or 'T' or 'S' or 'C')
+                            && parts[2].Contains("->", StringComparison.Ordinal))
+            .Select(parts => parts[1])
+            .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>The encoder names in <c>ffmpeg -encoders</c> output.</summary>
     internal static IReadOnlySet<string> ParseEncoders(string list) =>

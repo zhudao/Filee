@@ -6,7 +6,7 @@
 // Motion.Enabled == false every value jumps straight to its target.
 //
 // After a drop the donut turns into a progress ring: see DonutMenu.Progress.cs. Group slices, which fan out a ring
-// of presets, and the keyboard: DonutMenu.Groups.cs.
+// of presets, and the keyboard: DonutMenu.Groups.cs. Tab (or the wheel) flips the donut over: DonutMenu.Flip.cs.
 
 using System.Globalization;
 using Avalonia;
@@ -68,7 +68,7 @@ public sealed partial class DonutMenu : Control
     public static readonly StyledProperty<bool> ReserveSubRingProperty =
         AvaloniaProperty.Register<DonutMenu, bool>(nameof(ReserveSubRing));
 
-    /// <summary>The theme's softness (Styles/Soft.axaml binds SoftRadius): rounds the corners of the slices.</summary>
+    /// <summary>The theme's softness (Styles/Controls.axaml binds SoftRadius): rounds the corners of the slices.</summary>
     public static readonly StyledProperty<CornerRadius> CornerRadiusProperty =
         AvaloniaProperty.Register<DonutMenu, CornerRadius>(nameof(CornerRadius));
 
@@ -131,12 +131,16 @@ public sealed partial class DonutMenu : Control
         AffectsMeasure<DonutMenu>(OuterRadiusProperty, ReserveSubRingProperty);
         AffectsRender<DonutMenu>(HoleRatioProperty, SliceOpacityProperty, CenterTitleProperty, CenterSubtitleProperty,
             IsEditModeProperty, SliceBrushProperty, SliceBorderBrushProperty, CenterBrushProperty, AccentBrushProperty,
-            OnAccentBrushProperty, ForegroundProperty, SecondaryForegroundProperty, SuccessBrushProperty, CornerRadiusProperty);
+            OnAccentBrushProperty, ForegroundProperty, SecondaryForegroundProperty, SuccessBrushProperty, CornerRadiusProperty,
+            CenterHintProperty, CenterHintWheelProperty);
         ItemsProperty.Changed.AddClassHandler<DonutMenu>((d, _) => d.OnItemsChanged());
     }
 
     public DonutMenu()
     {
+        // A circle reads the same either way: slices keep their clockwise order in Arabic too, their labels are
+        // shaped right to left (TextDirection).
+        FlowDirection = FlowDirection.LeftToRight;
         ClipToBounds = false;
         Cursor = new Cursor(StandardCursorType.Hand);
     }
@@ -407,6 +411,10 @@ public sealed partial class DonutMenu : Control
         _expanded = _shownExpanded = _subHover = -1;
         ClearPending();
         _expand = default;
+        // New files (or none): a flip of the old ones is over. A flip's own swap keeps going (SwapFaces).
+        if (!_swapping)
+            CancelFlip();
+        _lastExternalAt = null;
         // The window is reused: a keyboard hold from the last time it was open must not swallow the first moves now.
         _keyboardHold = _ringFromKeys = false;
         _keyAnchor = _lastPointer = null;
@@ -679,6 +687,7 @@ public sealed partial class DonutMenu : Control
         if (_expanded < 0)
             _shownExpanded = -1;
         StepLayout(0, snap: true);
+        FinishFlip();
         if (_openClock < double.MaxValue)
         {
             _openClock = double.MaxValue;
@@ -726,6 +735,7 @@ public sealed partial class DonutMenu : Control
             if (_expanded < 0)
                 _shownExpanded = -1;
             StepLayout(dt);
+            FinishFlip(); // animations switched off halfway through a flip
             if (_closing)
                 FinishClose();
             active |= StepProgress(dt); // hold timers still run without animation
@@ -744,6 +754,7 @@ public sealed partial class DonutMenu : Control
                 _shownExpanded = -1;
             active |= StepProgress(dt);
             active |= StepLayout(dt);
+            active |= StepFlip(dt);
 
             if (_openClock < double.MaxValue)
             {
@@ -805,6 +816,29 @@ public sealed partial class DonutMenu : Control
             return;
         }
 
+        // A flip turns the ring (and its shadow and a group's ring) about the vertical axis; the hub stays.
+        var flip = FlipTransform(center);
+        using (context.PushTransform(flip))
+            RenderRing(context, center, r1, r2, n, typeface, typefaceRegular);
+
+        var reaching = _expanded >= 0 ? _expanded : _pendingGroup;
+        if (!IsEditMode && reaching >= 0 && reaching < n && Items![reaching].Children is { Count: > 0 } reachable)
+            DrawHitBackdrop(context, center, reaching, reachable.Count);
+        if (!IsEditMode && _shownExpanded >= 0 && _shownExpanded < n && _expand.Value > 0.01)
+        {
+            using (context.PushTransform(flip))
+                DrawSubRing(context, center, typeface, typefaceRegular);
+        }
+
+        DrawCenter(context, center, r1, typeface, typefaceRegular);
+
+        if (IsEditMode && _hoverIndex >= 0 && _hoverIndex < n && _dimmedIndex < 0 && !IsFlipping)
+            DrawEditButton(context, EditButtonCenter(_hoverIndex));
+    }
+
+    /// <summary>The shadow, the slices and the edit mode's drop preview.</summary>
+    private void RenderRing(DrawingContext context, Point center, double r1, double r2, int n, Typeface typeface, Typeface typefaceRegular)
+    {
         DrawSoftShadow(context, center, r2);
 
         if (n == 0)
@@ -858,17 +892,6 @@ public sealed partial class DonutMenu : Control
 
         if (IsEditMode && _previewSpan.Value > 0.01)
             DrawPreview(context, center, r1, r2, typeface, typefaceRegular);
-
-        var reaching = _expanded >= 0 ? _expanded : _pendingGroup;
-        if (!IsEditMode && reaching >= 0 && reaching < n && Items![reaching].Children is { Count: > 0 } reachable)
-            DrawHitBackdrop(context, center, reaching, reachable.Count);
-        if (!IsEditMode && _shownExpanded >= 0 && _shownExpanded < n && _expand.Value > 0.01)
-            DrawSubRing(context, center, typeface, typefaceRegular);
-
-        DrawCenter(context, center, r1, typeface, typefaceRegular);
-
-        if (IsEditMode && _hoverIndex >= 0 && _hoverIndex < n && _dimmedIndex < 0)
-            DrawEditButton(context, EditButtonCenter(_hoverIndex));
     }
 
     private void DrawSoftShadow(DrawingContext context, Point center, double r2)
@@ -902,11 +925,43 @@ public sealed partial class DonutMenu : Control
         var maxWidth = radius * 1.6;
         var title = MakeText(CenterTitle ?? "", bold, 14, Foreground, maxWidth, maxLines: 2);
         var subtitle = MakeText(CenterSubtitle ?? "", regular, 11.5, cancelHot ? DangerBrush : SecondaryForeground, maxWidth, maxLines: 2);
-        var total = title.Height + (string.IsNullOrEmpty(CenterSubtitle) ? 0 : subtitle.Height + 2);
+        // "Tab ↻ back": small, under the rest, a little narrower (the hub is round).
+        var hint = string.IsNullOrEmpty(CenterHint) ? null : MakeText(CenterHint, regular, 10.5, SecondaryForeground, maxWidth * 0.85);
+        var total = title.Height + (string.IsNullOrEmpty(CenterSubtitle) ? 0 : subtitle.Height + 2) + (hint is null ? 0 : hint.Height + 5);
         var y = center.Y - total / 2;
         DrawCentered(context, title, center.X, y);
+        y += title.Height;
         if (!string.IsNullOrEmpty(CenterSubtitle))
-            DrawCentered(context, subtitle, center.X, y + title.Height + 2);
+        {
+            DrawCentered(context, subtitle, center.X, y + 2);
+            y += subtitle.Height + 2;
+        }
+        if (hint is not null)
+        {
+            using (context.PushOpacity(0.85))
+            {
+                if (!CenterHintWheel)
+                {
+                    DrawCentered(context, hint, center.X, y + 5);
+                }
+                else
+                {
+                    // A small mouse in front: "🖱 ↻ back" when the wheel flips and no key does.
+                    const double iconWidth = 7, gap = 4;
+                    var left = center.X - (hint.Width + iconWidth + gap) / 2;
+                    DrawMouse(context, new Rect(left, y + 5 + (hint.Height - 10) / 2, iconWidth, 10), SecondaryForeground);
+                    DrawCentered(context, hint, center.X + (iconWidth + gap) / 2, y + 5);
+                }
+            }
+        }
+    }
+
+    /// <summary>An outline of a mouse with its wheel, filling <paramref name="box"/>.</summary>
+    private static void DrawMouse(DrawingContext context, Rect box, IBrush? brush)
+    {
+        var pen = new Pen(brush, 1.1);
+        context.DrawRectangle(null, pen, box, box.Width / 2, box.Width / 2);
+        context.DrawLine(pen, new Point(box.Center.X, box.Top + 2), new Point(box.Center.X, box.Top + 4.5));
     }
 
     private void DrawLabel(DrawingContext context, DonutItem item, Point center, double radius, double angle,
@@ -914,7 +969,8 @@ public sealed partial class DonutMenu : Control
     {
         var foreground = hot ? OnAccentBrush : item.IsEnabled ? Foreground : SecondaryForeground;
         var width = Math.Clamp(maxWidth, 30, 120);
-        var label = MakeText(item.Label, bold, 13, foreground, width, maxLines: 2);
+        var text = KeepKoreanWords(item.Label);
+        var label = MakeText(text, bold, LabelSize(text, bold, width), foreground, width, maxLines: 2);
         var showCaption = !string.IsNullOrEmpty(item.Caption) &&
                           !string.Equals(item.Caption, item.Label, StringComparison.OrdinalIgnoreCase) &&
                           label.Height + 14 < maxHeight;
@@ -927,6 +983,57 @@ public sealed partial class DonutMenu : Control
         if (caption is not null)
             DrawCentered(context, caption, anchor.X, y + label.Height);
     }
+
+    private const double LabelFontSize = 13;
+    private const double MinLabelFontSize = 10;
+    private readonly Dictionary<(string Text, Typeface Typeface, double Width), double> _labelSizes = new();
+
+    /// <summary>
+    /// The size a slice's name is drawn at: 13, or smaller (down to 10) when one of its words is wider than the slice
+    /// (<paramref name="width"/>), which would otherwise break in the middle ("Grayscal|e" on a thin slice). Words in
+    /// Chinese or Japanese are left out: those break between any two characters.
+    /// </summary>
+    internal double LabelSize(string text, Typeface typeface, double width)
+    {
+        var line = Math.Round(width);
+        var key = (text, typeface, line);
+        if (_labelSizes.TryGetValue(key, out var size))
+            return size;
+        if (_labelSizes.Count >= MaxCachedWedges)
+            _labelSizes.Clear();
+        var widest = text.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(word => !word.Any(IsHanOrKana))
+            .Select(word => new FormattedText(word, CultureInfo.CurrentUICulture, TextDirection, typeface, LabelFontSize, null).Width)
+            .DefaultIfEmpty(0)
+            .Max();
+        // A pixel to spare: a word exactly as wide as the line still wraps.
+        size = widest < line ? LabelFontSize : Math.Max(MinLabelFontSize, LabelFontSize * (line - 1) / widest);
+        return _labelSizes[key] = size;
+    }
+
+    /// <summary>Chinese characters, kana and the CJK symbols and full-width forms: a line may break between any two.</summary>
+    private static bool IsHanOrKana(char c) =>
+        c is >= '\u2E80' and <= '\u312F' or >= '\u3190' and <= '\u9FFF' or >= '\uF900' and <= '\uFAFF' or >= '\uFF00' and <= '\uFFEF';
+
+    /// <summary>
+    /// Korean is written with spaces between words and wraps there, but the text layout also breaks between any two
+    /// Hangul syllables ("ZIP 하나|로"). A word joiner between them keeps each word on one line.
+    /// </summary>
+    internal static string KeepKoreanWords(string text)
+    {
+        if (!text.Any(IsHangul))
+            return text;
+        var kept = new System.Text.StringBuilder(text.Length * 2);
+        for (var i = 0; i < text.Length; i++)
+        {
+            kept.Append(text[i]);
+            if (i + 1 < text.Length && IsHangul(text[i]) && IsHangul(text[i + 1]))
+                kept.Append('\u2060');
+        }
+        return kept.ToString();
+    }
+
+    private static bool IsHangul(char c) => c is >= '\uAC00' and <= '\uD7A3';
 
     private Point EditButtonCenter(int index)
     {
@@ -956,13 +1063,16 @@ public sealed partial class DonutMenu : Control
     private Pen? BorderPen() => SliceBorderBrush is null ? null : new Pen(SliceBorderBrush, 1);
 
     private static FormattedText MakeText(string text, Typeface typeface, double size, IBrush? brush, double maxWidth, int maxLines = 1) =>
-        new(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, size, brush)
+        new(text, CultureInfo.CurrentUICulture, TextDirection, typeface, size, brush)
         {
             MaxTextWidth = Math.Max(10, maxWidth),
             MaxLineCount = maxLines,
             Trimming = TextTrimming.CharacterEllipsis,
             TextAlignment = TextAlignment.Center,
         };
+
+    private static FlowDirection TextDirection => CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft
+        ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
 
     private static IBrush? WithOpacity(IBrush? brush, double opacity) => brush switch
     {

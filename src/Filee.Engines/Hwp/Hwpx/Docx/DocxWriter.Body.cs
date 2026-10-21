@@ -600,6 +600,8 @@ internal sealed partial class DocxWriter
         }
         if (Hex(cell.Fill) is { } fill)
             sb.Append($"<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"{fill}\"/>");
+        if (cell.CellMargin is { } m)
+            sb.Append($"<w:tcMar><w:top w:w=\"{Number(Twips(m.Top))}\" w:type=\"dxa\"/><w:left w:w=\"{Number(Twips(m.Left))}\" w:type=\"dxa\"/><w:bottom w:w=\"{Number(Twips(m.Bottom))}\" w:type=\"dxa\"/><w:right w:w=\"{Number(Twips(m.Right))}\" w:type=\"dxa\"/></w:tcMar>");
         if (cell.VerticalAlign != HVerticalAlign.Top)
             sb.Append($"<w:vAlign w:val=\"{(cell.VerticalAlign == HVerticalAlign.Center ? "center" : "bottom")}\"/>");
         sb.Append("</w:tcPr>").Append(content);

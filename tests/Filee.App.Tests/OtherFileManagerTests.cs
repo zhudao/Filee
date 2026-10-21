@@ -37,6 +37,38 @@ public class OtherFileManagerTests
     }
 
     [Fact]
+    public void A_dragged_folder_counts_like_a_file_so_it_can_go_into_an_archive()
+    {
+        var folder = Directory.CreateTempSubdirectory("filee-drag-folder-").FullName;
+        var file = Path.Combine(folder, "1.png");
+        File.WriteAllBytes(file, [1]);
+        try
+        {
+            Assert.True(ConversionService.Exists(file));
+            Assert.True(ConversionService.Exists(folder));
+            Assert.False(ConversionService.Exists(Path.Combine(folder, "missing.png")));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void A_dragged_folder_loses_its_trailing_slash_and_a_dragged_root_is_ignored()
+    {
+        const string plist = """
+            <plist version="1.0"><array><string>/Users/a/folder/</string><string>/</string><string>/Users/a/1.png</string></array></plist>
+            """;
+        using var data = Drag(PasteboardPaths.FilenamesType, Encoding.UTF8.GetBytes(plist));
+        HashSet<string> existing = ["/Users/a/folder", "/", "/Users/a/1.png"];
+
+        Assert.Equal(["/Users/a/folder", "/Users/a/1.png"], DraggedFiles.Local(data, existing.Contains));
+        Assert.True(DraggedFiles.IsRoot(Path.GetPathRoot(Path.GetTempPath())!));
+        Assert.False(DraggedFiles.IsRoot(Path.GetTempPath()));
+    }
+
+    [Fact]
     public void A_drag_of_text_or_file_promises_brings_no_files_and_says_what_it_offered()
     {
         using var text = new DataTransfer();

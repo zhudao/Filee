@@ -24,6 +24,12 @@ public sealed class MacOSPlatformServices : IPlatformServices
 
     public bool SupportsSelectionShortcut => true;
 
+    /// <summary>Whether Filee can change its visibility in the macOS Dock.</summary>
+    public bool SupportsDockVisibility => true;
+
+    /// <summary>Changes whether Filee appears in the macOS Dock.</summary>
+    public bool TrySetShowInDock(bool show) => NativeMethods.SetShowInDock(show);
+
     public string? LastSelectionError { get; private set; }
 
     public bool IsFileManagerAt(int x, int y) =>
@@ -100,6 +106,9 @@ public sealed class MacOSPlatformServices : IPlatformServices
         var fullPath = Path.GetFullPath(path);
         Run("/usr/bin/open", File.Exists(fullPath) ? ["-R", fullPath] : [fullPath], 10_000);
     }
+
+    /// <summary>Through open(1), like a double-click in Finder.</summary>
+    public void OpenFile(string path) => Run("/usr/bin/open", [Path.GetFullPath(path)], 10_000);
 
     public void OpenAccessibilitySettings() =>
         Run("/usr/bin/open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"], 10_000);

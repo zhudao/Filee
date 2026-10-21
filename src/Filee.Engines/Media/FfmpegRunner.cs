@@ -102,6 +102,7 @@ internal static class FfmpegRunner
 
         // Make sure the asynchronous readers have delivered the last lines.
         process.WaitForExit();
+        AppLocalRuntime.ThrowIfMissing(ffmpeg, process.ExitCode);
         string stderr;
         lock (errors)
             stderr = string.Join(Environment.NewLine, errors);

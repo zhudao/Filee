@@ -94,6 +94,17 @@ public class BuiltInDataTests
     }
 
     [Fact]
+    public void Only_compress_into_one_archive_presets_take_folders()
+    {
+        var presets = BuiltInData.CreatePresets().ToDictionary(p => p.Id);
+        Assert.True(presets["zip-all"].PacksIntoOneArchive);
+        Assert.False(presets["to-zip"].PacksIntoOneArchive); // one archive for each file
+        Assert.False(presets["extract"].PacksIntoOneArchive); // a folder is no archive to pack into
+        Assert.False(presets["to-pdf"].PacksIntoOneArchive);
+        Assert.False(new Preset { TargetFormat = "pdf", Archive = { CombineIntoOne = true } }.PacksIntoOneArchive);
+    }
+
+    [Fact]
     public void Preset_ids_are_unique()
     {
         var presets = BuiltInData.CreatePresets();

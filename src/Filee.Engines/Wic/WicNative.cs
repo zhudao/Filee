@@ -39,11 +39,17 @@ internal static class WicNative
         (IWICImagingFactory)(Activator.CreateInstance(Type.GetTypeFromCLSID(ImagingFactoryClsid, throwOnError: true)!)
                              ?? throw new InvalidOperationException("The Windows Imaging Component is not available."));
 
-    /// <summary>Releases a COM object now instead of when the garbage collector gets to it (a decoder keeps its file open).</summary>
+    /// <summary>
+    /// Releases this caller's reference to a COM object now instead of when the garbage collector gets to it (a decoder
+    /// keeps its file open). Once, not FinalReleaseComObject: WIC hands every caller the same cached component info
+    /// for a pixel format, and .NET one wrapper per COM object, so two conversions at once share it; a final release
+    /// on one thread cut the other's wrapper off in the middle of its calls ("COM object that has been separated from
+    /// its underlying RCW").
+    /// </summary>
     public static void Release(object? comObject)
     {
         if (comObject is not null && Marshal.IsComObject(comObject))
-            Marshal.FinalReleaseComObject(comObject);
+            Marshal.ReleaseComObject(comObject);
     }
 
     [StructLayout(LayoutKind.Sequential)]

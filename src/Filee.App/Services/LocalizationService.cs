@@ -15,16 +15,8 @@ namespace Filee.App.Services;
 /// <summary>JSON based localization with live language switching.</summary>
 public sealed class LocalizationService : ILocalizer
 {
-    /// <summary>Languages shipped with Filee: code → native name (shown in the language picker).</summary>
-    public static readonly IReadOnlyList<(string Code, string NativeName)> Languages =
-    [
-        ("en", "English"),
-        ("es", "Español"),
-        ("ko", "한국어"),
-        ("zh-CN", "简体中文"),
-        ("pl", "Polski"),
-        ("hi", "हिन्दी"),
-    ];
+    /// <summary>Languages shipped with Filee: code → native name (shown in the language picker; see AppLanguages).</summary>
+    public static readonly IReadOnlyList<(string Code, string NativeName)> Languages = AppLanguages.All;
 
     private readonly ResourceDictionary _resources = new();
     private readonly Dictionary<string, string> _english;
@@ -87,6 +79,13 @@ public sealed class LocalizationService : ILocalizer
         LanguageChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Left-to-right <paramref name="text"/> inside a sentence of the UI language: in Arabic a list like ".jpg, .png"
+    /// keeps its dots in front (left-to-right marks around it). Unchanged in left-to-right languages.
+    /// </summary>
+    public static string LeftToRight(string text) =>
+        CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft ? "\u200E" + text + "\u200E" : text;
+
     /// <summary>Maps "auto" / a culture name to one of the shipped languages.</summary>
     public static string Resolve(string setting)
     {
@@ -96,6 +95,8 @@ public sealed class LocalizationService : ILocalizer
 
         // macOS gives an app started from Finder no LANG: its language list comes from the system instead.
         var ui = Filee.Platform.MacOS.MacOSLocale.PreferredLanguage() ?? CultureInfo.InstalledUICulture.Name;
+        if (ui.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+            return "ja";
         if (ui.StartsWith("ko", StringComparison.OrdinalIgnoreCase))
             return "ko";
         if (ui.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
@@ -106,6 +107,11 @@ public sealed class LocalizationService : ILocalizer
             return "es";
         if (ui.StartsWith("hi", StringComparison.OrdinalIgnoreCase))
             return "hi";
+        if (ui.StartsWith("ru", StringComparison.OrdinalIgnoreCase))
+            return "ru";
+        // "ar" and every region ("ar-SA", "ar-EG", …), but not other codes starting with "ar".
+        if (ui.Equals("ar", StringComparison.OrdinalIgnoreCase) || ui.StartsWith("ar-", StringComparison.OrdinalIgnoreCase))
+            return "ar";
         return "en";
     }
 

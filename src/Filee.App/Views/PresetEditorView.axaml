@@ -24,6 +24,7 @@
       <StackPanel Grid.Column="2">
         <TextBlock Classes="label" Text="{DynamicResource presets.target}" />
         <ComboBox x:Name="TargetBox" Classes="targets" ItemsSource="{Binding Targets}" SelectedItem="{Binding Target}"
+                  IsEnabled="{Binding CanChangeTarget}"
                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" MaxDropDownHeight="420">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="vm:IChoice">
@@ -36,6 +37,56 @@
         </ComboBox>
       </StackPanel>
     </Grid>
+
+    <!-- Live / Motion Photo of a video (JPG, HEIC): the kind on a row of its own, so its names are never cut off -->
+    <Border x:Name="LivePhotoCard" Classes="card" IsVisible="{Binding ShowLivePhotoChoice}" Padding="14">
+      <StackPanel Spacing="10">
+        <TextBlock Classes="h2" Text="{DynamicResource presets.group.live_photo}" />
+        <StackPanel>
+          <TextBlock Classes="label" TextWrapping="Wrap" Text="{DynamicResource presets.live_photo}" />
+          <ComboBox ItemsSource="{Binding LivePhotoKinds}" SelectedItem="{Binding LivePhotoChoice}" HorizontalAlignment="Stretch" />
+        </StackPanel>
+        <StackPanel Spacing="10" IsVisible="{Binding IsLivePhoto}">
+          <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding LivePhotoHint}" />
+          <UniformGrid Columns="3" ColumnSpacing="12">
+            <StackPanel>
+              <TextBlock Classes="label" TextWrapping="Wrap" Text="{DynamicResource presets.live_photo_start}" />
+              <NumericUpDown Value="{Binding LivePhotoStart}" Minimum="0" Maximum="86400" Increment="0.5" FormatString="0.##" />
+            </StackPanel>
+            <StackPanel>
+              <TextBlock Classes="label" TextWrapping="Wrap" Text="{DynamicResource presets.live_photo_length}" />
+              <NumericUpDown Value="{Binding LivePhotoLength}" Minimum="0.5" Maximum="5" Increment="0.5" FormatString="0.##" />
+            </StackPanel>
+            <StackPanel>
+              <TextBlock Classes="label" TextWrapping="Wrap" Text="{DynamicResource presets.live_photo_cover}" />
+              <NumericUpDown Value="{Binding LivePhotoCover}" Minimum="0" Maximum="5" Increment="0.1" FormatString="0.##" />
+            </StackPanel>
+          </UniformGrid>
+          <StackPanel>
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Right" Text="{Binding Quality}" FontWeight="SemiBold" />
+              <TextBlock Classes="label" Text="{DynamicResource presets.live_photo_quality}" />
+            </DockPanel>
+            <Slider Minimum="1" Maximum="100" Value="{Binding Quality}" TickFrequency="1" IsSnapToTickEnabled="True" />
+          </StackPanel>
+          <UniformGrid Columns="2" ColumnSpacing="12" RowSpacing="10">
+            <StackPanel>
+              <TextBlock Classes="label" Text="{DynamicResource presets.live_photo_video_quality}" />
+              <ComboBox ItemsSource="{Binding MediaQualities}" SelectedItem="{Binding MediaQuality}" HorizontalAlignment="Stretch" />
+            </StackPanel>
+            <StackPanel>
+              <TextBlock Classes="label" Text="{DynamicResource presets.max_height}" />
+              <ComboBox ItemsSource="{Binding MaxHeights}" SelectedItem="{Binding MaxHeight}" HorizontalAlignment="Stretch" />
+            </StackPanel>
+            <StackPanel>
+              <TextBlock Classes="label" Text="{DynamicResource presets.video_codec}" />
+              <ComboBox ItemsSource="{Binding LivePhotoCodecs}" SelectedItem="{Binding LivePhotoCodecChoice}" HorizontalAlignment="Stretch" />
+            </StackPanel>
+            <CheckBox VerticalAlignment="Bottom" Content="{DynamicResource presets.remove_audio}" IsChecked="{Binding RemoveAudio}" />
+          </UniformGrid>
+        </StackPanel>
+      </StackPanel>
+    </Border>
 
     <!-- Image options -->
     <Border Classes="card" IsVisible="{Binding ShowImage}" Padding="14">
@@ -140,6 +191,8 @@
     <Border x:Name="MediaCard" Classes="card" IsVisible="{Binding ShowMedia}" Padding="14">
       <StackPanel Spacing="10">
         <TextBlock Classes="h2" Text="{DynamicResource presets.group.media}" />
+        <CheckBox Content="{DynamicResource presets.extract_motion_photo}" IsChecked="{Binding ExtractMotionPhoto}"
+                  IsVisible="{Binding ShowExtractMotionPhoto}" ToolTip.Tip="{DynamicResource presets.extract_motion_photo_hint}" />
         <Grid ColumnDefinitions="*,12,*" IsVisible="{Binding ShowMediaQuality}">
           <StackPanel>
             <TextBlock Classes="label" Text="{DynamicResource presets.media_quality}" />
@@ -340,6 +393,8 @@
         </StackPanel>
         <CheckBox Content="{DynamicResource presets.keep_dates}" IsChecked="{Binding KeepDates}"
                   ToolTip.Tip="{DynamicResource presets.keep_dates_hint}" />
+        <CheckBox Content="{DynamicResource presets.zip_result}" IsChecked="{Binding ZipResult}" IsVisible="{Binding ShowZipResult}"
+                  ToolTip.Tip="{DynamicResource presets.zip_result_hint}" />
       </StackPanel>
     </Border>
   </StackPanel>

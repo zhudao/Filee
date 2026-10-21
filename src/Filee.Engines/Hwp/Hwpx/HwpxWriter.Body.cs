@@ -300,7 +300,7 @@ internal sealed partial class HwpxWriter
             _ => "LEFT",
         };
         sb.Append($"<hp:pos treatAsChar=\"0\" affectLSpacing=\"0\" flowWithText=\"1\" allowOverlap=\"0\" holdAnchorAndSO=\"0\" vertRelTo=\"PARA\" horzRelTo=\"COLUMN\" vertAlign=\"TOP\" horzAlign=\"{horizontalAlign}\" vertOffset=\"0\" horzOffset=\"{(table.Align == HAlign.Left ? table.Indent : 0)}\"/>");
-        sb.Append("<hp:outMargin left=\"0\" right=\"0\" top=\"0\" bottom=\"1417\"/>");
+        sb.Append($"<hp:outMargin left=\"0\" right=\"0\" top=\"0\" bottom=\"{(table.Tight ? 0 : 1417)}\"/>");
         sb.Append($"<hp:inMargin left=\"{margin.Left}\" right=\"{margin.Right}\" top=\"{margin.Top}\" bottom=\"{margin.Bottom}\"/>");
 
         var outerWidth = _width;
@@ -338,9 +338,14 @@ internal sealed partial class HwpxWriter
         _width = outerWidth;
         sb.Append("</hp:tbl>");
 
+        // The paragraph holding the table has a text line under it; a tight table's is 1 pt with no spacing.
+        var (paraPrId, charPrId) = table.Tight
+            ? (ParaPr(_base.ParaPrId, new HParaFormat(Before: 0, After: 0, LineSpacing: new HLineSpacing(HLineSpacingKind.Percent, 100)), null),
+               CharPr(_base.CharPrId, new HCharFormat(Size: 100)))
+            : (_base.ParaPrId, _base.CharPrId);
         var runs = new RunBuilder();
-        runs.Control(_base.CharPrId, sb.ToString(), isObject: true);
-        var paragraph = $"<hp:p id=\"0\" paraPrIDRef=\"{_base.ParaPrId}\" styleIDRef=\"{_base.StyleId}\" pageBreak=\"{(table.PageBreakBefore ? 1 : 0)}\" columnBreak=\"0\" merged=\"0\">{leadingRun}{runs.Finish(_base.CharPrId, leadingRun is not null)}</hp:p>";
+        runs.Control(charPrId, sb.ToString(), isObject: true);
+        var paragraph = $"<hp:p id=\"0\" paraPrIDRef=\"{paraPrId}\" styleIDRef=\"{_base.StyleId}\" pageBreak=\"{(table.PageBreakBefore ? 1 : 0)}\" columnBreak=\"0\" merged=\"0\">{leadingRun}{runs.Finish(charPrId, leadingRun is not null)}</hp:p>";
         return paragraph + string.Concat(table.Caption.Select(b => Block(b)));
     }
 

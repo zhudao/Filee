@@ -12,6 +12,12 @@ public interface IPlatformServices
     /// </summary>
     bool PressCarriesPosition => true;
 
+    /// <summary>Whether this platform can show or hide Filee in the Dock.</summary>
+    bool SupportsDockVisibility => false;
+
+    /// <summary>Sets whether Filee appears in the Dock, returning whether the platform accepted the change.</summary>
+    bool TrySetShowInDock(bool show) => false;
+
     /// <summary>True if the window at the screen point belongs to the file manager or desktop. Coordinates are pixels on Windows/Linux and desktop points on macOS.</summary>
     bool IsFileManagerAt(int x, int y);
 
@@ -66,6 +72,12 @@ public interface IPlatformServices
     /// </summary>
     string DescribeForegroundWindow() => "";
 
+    /// <summary>
+    /// The user's Downloads folder, where files dragged from a browser are saved unless Settings says otherwise.
+    /// Windows asks the shell (the folder can be moved); elsewhere ~/Downloads.
+    /// </summary>
+    string DownloadsFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+
     /// <summary>System drag threshold in the same units as screen coordinates.</summary>
     int SystemDragThreshold { get; }
 
@@ -89,6 +101,18 @@ public interface IPlatformServices
 
     /// <summary>Opens a folder in the file manager and selects the file, if given.</summary>
     void RevealInFileManager(string path);
+
+    /// <summary>Opens a file with the app the system uses for its type (a folder opens in the file manager).</summary>
+    void OpenFile(string path);
+
+    /// <summary>Whether the system has a dialog that lets the user pick the app to open a file with.</summary>
+    bool SupportsOpenWith => false;
+
+    /// <summary>
+    /// Shows the system's "Open with" dialog for <paramref name="path"/> (only where <see cref="SupportsOpenWith"/>).
+    /// Returns at once: the dialog runs on its own.
+    /// </summary>
+    void OpenWith(string path) { }
 
     /// <summary>
     /// Puts an always-on-top window back at the top of the z-order without activating it. Windows can push such a
@@ -143,9 +167,16 @@ public sealed class NullPlatformServices : IPlatformServices
         var target = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
         if (target is null)
             return;
+        Open(target);
+    }
+
+    public void OpenFile(string path) => Open(path);
+
+    private static void Open(string path)
+    {
         var opener = OperatingSystem.IsMacOS() ? "open" : "xdg-open";
         var start = new System.Diagnostics.ProcessStartInfo(opener) { UseShellExecute = false };
-        start.ArgumentList.Add(target);
+        start.ArgumentList.Add(path);
         System.Diagnostics.Process.Start(start)?.Dispose();
     }
 }

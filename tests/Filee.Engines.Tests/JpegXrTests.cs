@@ -69,6 +69,32 @@ public class JpegXrTests(EngineFixture fx) : IClassFixture<EngineFixture>
     }
 
     [Fact]
+    public async Task Several_jpeg_xr_pictures_are_read_at_once()
+    {
+        // WIC gives every reader of a pixel format the same component info, and .NET one wrapper for it: a reader
+        // that made a final release of it cut the others off ("COM object that has been separated from its RCW").
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "JPEG XR is read with the Windows Imaging Component.");
+        var dir = fx.NewFolder();
+        var sdr = Path.Combine(dir, "photo.jxr");
+        JpegXrBuilder.WriteBgr(sdr, 64, 48, (x, y) => ((byte)x, (byte)y, 128));
+        var hdr = Path.Combine(dir, "screenshot.jxr");
+        JpegXrBuilder.WriteHdr(hdr, 64, 48, (x, _) => (x / 32f, 0.5f, 0.25f));
+
+        var readers = Enumerable.Range(0, 8).Select(reader => Task.Run(() =>
+        {
+            if (!OperatingSystem.IsWindows())
+                return;
+            for (var i = 0; i < 40; i++)
+            {
+                using var image = WicImageReader.Read((reader + i) % 2 == 0 ? sdr : hdr);
+                Assert.Equal((64u, 48u), (image.Width, image.Height));
+            }
+        }, TestContext.Current.CancellationToken));
+
+        await Task.WhenAll(readers);
+    }
+
+    [Fact]
     public async Task An_hdr_screenshot_of_sdr_content_comes_out_as_it_was_drawn()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "JPEG XR is read with the Windows Imaging Component.");

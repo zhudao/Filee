@@ -1,5 +1,7 @@
 // One running / finished conversion as shown in the toast window.
 
+using System.Diagnostics;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Filee.App.Services;
@@ -28,6 +30,39 @@ public sealed partial class JobViewModel : ObservableObject
         var what = job.Sources.Count == 1 ? Path.GetFileName(job.Sources[0]) : loc.Format("home.files", job.Sources.Count);
         Title = loc.Format("toast.converting", what, job.PresetDisplayName);
         Refresh();
+        if (job.Fetcher is not null)
+        {
+            // Files from a browser are saved first: the speed and size badge, rewritten a few times a second.
+            _badge = new DownloadBadge(loc);
+            _badgeTimer = new DispatcherTimer(DownloadBadge.Interval, DispatcherPriority.Background, (_, _) => UpdateDownload(_badgeClock.Elapsed));
+            _badgeTimer.Start();
+        }
+    }
+
+    private readonly DownloadBadge? _badge;
+    private readonly DispatcherTimer? _badgeTimer;
+    private readonly Stopwatch _badgeClock = Stopwatch.StartNew();
+
+    /// <summary>
+    /// "2.4 MB/s · 12.3 / 48.0 MB" while the job downloads (saves files from a browser). The last text stays while the
+    /// badge pops out, so it doesn't go blank as it shrinks.
+    /// </summary>
+    [ObservableProperty] private string? _downloadText;
+
+    /// <summary>The download badge shows; false once the files are saved and converting starts.</summary>
+    [ObservableProperty] private bool _isDownloading;
+
+    /// <summary>Rewrites the download badge for <paramref name="elapsed"/> since the job was shown.</summary>
+    internal void UpdateDownload(TimeSpan elapsed)
+    {
+        if (_badge is null)
+            return;
+        var text = _badge.Update(elapsed, Job.Transfer());
+        if (text is not null)
+            DownloadText = text;
+        IsDownloading = text is not null;
+        if (Job.State is not (JobState.Queued or JobState.Running))
+            _badgeTimer?.Stop();
     }
 
     public ConversionJob Job { get; }
@@ -70,7 +105,9 @@ public sealed partial class JobViewModel : ObservableObject
         HasErrors = failed.Count > 0;
         ErrorDetails = failed.Count == 0 ? null : string.Join(Environment.NewLine,
             failed.Select(f => $"{Path.GetFileName(f.SourcePath)} — {FailureText.Reason(_loc, f.ErrorKey, f.ErrorDetail)}"));
-        CanRetry = _retry is not null && !IsRunning && failed.Count > 0;
+        // A file from a browser that couldn't be saved, or whose original wasn't kept, is gone: nothing to retry with.
+        CanRetry = _retry is not null && !IsRunning && failed.Count > 0
+                   && (Job.Fetcher is null || failed.Any(f => File.Exists(f.SourcePath)));
         IReadOnlyList<string> unknown = IsRunning ? [] : FormatRequest.UnknownExtensions(
             failed.Where(f => f.ErrorKey == "error.unsupported_source").Select(f => f.SourcePath));
         if (!unknown.SequenceEqual(UnknownExtensions))

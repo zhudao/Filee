@@ -10,8 +10,10 @@ namespace Filee.Engines.Infrastructure;
 public static class EngineCaches
 {
     /// <summary>
-    /// Drops what the engines cache between conversions. Call only while no conversion runs: the next one looks
-    /// everything up again.
+    /// Drops what the engines cache between conversions; the next one looks everything up again. Meant for idle
+    /// times, but safe while a conversion runs (the trim's busy check can't stop one from starting right after it):
+    /// the caches only forget references, nothing still in use is disposed, and each thread disposes its own
+    /// measuring fonts the next time it measures. NativeMemoryStressTests releases them during conversions.
     /// </summary>
     public static void Release()
     {

@@ -19,8 +19,9 @@ using SkiaSharp;
 
 namespace Filee.Engines.Hwp;
 
-/// <summary>An installed font: whether rhwp can embed it and which characters it has.</summary>
-internal sealed record InstalledFont(bool Usable, Func<int, bool> Has);
+/// <summary>An installed font: whether rhwp can embed it, which characters it has and how wide they are.</summary>
+/// <param name="Advance">Advance width of a character in em, null when the font lacks it (or is not measured).</param>
+internal sealed record InstalledFont(bool Usable, Func<int, bool> Has, Func<int, double?>? Advance = null);
 
 internal static class RhwpFonts
 {
@@ -196,11 +197,22 @@ internal static class RhwpFonts
             if (typeface is null)
                 continue;
             if (OperatingSystem.IsWindows() || string.Equals(typeface.FamilyName, candidate, StringComparison.OrdinalIgnoreCase))
-                return new InstalledFont(IsUsable(typeface), codePoint => typeface.GetGlyph(codePoint) != 0);
-            typeface.Dispose();
+                return new InstalledFont(IsUsable(typeface), codePoint => typeface.GetGlyph(codePoint) != 0, codePoint => Advance(typeface, codePoint));
+            // Not disposed: SkiaSharp hands out one wrapper per native typeface, so this may be the very object the
+            // CAD font cache, Svg.Skia or the UI's font manager still draws with. Disposing it would leave them a
+            // null handle (a native crash on their next call); the finalizer releases it once nobody uses it.
         }
         return null;
     });
+
+    private static double? Advance(SKTypeface typeface, int codePoint)
+    {
+        var glyph = typeface.GetGlyph(codePoint);
+        if (glyph == 0)
+            return null;
+        using var font = new SKFont(typeface, 1000);
+        return font.GetGlyphWidths([glyph])[0] / 1000.0;
+    }
 
     /// <summary>False when the font has CFF2 outlines (variable OpenType fonts made from PostScript outlines).</summary>
     internal static bool IsUsable(SKTypeface typeface) => !typeface.GetTableTags().Contains(Tag("CFF2"));

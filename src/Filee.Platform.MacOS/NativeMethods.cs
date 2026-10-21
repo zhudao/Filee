@@ -167,6 +167,20 @@ internal static class NativeMethods
             AddDraggedTypesTo(Send(subviews, sel_registerName("objectAtIndex:"), index), types);
     }
 
+    /// <summary>
+    /// Sets whether Filee appears in the Dock by changing the application activation policy. Changing the policy
+    /// deactivates the app, so activate it again when the change succeeds.
+    /// </summary>
+    internal static bool SetShowInDock(bool show)
+    {
+        using var pool = new AutoreleasePool();
+        var application = Send(objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
+        var succeeded = SendBoolWithInteger(application, sel_registerName("setActivationPolicy:"), show ? 0 : 1);
+        if (succeeded)
+            SendInteger(application, sel_registerName("activateIgnoringOtherApps:"), 1);
+        return succeeded;
+    }
+
     private readonly struct AutoreleasePool : IDisposable
     {
         private readonly nint _pool = Send(Send(objc_getClass("NSAutoreleasePool"), sel_registerName("alloc")), sel_registerName("init"));
@@ -272,4 +286,8 @@ internal static class NativeMethods
 
     [DllImport(ObjC, EntryPoint = "objc_msgSend")]
     private static extern void SendInteger(nint receiver, nint selector, nint value);
+
+    [DllImport(ObjC, EntryPoint = "objc_msgSend")]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private static extern bool SendBoolWithInteger(nint receiver, nint selector, nint value);
 }

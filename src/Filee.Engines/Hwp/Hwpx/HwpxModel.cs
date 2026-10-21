@@ -130,6 +130,13 @@ internal sealed class HTable : HBlock
     /// <summary>The table starts a new page (a page break set in Excel).</summary>
     public bool PageBreakBefore { get; set; }
 
+    /// <summary>
+    /// The table takes no more height than its rows (fixed layouts: OFD, whose next paragraph has its own distance).
+    /// In HWPX it gets no 5 mm space under it and the paragraph holding it no empty line of its own, so a full page
+    /// does not run over.
+    /// </summary>
+    public bool Tight { get; set; }
+
     public List<HBlock> Caption { get; } = [];
 }
 
@@ -392,7 +399,7 @@ internal readonly record struct HTabStop(int Position, HTabKind Kind, string Lea
 /// <summary>Character formatting; null members keep the 한글 style's value.</summary>
 /// <param name="Size">Font size in 1/100 pt.</param>
 /// <param name="Font">Font for Latin text.</param>
-/// <param name="EastAsianFont">Font for Hangul / Hanja / Japanese text.</param>
+/// <param name="EastAsianFont">Font for Hangul / Hanja / Japanese text and CJK punctuation (the symbol slot).</param>
 /// <param name="Color">Text colour "#RRGGBB".</param>
 /// <param name="Shade">Background (highlight) colour "#RRGGBB".</param>
 internal readonly record struct HCharFormat(

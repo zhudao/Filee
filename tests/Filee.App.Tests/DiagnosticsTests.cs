@@ -4,6 +4,7 @@
 using Avalonia.Headless.XUnit;
 using Filee.App.Services;
 using Filee.Core.Platform;
+using Filee.Core.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -190,6 +191,30 @@ public class StartupDiagnosticsTests
             log.LogInformation("{Startup}", "Filee test starting");
             var file = Assert.Single(Directory.GetFiles(folder, "filee-*.log"));
             Assert.Contains("Program: Filee test starting", File.ReadAllText(file));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Early_store_load_logs_corrupt_settings_and_keeps_broken_copy()
+    {
+        var folder = Directory.CreateTempSubdirectory("filee-early-store-").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(folder, "settings.json"), "{broken");
+            _ = StartupDiagnostics.CreateEarlyLogger(Path.Combine(folder, "logs"), out var storeLogger);
+            var store = new UserDataStore(folder, storeLogger);
+
+            store.Load();
+
+            var file = Assert.Single(Directory.GetFiles(Path.Combine(folder, "logs"), "filee-*.log"));
+            Assert.Contains("WARN UserDataStore: Could not read", File.ReadAllText(file));
+            Assert.True(File.Exists(Path.Combine(folder, "settings.json.broken")));
+            Assert.True(store.Settings.ShowInDock);
+            Assert.True(store.Settings.ShowMenuBarIcon);
         }
         finally
         {

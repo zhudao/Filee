@@ -87,10 +87,10 @@ public static class Elevation
             object? empty = null; // VT_EMPTY
             desktop = ((IShellWindows)shellWindows).FindWindowSW(ref location, ref empty, SWC_DESKTOP, out _, SWFO_NEEDDISPATCH)
                       ?? throw new InvalidOperationException("Explorer's desktop window was not found.");
-            var topLevelBrowser = SID_STopLevelBrowser;
-            var shellBrowserId = typeof(IShellBrowser).GUID;
-            browser = ((IServiceProvider)desktop).QueryService(ref topLevelBrowser, ref shellBrowserId);
-            view = ((IShellBrowser)browser).QueryActiveShellView();
+            var topLevelBrowser = ShellInterop.SID_STopLevelBrowser;
+            var shellBrowserId = typeof(ShellInterop.IShellBrowser).GUID;
+            browser = ((ShellInterop.IServiceProvider)desktop).QueryService(ref topLevelBrowser, ref shellBrowserId);
+            view = ((ShellInterop.IShellBrowser)browser).QueryActiveShellView();
             var dispatchId = IID_IDispatch;
             background = ((IShellView)view).GetItemObject(SVGIO_BACKGROUND, ref dispatchId);
             // IShellFolderViewDual.Application is Explorer's IShellDispatch2: its ShellExecute runs in Explorer.
@@ -181,7 +181,6 @@ public static class Elevation
     private const int SWFO_NEEDDISPATCH = 1;
     private const uint SVGIO_BACKGROUND = 0;
     private const int SW_SHOWNORMAL = 1;
-    private static readonly Guid SID_STopLevelBrowser = new("4C96BE40-915C-11CF-99D3-00AA004AE837");
     private static readonly Guid IID_IDispatch = new("00020400-0000-0000-C000-000000000046");
 
     // Only the methods Filee calls are typed; the slots before them keep the vtable order and are never called.
@@ -200,33 +199,6 @@ public static class Elevation
 
         [return: MarshalAs(UnmanagedType.IDispatch)]
         object? FindWindowSW(ref object location, ref object? locationRoot, int windowClass, out int hwnd, int options);
-    }
-
-    [ComImport, Guid("6D5140C1-7436-11CE-8034-00AA006009FA"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IServiceProvider
-    {
-        [return: MarshalAs(UnmanagedType.IUnknown)]
-        object QueryService(ref Guid service, ref Guid riid);
-    }
-
-    [ComImport, Guid("000214E2-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IShellBrowser
-    {
-        void GetWindow();
-        void ContextSensitiveHelp();
-        void InsertMenusSB();
-        void SetMenuSB();
-        void RemoveMenusSB();
-        void SetStatusTextSB();
-        void EnableModelessSB();
-        void TranslateAcceleratorSB();
-        void BrowseObject();
-        void GetViewStateStream();
-        void GetControlWindow();
-        void SendControlMsg();
-
-        [return: MarshalAs(UnmanagedType.IUnknown)]
-        object QueryActiveShellView();
     }
 
     [ComImport, Guid("000214E3-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

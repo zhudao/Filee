@@ -353,6 +353,20 @@ public class JobQueueTests
     }
 
     [Fact]
+    public async Task A_folder_ending_in_a_separator_is_packed_next_to_itself()
+    {
+        // The command line keeps "Photos\" as typed: the archive is still Photos_files.zip beside the folder.
+        using var dir = new TempDir();
+        var folder = Directory.CreateDirectory(Path.Combine(dir.Path, "Photos")).FullName;
+        await using var queue = new JobQueue(new ConverterCatalog([]), combiner: new FakeCombiner());
+        var preset = new Preset { TargetFormat = "zip", Archive = { CombineIntoOne = true }, Output = { FileNamePattern = "{name}_files" } };
+
+        var job = await Run(queue, [folder + Path.DirectorySeparatorChar], preset);
+
+        Assert.Equal(Path.Combine(dir.Path, "Photos_files.zip"), job.Outputs.Single());
+    }
+
+    [Fact]
     public async Task No_route_is_reported()
     {
         using var dir = new TempDir();

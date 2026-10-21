@@ -7,6 +7,7 @@ using Filee.Engines.Data;
 using Filee.Engines.Ebooks;
 using Filee.Engines.Email;
 using Filee.Engines.Fonts;
+using Filee.Engines.Geo;
 using Filee.Engines.Hwp;
 using Filee.Engines.Hwp.Hwpx;
 using Filee.Engines.Icns;
@@ -61,6 +62,7 @@ public static class EngineRegistry
         new FfmpegConverter(loggers?.CreateLogger<FfmpegConverter>()),
         new CadConverter(),
         new ModelConverter(),
+        new GeoConverter(),
         new EbookConverter(),
         new PandocConverter(),
         new GhostscriptConverter(),

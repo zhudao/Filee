@@ -38,6 +38,9 @@ internal static class Program
     /// <summary>Program's own log, set up before anything else so even a failed start leaves a line.</summary>
     internal static ILogger Log { get; private set; } = NullLogger.Instance;
 
+    /// <summary>Settings loaded before macOS initializes its Dock policy.</summary>
+    internal static UserDataStore? PreloadedStore { get; private set; }
+
     /// <summary>Raised on the UI thread when the single-instance lock was taken again after a failed restart.</summary>
     public static event Action<SingleInstance>? InstanceAcquired;
 
@@ -45,7 +48,8 @@ internal static class Program
     public static int Main(string[] args)
     {
         Options = CommandLine.Parse(args);
-        Log = StartupDiagnostics.CreateEarlyLogger(Path.Combine(UserDataStore.DefaultDirectory, "logs"));
+        PreloadedStore = null;
+        Log = StartupDiagnostics.CreateEarlyLogger(Path.Combine(UserDataStore.DefaultDirectory, "logs"), out var earlyStoreLogger);
         StartupDiagnostics.LogUnhandledExceptions(Log);
         Elevation = Filee.Platform.Windows.Elevation.Probe();
         var startup = StartupDiagnostics.Describe(UpdateService.CurrentVersion, Environment.ProcessPath,
@@ -95,6 +99,11 @@ internal static class Program
 
         try
         {
+            if (OperatingSystem.IsMacOS())
+            {
+                PreloadedStore = new UserDataStore(UserDataStore.DefaultDirectory, earlyStoreLogger);
+                PreloadedStore.Load();
+            }
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
         }
         catch (InvalidOperationException ex) when (OperatingSystem.IsMacOS() && ex.Message.Contains("RenderTimer", StringComparison.Ordinal))
@@ -263,18 +272,28 @@ internal static class Program
     }
 
     /// <summary>Also used by the XAML previewer.</summary>
-    public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<App>()
-            .UsePlatformDetect()
+    public static AppBuilder BuildAvaloniaApp()
+    {
+        var builder = AppBuilder.Configure<App>().UsePlatformDetect();
+        if (OperatingSystem.IsMacOS())
+            builder = builder.With(new MacOSPlatformOptions { ShowInDock = PreloadedStore?.Settings.ShowInDock ?? true });
+        if (OperatingSystem.IsWindows())
+            builder = builder.With(WindowsRendering.Options(
+                WindowsRendering.Normalize(Environment.GetEnvironmentVariable(WindowsRendering.Variable)),
+                adapters => Log.LogInformation("Graphics adapters: {Adapters}", adapters)));
+        builder = builder
             .ConfigureFonts(fonts => fonts.AddFontCollection(new FileeFontCollection()))
 #if DEBUG
             .WithDeveloperTools()
 #endif
             .LogToTrace();
+        AvaloniaLogForwarder.Install(Log);
+        return builder;
+    }
 }
 
-/// <summary>Embedded Noto fonts: <c>fonts:Filee#Noto Sans</c>, <c>#Noto Sans KR</c>, <c>#Noto Sans SC</c>,
-/// <c>#Noto Sans Devanagari</c>.</summary>
+/// <summary>Embedded Noto fonts: <c>fonts:Filee#Noto Sans</c>, <c>#Noto Sans JP</c>, <c>#Noto Sans KR</c>,
+/// <c>#Noto Sans SC</c>, <c>#Noto Sans Devanagari</c>, <c>#Noto Sans Arabic</c>.</summary>
 internal sealed class FileeFontCollection() : Avalonia.Media.Fonts.EmbeddedFontCollection(
     new Uri("fonts:Filee", UriKind.Absolute),
     new Uri("avares://Filee/Assets/Fonts", UriKind.Absolute));

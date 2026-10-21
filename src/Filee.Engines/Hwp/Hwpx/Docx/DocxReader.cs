@@ -430,7 +430,7 @@ internal sealed partial class DocxReader
             _reader = reader;
             _props = props;
             _output = output;
-            _format = reader.ParaFormat(props);
+            _format = reader.ParaFormat(props, mark.Size);
             _mark = reader.CharFormat(mark);
             _heading = reader.HeadingLevel(props, pPr);
             _list = reader.Numbering(props.NumId) is { } numbering ? new HListRef(numbering, Math.Clamp(props.Ilvl ?? 0, 0, 8), Numbered: true) : null;
@@ -638,7 +638,7 @@ internal sealed partial class DocxReader
             case "pict" or "object":
                 if (ShowsText())
                 {
-                    foreach (var inline in Vml(child))
+                    foreach (var inline in Vml(child, format))
                         builder.Add(inline);
                 }
                 break;

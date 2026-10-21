@@ -48,7 +48,7 @@ public sealed class UnhwpConverter : IConverter
     public Task<IReadOnlyList<string>> ConvertAsync(ConversionStep step, IProgress<double>? progress, CancellationToken cancellationToken) =>
         Task.Run<IReadOnlyList<string>>(() =>
         {
-            using var document = UnhwpDocument.ParseFile(step.InputPath);
+            using var document = Parse(step.InputPath);
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report(0.5);
 
@@ -67,6 +67,22 @@ public sealed class UnhwpConverter : IConverter
             progress?.Report(1);
             return [path];
         }, cancellationToken);
+
+    /// <summary>
+    /// Opens the document. unhwp.dll needs VCRUNTIME140.dll, which the Windows packages put next to it (see
+    /// <see cref="AppLocalRuntime"/>); without it Windows cannot load the library.
+    /// </summary>
+    private static UnhwpDocument Parse(string path)
+    {
+        try
+        {
+            return UnhwpDocument.ParseFile(path);
+        }
+        catch (DllNotFoundException ex) when (OperatingSystem.IsWindows())
+        {
+            throw new ConversionRefusedException(AppLocalRuntime.ErrorKey, ex.Message);
+        }
+    }
 
     private static string WriteMarkdown(UnhwpDocument document, ConversionStep step, string output)
     {

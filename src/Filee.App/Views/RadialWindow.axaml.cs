@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Filee.App.Controls;
 using Filee.App.Services;
+using Filee.App.ViewModels;
 using Filee.Core.Platform;
 
 namespace Filee.App.Views;
@@ -20,6 +21,8 @@ public partial class RadialWindow : Window
         DragDrop.AddDragOverHandler(Root, OnDragOver);
         DragDrop.AddDragLeaveHandler(Root, OnDragLeave);
         DragDrop.AddDropHandler(Root, OnDrop);
+        // Halfway through a flip (Tab) the donut shows the other face of the profile.
+        Donut.FaceSwapping += (_, _) => (DataContext as RadialViewModel)?.ToggleFace();
     }
 
     public DonutMenu DonutControl => Donut;
@@ -33,8 +36,8 @@ public partial class RadialWindow : Window
     /// <summary>A drag without files Filee reads entered the window: the formats it offered (for the log).</summary>
     public event Action<string>? DragWithoutFiles;
 
-    /// <summary>A drop landed on the donut: (hit, files).</summary>
-    public event Action<DonutHit, IReadOnlyList<string>>? Dropped;
+    /// <summary>A drop landed on the donut: (hit, what it brought). The handler owns the browser drop in it.</summary>
+    internal event Action<DonutHit, DraggedItems>? Dropped;
 
     public event Action? DragLeft;
 
@@ -52,8 +55,11 @@ public partial class RadialWindow : Window
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
         DragEntered?.Invoke();
-        var files = DraggedFiles.Local(e.DataTransfer);
-        _dragOffersFiles = DraggedFiles.Offered(e.DataTransfer);
+        // Only the names count while dragging: a browser's files are read again from the drop.
+        var dragged = DraggedFiles.Read(e.DataTransfer, forDrop: false);
+        dragged.Web?.Dispose();
+        var files = dragged.Files;
+        _dragOffersFiles = files.Count > 0 || DraggedFiles.Offered(e.DataTransfer);
         if (files.Count == 0)
         {
             DragWithoutFiles?.Invoke(DraggedFiles.Describe(e.DataTransfer));
@@ -94,7 +100,11 @@ public partial class RadialWindow : Window
         Donut.CollapseGroup();
         Donut.SetExternalHighlight(-1);
         e.DragEffects = Donut.Converts(hit) ? DragDropEffects.Copy : DragDropEffects.None;
-        Dropped?.Invoke(hit, DraggedFiles.Local(e.DataTransfer));
+        var dropped = DraggedFiles.Read(e.DataTransfer, forDrop: true);
+        if (Dropped is { } handler)
+            handler(hit, dropped);
+        else
+            dropped.Web?.Dispose();
         e.Handled = true;
     }
 

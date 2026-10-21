@@ -16,7 +16,6 @@ namespace Filee.Core.Settings;
 /// </summary>
 public sealed class UserDataStore
 {
-    private const int MaxHistory = 200;
     private readonly ILogger _log;
     private readonly object _saveLock = new();
 
@@ -110,11 +109,13 @@ public sealed class UserDataStore
     {
         if (!Settings.KeepHistory)
             return;
+        // A lowered limit drops the oldest entries here, with the next conversion.
+        var limit = Settings.EffectiveHistoryLimit;
         lock (_saveLock)
         {
             History.Insert(0, entry);
-            if (History.Count > MaxHistory)
-                History.RemoveRange(MaxHistory, History.Count - MaxHistory);
+            if (History.Count > limit)
+                History.RemoveRange(limit, History.Count - limit);
         }
         Write(HistoryPath, History, FileeJsonContext.Default.ListHistoryEntry);
         HistoryChanged?.Invoke(this, EventArgs.Empty);
@@ -147,8 +148,8 @@ public sealed class UserDataStore
         && (builtIn.IsFallback || !profile.IsFallback || Profiles.Count(p => p.IsFallback) > 1);
 
     /// <summary>
-    /// Puts one built-in donut back as a new library has it (name, slices and their order, extensions, normal or mixed)
-    /// and leaves the other donuts alone. So no file type opens two donuts, an extension another normal donut takes
+    /// Puts one built-in donut back as a new library has it (name, slices of both faces and their order, extensions,
+    /// normal or mixed) and leaves the other donuts alone. So no file type opens two donuts, an extension another normal donut takes
     /// now stays there. Presets are shared by every donut: the ones this donut drops stay in the library, edited ones
     /// keep their settings, and a built-in preset of its default slices that the user deleted comes back. A donut that
     /// changes kind moves to the border between the normal profiles and the mixed ones, the built-in mixed donut back
@@ -160,7 +161,7 @@ public sealed class UserDataStore
         if (!CanResetProfile(profile))
             return false;
         var builtIn = BuiltInData.CreateProfiles().Single(p => p.Id == profile.Id);
-        RestoreBuiltInPresets(builtIn.PresetIds);
+        RestoreBuiltInPresets([.. builtIn.PresetIds, .. builtIn.BackPresetIds ?? []]);
 
         // Extensions checked on a mixed-selection profile only limit that profile; they don't claim files.
         var claimed = Profiles.Where(p => p != profile && !p.IsFallback)
@@ -170,6 +171,7 @@ public sealed class UserDataStore
         profile.NameKey = builtIn.NameKey;
         profile.Extensions = builtIn.IsFallback ? builtIn.Extensions : builtIn.Extensions.Where(e => !claimed.Contains(e)).ToList();
         profile.PresetIds = builtIn.PresetIds;
+        profile.BackPresetIds = builtIn.BackPresetIds ?? [];
         if (profile.IsFallback != builtIn.IsFallback)
         {
             profile.IsFallback = builtIn.IsFallback;
@@ -181,12 +183,13 @@ public sealed class UserDataStore
         return true;
     }
 
-    /// <summary>Adds back the built-in presets among <paramref name="ids"/> that the library no longer has, each after
-    /// the built-in preset before it (as a new library orders them).</summary>
+    /// <summary>Adds back the built-in presets among <paramref name="ids"/> that the library no longer has, and those a
+    /// built-in group among them fans out, each after the built-in preset before it (as a new library orders them).</summary>
     private void RestoreBuiltInPresets(IEnumerable<string> ids)
     {
         var defaults = BuiltInData.CreatePresets();
-        foreach (var id in ids.Where(id => FindPreset(id) is null))
+        var members = ids.SelectMany(id => defaults.FirstOrDefault(p => p.Id == id) is { IsGroup: true } group ? group.SubPresetIds : []);
+        foreach (var id in ids.Concat(members).Distinct().Where(id => FindPreset(id) is null).ToList())
         {
             var at = defaults.FindIndex(p => p.Id == id);
             if (at < 0)
@@ -198,8 +201,8 @@ public sealed class UserDataStore
 
     public Preset? FindPreset(string id) => Presets.FirstOrDefault(p => p.Id == id);
 
-    /// <summary>The preset <paramref name="id"/> when it converts (a group doesn't), for every place that runs one.</summary>
-    public Preset? FindConversion(string id) => Presets.FirstOrDefault(p => p.Id == id && !p.IsGroup);
+    /// <summary>The preset <paramref name="id"/> when it converts (a group or tool doesn't), for every place that runs one.</summary>
+    public Preset? FindConversion(string id) => Presets.FirstOrDefault(p => p.Id == id && !p.IsGroup && !p.IsTool);
 
     /// <summary>Exports presets and profiles to a shareable JSON file.</summary>
     public void Export(string path) =>
@@ -220,6 +223,8 @@ public sealed class UserDataStore
             Presets.RemoveAll(p => p.Id == preset.Id);
             Presets.Add(preset);
         }
+        // A bundle from a Filee before back faces has none: a built-in donut gets its default one, as on loading.
+        SettingsMigrations.AddBackFaces(Presets, bundle.Profiles);
         // Mixed-selection profiles stay mixed: several may exist, and the catch-all is the first one with nothing
         // checked, so an imported one added at the end never replaces ours.
         foreach (var profile in bundle.Profiles)
@@ -238,14 +243,16 @@ public sealed class UserDataStore
         foreach (var profile in Profiles)
         {
             profile.PresetIds = profile.PresetIds.Where(ids.Contains).Distinct().Take(ToolbarProfile.MaxSlices).ToList();
+            // No back face known by now (a donut the user made, read from an older file): it has none.
+            profile.BackPresetIds = (profile.BackPresetIds ?? []).Where(ids.Contains).Distinct().Take(ToolbarProfile.MaxSlices).ToList();
         }
         // A Filee from before groups drops "kind" (and the presets) when it saves a group, which comes back as a
         // conversion to "group": still a group, now an empty one, rather than a conversion that can never run.
         foreach (var preset in Presets.Where(p => !p.IsGroup && p.TargetFormat == Preset.GroupTarget))
             preset.Kind = PresetKind.Group;
-        // A group fans out conversions only (no group in a group), each once, at most MaxSubPresets, and has no
+        // A group fans out conversions only (no group or tool in a group), each once, at most MaxSubPresets, and has no
         // target format an older Filee could run it with.
-        var conversions = Presets.Where(p => !p.IsGroup).Select(p => p.Id).ToHashSet();
+        var conversions = Presets.Where(p => !p.IsGroup && !p.IsTool).Select(p => p.Id).ToHashSet();
         foreach (var group in Presets.Where(p => p.IsGroup))
         {
             group.SubPresetIds = group.SubPresetIds.Where(conversions.Contains).Distinct().Take(Preset.MaxSubPresets).ToList();
@@ -257,6 +264,7 @@ public sealed class UserDataStore
         {
             var mixed = BuiltInData.CreateProfiles().First(p => p.IsFallback);
             mixed.PresetIds = mixed.PresetIds.Where(ids.Contains).ToList();
+            mixed.BackPresetIds = (mixed.BackPresetIds ?? []).Where(ids.Contains).ToList();
             Profiles.Add(mixed);
         }
     }
@@ -366,6 +374,17 @@ internal static class SettingsMigrations
                 settings.EnginePriority.Insert(cad + 1, "model3d");
             else
                 InsertBefore(settings.EnginePriority, "model3d", settings.EnginePriority.Contains("archive") ? "archive" : "pandoc");
+        }
+
+        // v25: built-in "geo" engine (GeoJSON, KML, KMZ, GPX, Shapefile and CSV points), after the 3D models engine (else
+        //      before the archive engine, else before Pandoc).
+        if (settings.SchemaVersion < 25 && !settings.EnginePriority.Contains("geo"))
+        {
+            var models = settings.EnginePriority.IndexOf("model3d");
+            if (models >= 0)
+                settings.EnginePriority.Insert(models + 1, "geo");
+            else
+                InsertBefore(settings.EnginePriority, "geo", settings.EnginePriority.Contains("archive") ? "archive" : "pandoc");
         }
 
         // v18: built-in "pdf-slides" engine (PDF → PPTX, a picture of each page per slide), after "pdf-text".
@@ -627,7 +646,159 @@ internal static class SettingsMigrations
         //      the user already takes them.
         if (from < 23)
             changed |= LearnExtensions(profiles, out _, ["mhtml", "mht"]);
+        // v24: macro-enabled PowerPoint templates (.potm) open from the presentation donut next to POTX, unless a donut
+        //      of the user already takes them.
+        if (from < 24)
+            changed |= LearnExtensions(profiles, out _, ["potm"]);
+        // v25: geospatial vector data (Shapefile, GeoJSON, KML, KMZ, GPX) gets presets and its own donut after "models"
+        //      (else after "data", else after "fonts"), with the extensions no donut of the user takes yet.
+        if (from < 25)
+            changed |= AddGeo(presets, profiles);
+        // v26: interactive "Crop" tool, after "Remove background" as in a new library, on no donut: users add it in
+        //      Settings → Toolbar. Present already but saved since by a Filee before 26: that one read the unknown
+        //      kind as a Group, dropped the target format and left an empty group. Kind and target format are put back,
+        //      the user's own changes (name, file name pattern) stay.
+        if (from < 26)
+        {
+            if (BuiltInData.CreatePresets().FirstOrDefault(p => p.Id == "tool-crop") is { } crop)
+            {
+                if (presets.FirstOrDefault(p => p.Id == "tool-crop") is not { } existing)
+                {
+                    var at = presets.FindIndex(p => p.Id == "remove-background");
+                    presets.Insert(at < 0 ? presets.Count : at + 1, crop);
+                    changed = true;
+                }
+                else if (existing.Kind != PresetKind.Tool)
+                {
+                    existing.Kind = PresetKind.Tool;
+                    existing.TargetFormat = crop.TargetFormat;
+                    existing.SubPresetIds = [];
+                    changed = true;
+                }
+            }
+        }
+        // v27: OFD documents (.ofd; read only: e-invoices, official documents) open from the office donut, unless a
+        //      donut of the user already takes them.
+        if (from < 27)
+            changed |= LearnExtensions(profiles, out _, ["ofd"]);
+        // v28: "One ZIP" on the archives donut after "Extract", to pack several archives into one. A donut
+        //      the user filled up, or a library without the preset, stays as it is.
+        if (from < 28)
+            changed |= Offer(presets, profiles, "archives", "zip-all", "extract");
+        // v29: "Extract live video" (the video of a Live / Motion Photo as MP4), after "Extract frames" as in a new
+        //      library, on no donut: the images donut is full. Present already but saved since by a Filee before 29:
+        //      that one dropped the option and left a plain MP4 preset, so it is put back. The images donut learns
+        //      ".livp" (iPhone Live Photos downloaded from iCloud) unless a donut of the user already takes it.
+        if (from < 29)
+        {
+            foreach (var motion in BuiltInData.MotionPhotoPresets())
+            {
+                if (presets.FirstOrDefault(p => p.Id == motion.Id) is { } existing)
+                {
+                    if (!existing.Media.ExtractMotionPhoto && existing.TargetFormat == motion.TargetFormat)
+                    {
+                        existing.Media.ExtractMotionPhoto = true;
+                        changed = true;
+                    }
+                    continue;
+                }
+                var at = presets.FindIndex(p => p.Id == "extract-frames-jpg");
+                presets.Insert(at < 0 ? presets.Count : at + 1, motion);
+                changed = true;
+            }
+            changed |= LearnExtensions(profiles, out _, ["livp"]);
+        }
+        // v30: every donut gets a back face, which Tab (or the mouse wheel) flips the open donut to. A built-in donut
+        //      gets its default one (with the presets the library still has), a donut the user made none; no front
+        //      changes. Also at a later schema when a donut has no back face at all, not even an empty one: a Filee
+        //      before 30 saved the library since and dropped what it didn't know, so the built-in back faces come
+        //      back. One the user emptied is saved empty and stays so.
+        if (from < 30 || profiles.Any(p => p.BackPresetIds is null))
+            changed |= AddBackFaces(presets, profiles);
+        // v31: "Live Photo (iPhone)" and "Motion Photo (Android)" (a clip of a video as a moving photo), after "Extract
+        //      Live Photo video" as in a new library, and on the back of the video donut after "Extract frames" when it
+        //      has room and the user hasn't put them elsewhere on it. Present already but saved since by a Filee before
+        //      31: that one dropped the option and left a plain JPG preset, so it is put back.
+        if (from < 31)
+        {
+            if (profiles.FirstOrDefault(p => p.Id == "video") is { BackPresetIds: { } back })
+            {
+                var missing = BuiltInData.LivePhotoPresets().Select(p => p.Id).Where(id => !back.Contains(id)).ToList();
+                if (missing.Count > 0 && back.Count + missing.Count <= ToolbarProfile.MaxSlices)
+                {
+                    var after = back.IndexOf("extract-frames-jpg");
+                    back.InsertRange(after < 0 ? back.Count(id => id != "zip-all") : after + 1, missing);
+                    changed = true;
+                }
+            }
+            foreach (var live in BuiltInData.LivePhotoPresets())
+            {
+                if (presets.FirstOrDefault(p => p.Id == live.Id) is { } existing)
+                {
+                    if (existing.Media.LivePhoto == LivePhotoKind.None && existing.TargetFormat == live.TargetFormat)
+                    {
+                        existing.Media.LivePhoto = live.Media.LivePhoto;
+                        changed = true;
+                    }
+                    continue;
+                }
+                var at = presets.FindLastIndex(p => p.Id is "extract-motion" or "live-photo-iphone" or "extract-frames-jpg");
+                presets.Insert(at < 0 ? presets.Count : at + 1, live);
+                changed = true;
+            }
+        }
+        // v32: logs and script source, Video CD DAT and Workbench archives learn their donuts; custom claims stay put.
+        if (from < 32)
+            changed |= LearnExtensions(profiles, out _, ["log", "py", "pac", "bat", "command", "dat", "wbpz"]);
         return changed;
+    }
+
+    /// <summary>
+    /// Gives each built-in donut without a back face (<see cref="ToolbarProfile.BackPresetIds"/> null) its default one,
+    /// with only the presets in <paramref name="presets"/>. Donuts the user made are left for
+    /// <see cref="UserDataStore"/> to give an empty one. Returns true when one was added.
+    /// </summary>
+    internal static bool AddBackFaces(List<Preset> presets, IEnumerable<ToolbarProfile> profiles)
+    {
+        var defaults = BuiltInData.CreateProfiles().ToDictionary(p => p.Id);
+        var ids = presets.Select(p => p.Id).ToHashSet();
+        var changed = false;
+        foreach (var profile in profiles.Where(p => p.BackPresetIds is null && defaults.ContainsKey(p.Id)))
+        {
+            profile.BackPresetIds = (defaults[profile.Id].BackPresetIds ?? []).Where(ids.Contains).ToList();
+            changed = true;
+        }
+        return changed;
+    }
+
+    private static bool AddGeo(List<Preset> presets, List<ToolbarProfile> profiles)
+    {
+        var changed = false;
+        foreach (var preset in BuiltInData.GeoPresets().Where(p => presets.All(existing => existing.Id != p.Id)))
+        {
+            presets.Add(preset);
+            changed = true;
+        }
+        // Only the geospatial extensions: others a user removed from a built-in donut stay removed.
+        changed |= LearnExtensions(profiles, out var claimed, BuiltInData.GeoProfile().Extensions);
+        if (profiles.Any(p => p.Id == "geo"))
+            return changed;
+
+        var geo = BuiltInData.GeoProfile();
+        // Only the extensions no donut of the user takes yet.
+        geo.Extensions = geo.Extensions.Where(claimed.Add).ToList();
+        if (geo.Extensions.Count == 0)
+            return changed;
+        var ids = presets.Select(p => p.Id).ToHashSet();
+        geo.PresetIds = geo.PresetIds.Where(ids.Contains).ToList();
+        var after = profiles.FindIndex(p => p.Id == "models");
+        if (after < 0)
+            after = profiles.FindIndex(p => p.Id == "data");
+        if (after < 0)
+            after = profiles.FindIndex(p => p.Id == "fonts");
+        var insertAt = after >= 0 ? after + 1 : profiles.FindIndex(p => p.IsFallback);
+        profiles.Insert(insertAt < 0 ? profiles.Count : insertAt, geo);
+        return true;
     }
 
     private static bool AddPdfSlides(List<Preset> presets, List<ToolbarProfile> profiles)

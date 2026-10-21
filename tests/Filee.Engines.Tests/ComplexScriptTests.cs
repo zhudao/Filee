@@ -5,6 +5,7 @@
 //    right-to-left words and lines from the right and marks such paragraphs right to left.
 // The PDFs are written glyph by glyph (GlyphPdfBuilder) the way the shaping engines leave them.
 
+using System.IO.Compression;
 using System.Text;
 using System.Xml.Linq;
 using Filee.Core.Conversion;
@@ -59,6 +60,20 @@ public class ComplexScriptTests(EngineFixture fx) : IClassFixture<EngineFixture>
                              "<p>=E0=AA=B8=E0=AB=8C=E0=AA=B0=E0=AA=BE</p>\r\n--b--\r\n";
         Assert.Equal("Gujarati", ComplexScripts.FindInFile(Text("page.mhtml", Mhtml), "mhtml"));
         Assert.Null(ComplexScripts.FindInFile(Text("plain.mhtml", Mhtml.Replace("=E0=AA=B8=E0=AB=8C=E0=AA=B0=E0=AA=BE", "Hello")), "mhtml"));
+
+        // OFD: the text of the pages (an official document in Uyghur), not the resource names.
+        string Ofd(string name, string text)
+        {
+            var path = Path.Combine(folder, name);
+            using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
+            using (var writer = new StreamWriter(zip.CreateEntry("Doc_0/Pages/Page_0/Content.xml").Open()))
+                writer.Write($"<ofd:Page xmlns:ofd=\"http://www.ofdspec.org/2016\"><ofd:TextCode X=\"0\" Y=\"4\">{text}</ofd:TextCode></ofd:Page>");
+            using (var writer = new StreamWriter(zip.CreateEntry("Doc_0/PublicRes.xml").Open()))
+                writer.Write("<Res><Font ID=\"1\" FontName=\"UKIJ Tuz مرحبا\"/></Res>");
+            return path;
+        }
+        Assert.Equal("Arabic", ComplexScripts.FindInFile(Ofd("uyghur.ofd", "ئۇيغۇرچە ھۆججەت"), "ofd"));
+        Assert.Null(ComplexScripts.FindInFile(Ofd("chinese.ofd", "电子发票（普通发票）"), "ofd"));
     }
 
     [Fact]

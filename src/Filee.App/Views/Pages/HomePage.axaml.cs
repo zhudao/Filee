@@ -1,4 +1,5 @@
-// Drop zone: files dropped on the Home page open the donut (click mode) at the drop position.
+// Drop zone: files dropped on the Home page open the donut (click mode) at the drop position, also pictures, links and
+// downloads dragged from a browser.
 
 using Avalonia;
 using Avalonia.Controls;
@@ -36,12 +37,15 @@ public partial class HomePage : UserControl
     private void OnDrop(object? sender, DragEventArgs e)
     {
         DropZone.Classes.Remove("over");
-        var files = DraggedFiles.Local(e.DataTransfer);
-        if (files.Count == 0)
+        var dragged = DraggedFiles.Read(e.DataTransfer, forDrop: true);
+        if (dragged.Files.Count == 0)
+        {
+            e.DragEffects = DragDropEffects.None;
             return;
+        }
 
         e.DragEffects = DragDropEffects.Copy;
         var screenPoint = this.PointToScreen(e.GetPosition(this));
-        AppHost.Get<RadialController>().ShowForFiles(screenPoint.X, screenPoint.Y, files);
+        AppHost.Get<RadialController>().ShowForFiles(screenPoint.X, screenPoint.Y, dragged.Files, web: dragged.Web);
     }
 }

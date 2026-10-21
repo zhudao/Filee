@@ -26,12 +26,15 @@ public static class PasteboardPaths
 
     /// <summary>
     /// Types the donut registers for on top of Avalonia's own, so a drag offering only these still reaches it (and its
-    /// types get logged when Filee can't read them). The last three are file promises, which Filee can't receive.
+    /// types get logged when Filee can't read them). The three file promise types can't be received; a browser drag
+    /// that offers one also offers the picture's or link's address (public.url) and HTML, which Filee reads instead,
+    /// and sometimes the picture itself.
     /// </summary>
     public static IReadOnlyList<string> DragTypes { get; } =
     [
         FileUrlType, FilenamesType,
         "com.apple.NSFilePromiseItemMetaData", "com.apple.pasteboard.promised-file-url", "Apple files promise pasteboard type",
+        "public.url", "public.html", "public.png", "public.jpeg", "public.tiff", "com.compuserve.gif", "org.webmproject.webp",
     ];
 
     /// <summary>Whether <paramref name="type"/> names NSFilenamesPboardType, by its name or its dynamic UTI.</summary>

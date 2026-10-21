@@ -386,9 +386,31 @@ public sealed class LibreOfficeConverter : IConverter
     private void Locate()
     {
         _soffice = EngineEnvironment.OwnProgram("libreoffice", "soffice.exe")
-            ?? EngineEnvironment.BundledProgram("libreoffice", "soffice.exe")
+            ?? WithRuntime(EngineEnvironment.BundledProgram("libreoffice", "soffice.exe"))
             ?? EngineEnvironment.SystemProgram("libreoffice", "soffice.exe");
         _hasHwpFilter = _soffice is not null && HasH2Orestart(_soffice);
+    }
+
+    /// <summary>
+    /// Filee's copy as earlier versions installed it has LibreOffice's C++ runtime only in System64, where soffice.exe
+    /// does not look (see <see cref="AppLocalRuntime.CopyLibreOfficeRuntime"/>): copied next to it once, so LibreOffice
+    /// also starts on PCs without the Visual C++ Redistributable.
+    /// </summary>
+    private string? WithRuntime(string? soffice)
+    {
+        if (soffice is null || !OperatingSystem.IsWindows())
+            return soffice;
+        try
+        {
+            var copied = AppLocalRuntime.CopyLibreOfficeRuntime(Directory.GetParent(Path.GetDirectoryName(soffice)!)!.FullName);
+            if (copied > 0)
+                _logger.LogInformation("Copied {Count} C++ runtime files next to {Program}", copied, soffice);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Could not copy the C++ runtime next to {Program}", soffice);
+        }
+        return soffice;
     }
 
     /// <summary>Detects the H2Orestart extension in the installation (shared) extension folders.</summary>

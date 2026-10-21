@@ -74,7 +74,7 @@ public sealed class MemoryTrimmer : IDisposable
         Interlocked.Increment(ref _trims);
     }
 
-    /// <summary>Drops the engines' caches, collects and compacts every heap, then trims the working set (Windows).</summary>
+    /// <summary>Drops the engines' caches, collects every generation, then trims the working set (Windows).</summary>
     internal static void Trim(ILogger log)
     {
         try
@@ -82,9 +82,11 @@ public sealed class MemoryTrimmer : IDisposable
             var watch = Stopwatch.StartNew();
             var before = PrivateMegabytes();
             EngineCaches.Release();
-            // Without compacting: a compacting collection moves old objects, and native code (the UI's Skia renderer)
-            // can hold pointers into them; the test run crashed in Skia half a minute after such a trim. Garbage is
-            // freed and empty heap regions are decommitted all the same.
+            // Without compacting: garbage is freed and empty heap regions are decommitted all the same. Compaction was
+            // once blamed for a CI crash in Skia (sk_pngencoder_encode) after a trim; the cause was tests that let a
+            // captured frame be collected while Avalonia encoded it (WriteableBitmap.Save encodes a snapshot that
+            // doesn't own the pixels, and the finalizers this trim runs freed them). Nothing in Filee leaves native
+            // code with a pointer into managed memory: NativeMemoryStressTests converts under constant compaction.
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: false);
             GC.WaitForPendingFinalizers();
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: false);

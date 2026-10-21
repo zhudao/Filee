@@ -11,6 +11,7 @@ using Filee.Core.Localization;
 using Filee.Core.Presets;
 using Filee.Core.Settings;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Filee.App.Services;
 
@@ -24,10 +25,55 @@ public sealed class WindowService(ILocalizer loc, IServiceProvider services, Mem
     private EngineUpdateNoticeWindow? _engineNotice;
     private FeedbackNoticeWindow? _feedbackNotice;
     private FormatRequestNoticeWindow? _formatRequestNotice;
+    private WhatsNewWindow? _whatsNew;
 
     internal FormatRequestNoticeWindow? FormatRequestNotice => _formatRequestNotice;
 
+    private CropOverlayWindow? _cropOverlay;
+    private MergeOrderWindow? _mergeOrder;
+
+    internal MergeOrderWindow? MergeOrder => _mergeOrder;
+
+    /// <summary>Reviews the order of a PDF merge. Closing or cancelling starts no conversion.</summary>
+    public async Task<IReadOnlyList<string>?> ChooseMergeOrderAsync(IReadOnlyList<string> files)
+    {
+        _mergeOrder?.Close();
+        var dialog = new MergeOrderWindow { DataContext = new MergeOrderViewModel(files) };
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        dialog.Closed += (_, _) =>
+        {
+            if (_mergeOrder == dialog) _mergeOrder = null;
+            closed.TrySetResult();
+        };
+        _mergeOrder = dialog;
+        dialog.Show();
+        dialog.Activate();
+        await closed.Task;
+        return dialog.Result;
+    }
+
     public MainWindow? Main => _main;
+
+    /// <summary>Opens the interactive crop overlay for the files.</summary>
+    public void ShowCropOverlay(IReadOnlyList<string> files, Preset preset, PixelPoint? near = null)
+    {
+        if (files.Count == 0)
+            return;
+        _cropOverlay?.Close();
+        var store = services.GetRequiredService<UserDataStore>();
+        var log = services.GetService<ILogger<CropOverlayViewModel>>();
+        var vm = new CropOverlayViewModel(files, preset, loc, store, log);
+        var win = new CropOverlayWindow { DataContext = vm };
+        win.PositionOnScreen(near);
+        win.Closed += (_, _) =>
+        {
+            if (_cropOverlay == win)
+                _cropOverlay = null;
+        };
+        _cropOverlay = win;
+        win.Show();
+        win.Activate();
+    }
 
     /// <summary>
     /// Shows (or brings to front) the main window, optionally on a page. Going to the tray closes it
@@ -69,7 +115,39 @@ public sealed class WindowService(ILocalizer loc, IServiceProvider services, Mem
         if (_main.WindowState == WindowState.Minimized)
             _main.WindowState = WindowState.Normal;
         _main.Activate();
+        MainShown?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>Raised whenever <see cref="ShowMain"/> showed the main window (the user opened Filee).</summary>
+    public event EventHandler? MainShown;
+
+    /// <summary>
+    /// Shows a version's "What's new" slides, centred on the main window when it is open; a second call replaces the
+    /// open window's slides.
+    /// </summary>
+    public void ShowWhatsNew(Controls.SlideDeck deck)
+    {
+        _whatsNew?.Close();
+        Motion.Refresh();
+        var window = new WhatsNewWindow(deck, loc);
+        window.Closed += (_, _) =>
+        {
+            if (_whatsNew == window)
+                _whatsNew = null;
+            trimmer.Request();
+        };
+        _whatsNew = window;
+        if (_main is { IsVisible: true } main && main.WindowState != WindowState.Minimized)
+        {
+            window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            window.Show(main);
+        }
+        else
+            window.Show();
+        window.Activate();
+    }
+
+    internal WhatsNewWindow? WhatsNew => _whatsNew;
 
     /// <summary>Opens the optional-engine choice (first run); a second call brings the open window to front.</summary>
     /// <summary>

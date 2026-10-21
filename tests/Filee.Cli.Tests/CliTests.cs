@@ -49,6 +49,20 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
+    public async Task Zip_saves_the_result_of_each_file_as_one_zip()
+    {
+        var geojson = Path.Combine(_folder, "places.geojson");
+        File.WriteAllText(geojson, """{"type":"Feature","properties":{"n":1},"geometry":{"type":"Point","coordinates":[1,2]}}""");
+
+        var (code, _, _) = await Run("convert", geojson, "--to", "shp", "--zip");
+
+        Assert.Equal(Cli.Success, code);
+        using var zip = System.IO.Compression.ZipFile.OpenRead(Path.Combine(_folder, "places.zip"));
+        Assert.Equal(["places.cpg", "places.dbf", "places.prj", "places.shp", "places.shx"], zip.Entries.Select(e => e.Name).Order().ToArray());
+        Assert.False(File.Exists(Path.Combine(_folder, "places.shp")));
+    }
+
+    [Fact]
     public async Task Keep_dates_copies_the_dates_of_the_originals()
     {
         var source = Png("old.png");
@@ -194,6 +208,39 @@ public sealed class CliTests : IDisposable
     }
 
     [Fact]
+    public async Task A_shared_watch_folder_does_not_reconvert_its_outputs_after_restarting_the_command()
+    {
+        var args = new[] { "watch", _folder, "--to", "jpg", "-o", _folder, "--move-originals", "--settle", "0.1" };
+        using (var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
+        {
+            var watching = Cli.RunAsync(args, TextWriter.Null, TextWriter.Null, stop.Token, () => CliHost.Create(_settings));
+            var input = Path.Combine(_folder, "arrived.webp");
+            using (var image = new ImageMagick.MagickImage(ImageMagick.MagickColors.Orange, 40, 30))
+                image.Write(input, ImageMagick.MagickFormat.WebP);
+            var output = Path.Combine(_folder, "arrived.jpg");
+            for (var i = 0; i < 100 && !File.Exists(Path.Combine(_folder, "originals", "arrived.webp")); i++)
+                await Task.Delay(100, TestContext.Current.CancellationToken);
+            stop.Cancel();
+            Assert.Equal(Cli.Success, await watching);
+            Assert.True(File.Exists(output));
+            Assert.True(File.Exists(Path.Combine(_folder, "originals", "arrived.webp")));
+            using var decoded = new ImageMagick.MagickImage(output);
+            Assert.Equal(ImageMagick.MagickFormat.Jpeg, decoded.Format);
+        }
+
+        using (var stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
+        {
+            var watching = Cli.RunAsync(args, TextWriter.Null, TextWriter.Null, stop.Token, () => CliHost.Create(_settings));
+            // Let the initial inbox scan settle and the one-second conversion timer run twice.
+            await Task.Delay(2200, TestContext.Current.CancellationToken);
+            stop.Cancel();
+            Assert.Equal(Cli.Success, await watching);
+            Assert.Equal(["arrived.jpg"], Directory.EnumerateFiles(_folder, "*.jpg").Select(Path.GetFileName));
+            Assert.False(File.Exists(Path.Combine(_folder, "originals", "arrived.jpg")));
+        }
+    }
+
+    [Fact]
     public async Task Formats_and_presets_are_listed()
     {
         var (code, output, _) = await Run("formats", "heic");
@@ -325,5 +372,15 @@ public sealed class CliTests : IDisposable
         Assert.Contains("한글 report's", Path.GetFileName(result));
         Assert.True(File.Exists(result));
         Assert.True(File.Exists(source));
+    }
+
+    [Fact]
+    public async Task Refuses_tool_presets()
+    {
+        var source = Png("photo.png");
+        var (code, _, errors) = await Run("convert", source, "--preset", "tool-crop");
+
+        Assert.Equal(Cli.UsageError, code);
+        Assert.Contains("is an interactive tool, not a conversion", errors);
     }
 }

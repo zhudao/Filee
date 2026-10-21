@@ -116,6 +116,32 @@ public class ProfileResetTests
     }
 
     [Fact]
+    public void The_geospatial_donut_resets_like_the_other_built_in_ones()
+    {
+        using var dir = new TempDir();
+        var store = NewStore(dir);
+        var geo = Profile(store, "geo");
+        geo.Name = "Maps";
+        geo.PresetIds = ["to-kml"];
+        geo.Extensions.Remove("kml");
+        store.Profiles.Insert(0, new ToolbarProfile { Id = "earth", Name = "Earth", Extensions = ["kml"], PresetIds = ["to-geojson"] });
+        store.Presets.RemoveAll(p => p.Id == "to-kmz");
+        store.SaveLibrary();
+
+        Assert.True(store.CanResetProfile(geo));
+        Assert.True(store.ResetProfile(geo));
+
+        var builtIn = BuiltIn("geo");
+        Assert.Equal("", geo.Name);
+        Assert.Equal("profile.geo", geo.NameKey);
+        Assert.Equal(builtIn.PresetIds, geo.PresetIds);
+        Assert.Equal(builtIn.Extensions.Where(e => e != "kml"), geo.Extensions); // .kml stays on the user's donut
+        Assert.Equal(["kml"], Profile(store, "earth").Extensions);
+        Assert.Equal("kmz", store.FindPreset("to-kmz")!.TargetFormat); // the deleted slice's preset is back
+        Assert.All(geo.PresetIds, id => Assert.NotNull(store.FindPreset(id)));
+    }
+
+    [Fact]
     public void A_profile_the_user_made_has_no_default_to_go_back_to()
     {
         using var dir = new TempDir();

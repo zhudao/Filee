@@ -233,6 +233,8 @@ internal static partial class ComplexScripts
             "xlsx" or "xlsm" or "xltx" => Xml("xl/", "sharedStrings") || Xml("xl/worksheets/", "sheet"),
             "hwpx" => Xml("Contents/", "section"),
             "odt" or "ods" or "odp" => name.Equals("content.xml", StringComparison.OrdinalIgnoreCase),
+            // OFD: the pages and templates (Doc_0/Pages/Page_0/Content.xml, Doc_0/Tpls/Tpl_0/Content.xml).
+            "ofd" => name.EndsWith("/Content.xml", StringComparison.OrdinalIgnoreCase),
             // EPUB, HTMLZ, TXTZ, ...: the chapters.
             _ => !name.StartsWith("META-INF/", StringComparison.OrdinalIgnoreCase)
                  && (name.EndsWith(".xhtml", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".html", StringComparison.OrdinalIgnoreCase)

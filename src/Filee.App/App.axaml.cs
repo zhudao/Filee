@@ -36,7 +36,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            AppHost.Build();
+            AppHost.Build(preloadedStore: Program.PreloadedStore);
             Start(desktop);
         }
         base.OnFrameworkInitializationCompleted();
@@ -62,7 +62,8 @@ public partial class App : Application
         var watchdog = new UiWatchdog(action => Dispatcher.UIThread.Post(action), AppHost.Get<ILogger<UiWatchdog>>());
         watchdog.Start();
         var store = AppHost.Get<UserDataStore>();
-        store.Load();
+        if (Program.PreloadedStore is null)
+            store.Load();
 
         var loc = AppHost.Get<LocalizationService>();
         loc.Attach(this);
@@ -108,6 +109,12 @@ public partial class App : Application
         };
         triggers.Start();
         log.LogInformation("Filee {Version} started", UpdateService.CurrentVersion);
+        // Which way the transparent windows (donut, toast) are drawn, for reports of one that isn't see-through (#269).
+        if (OperatingSystem.IsWindows())
+        {
+            log.LogInformation("{Rendering}", WindowsRendering.Describe(Environment.GetEnvironmentVariable(WindowsRendering.Variable)));
+            TransparentWindows.Watch(log);
+        }
         // macOS: ask for Accessibility with the system's own alert when the user opened Filee (not at sign-in) and
         // a drag gesture is on. The home page keeps a reminder until it is given. Asked once the main window is up:
         // asked earlier, the alert ends up behind it.
@@ -126,6 +133,8 @@ public partial class App : Application
         AppHost.Get<WindowService>().EnsureToast();
         AppHost.Get<ConversionService>().FeedbackDue += (_, _) => AppHost.Get<WindowService>().ShowFeedbackNotice();
         AppHost.Get<WatchFolderService>().Start();
+        // Originals of files from a browser that a crash kept from being deleted ("Save only the converted file").
+        _ = Task.Run(() => Filee.Core.Web.WebDrop.DeleteStale(Filee.Core.Web.WebDrop.DefaultWorkRoot, TimeSpan.FromDays(1)));
         // Once LibreOffice is installed: prepare its profiles while the user isn't converting yet.
         AppHost.Get<EngineDownloadService>().WarmUpInBackground(TimeSpan.FromSeconds(10));
 
@@ -143,7 +152,27 @@ public partial class App : Application
             AppHost.Get<WatchFolderService>().DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(5));
         };
 
+        // Before HandleCommandLine marks the first run complete: a fresh install gets no slides (an update by the
+        // installer does, even when its settings are gone). Without the main window (sign-in, the Explorer menu) they
+        // wait until the user opens Filee, unless the installer asked for them.
+        AppHost.Get<WhatsNewService>().CheckAtStartup(
+            background: Program.Options.Background && !Program.Options.ShowSettings && !Program.Options.WhatsNew
+                        || Program.Options.ConvertFiles.Count > 0,
+            updated: Program.Options.WhatsNew, updatedFrom: Program.Options.UpdatedFrom);
         HandleCommandLine(Program.Options, firstLaunch: true);
+        if (OperatingSystem.IsMacOS())
+            this.TryGetFeature<IActivatableLifetime>()?.Activated += (_, e) =>
+            {
+                if (e.Kind == ActivationKind.Reopen)
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        // Clicking the Dock icon or opening Filee again in Finder brings the window back, as Mac apps do
+                        // (#232), also while it only runs in the background.
+                        AppHost.Get<WindowService>().ShowMain(store.Settings.FirstRunCompleted ? null : "home");
+                        if (!store.Settings.ShowInDock && !platform.TrySetShowInDock(false))
+                            log.LogWarning("Could not restore the macOS Dock visibility policy after reopening Filee");
+                    });
+            };
         WatchForUpdates(store);
         // Filee runs as administrator while Explorer doesn't (an installer started "as administrator" started it):
         // say so once, next to the tray, and on the Home page for as long as it lasts.
@@ -286,17 +315,21 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Options ticked on the installer's task page. Saving applies them through SystemIntegrationService
-    /// as if they had been switched on the General page.
+    /// Options ticked in Setup, and the language picked there. Saving applies them (SystemIntegrationService, the
+    /// language) as if they had been switched on the General page.
     /// </summary>
     private static void ApplyInstallerChoices(CommandLine options, UserDataStore store)
     {
-        if (options.StartWithWindows is null && options.ContextMenu is null)
+        // Only Filee's languages; anything else keeps the setting (normally "auto", Windows' language).
+        var language = LocalizationService.Languages.FirstOrDefault(l => l.Code.Equals(options.Language, StringComparison.OrdinalIgnoreCase)).Code;
+        if (options.StartWithWindows is null && options.ContextMenu is null && language is null)
             return;
         if (options.StartWithWindows is { } start)
             store.Settings.StartWithSystem = start;
         if (options.ContextMenu is { } menu)
             store.Settings.ContextMenuEnabled = menu;
+        if (language is not null)
+            store.Settings.Language = language;
         store.SaveSettings();
     }
 

@@ -4,6 +4,7 @@
 
 using System.Runtime.InteropServices;
 using Filee.Core.Platform;
+using Filee.Core.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -16,13 +17,20 @@ internal static class StartupDiagnostics
     /// can't be created gives a logger that drops everything: logging must never stop Filee from starting.
     /// </summary>
     public static ILogger CreateEarlyLogger(string logDirectory)
+        => CreateEarlyLogger(logDirectory, out _);
+
+    /// <summary>Shares the early file provider with the logger used to load settings before Avalonia starts.</summary>
+    public static ILogger CreateEarlyLogger(string logDirectory, out ILogger<UserDataStore> storeLogger)
     {
         try
         {
-            return new FileLoggerProvider(logDirectory).CreateLogger("Filee.App.Program");
+            var factory = LoggerFactory.Create(builder => builder.AddProvider(new FileLoggerProvider(logDirectory)));
+            storeLogger = factory.CreateLogger<UserDataStore>();
+            return factory.CreateLogger("Filee.App.Program");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
+            storeLogger = NullLogger<UserDataStore>.Instance;
             return NullLogger.Instance;
         }
     }
