@@ -45,6 +45,9 @@
    own (`DirectOnly`), never a step of a longer one.
 5. **Run** – `JobQueue` runs steps with per-engine concurrency limits. Intermediate files live in a temp folder;
    final outputs are named by `OutputPathResolver` (pattern, folder, conflict policy; the source is never overwritten).
+   Each name stays reserved while a conversion holds it. A conversion that fails or is cancelled deletes what it began
+   writing, but only at a path that was its alone: nothing was there before and no other conversion was handed the
+   same name ("Overwrite"). It frees its names and removes an output folder it made if that is left empty.
    "Merge into one PDF" converts each file to PDF and merges with PDFsharp.
    "Compress into one archive" packs the dropped files, unconverted, with the archive engine (`IFileCombiner`).
 6. **Report** – progress and results appear in the toast window and in Home → Recent conversions.
@@ -136,10 +139,12 @@ multi-frame pictures refused, the EXIF thumbnail dropped), one history entry for
   arrow-key nudges follow at once, and `PlayAnimations` (from `Motion.Enabled`) turns all of it off.
 - `Controls/AspectDial` is a small donut of the ratios (free, original, 1:1, 4:3, 3:2, 16:9): each slice a
   `RingSegment` button that answers only inside its wedge (`DonutGeometry.Wedge`, rounded by the softness), the hub
-  swaps portrait and landscape. `AspectGlyph` is the dial in miniature on the toolbar button that opens it, and
-  `CropSummaryRing` the end summary's donut (a slice per file).
+  swaps portrait and landscape. A with the pointer over the stage opens it around the pointer, as the donut opens,
+  growing from its middle and kept inside the window; A without a pointer there (the keyboard) and its toolbar button
+  open it over the button with a slice focused for the arrow keys. `AspectGlyph` is the dial in miniature on that
+  button, and `CropSummaryRing` the end summary's donut (a slice per file).
 - `Controls/CropMath` holds the arithmetic (ratios and their portrait forms, nudging by whole pixels, the frame in
-  pixels, where the size chip goes) and is unit tested.
+  pixels, where the size chip goes, where the dial opens) and is unit tested.
 
 ## Settings and data
 

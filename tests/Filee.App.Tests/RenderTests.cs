@@ -33,6 +33,7 @@ public class RenderTests
         { "general", "zh-CN" }, { "presets", "zh-CN" }, { "toolbar", "zh-CN" }, { "home", "zh-CN" },
         { "general", "pl" }, { "toolbar", "pl" }, { "presets", "pl" }, { "home", "pl" },
         { "home", "es" }, { "general", "es" }, { "toolbar", "es" }, { "presets", "es" }, { "engines", "es" },
+        { "home", "pt-BR" }, { "general", "pt-BR" }, { "toolbar", "pt-BR" }, { "presets", "pt-BR" }, { "engines", "pt-BR" },
         { "home", "hi" }, { "general", "hi" }, { "toolbar", "hi" }, { "presets", "hi" }, { "engines", "hi" },
         { "home", "ja" }, { "general", "ja" }, { "triggers", "ja" }, { "toolbar", "ja" },
         { "presets", "ja" }, { "theme", "ja" }, { "engines", "ja" }, { "about", "ja" }, { "watch", "ja" },
@@ -45,7 +46,7 @@ public class RenderTests
     public void Main_window_pages_render(string page, string language)
     {
         TestServices.EnsureInitialized(language);
-        var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<UpdateService>());
+        using var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<UpdateService>());
         vm.Navigate(page);
         var window = new MainWindow { DataContext = vm, Width = 1080, Height = 820 };
         window.Show();
@@ -348,6 +349,7 @@ public class RenderTests
     [InlineData("hi")]
     [InlineData("ru")]
     [InlineData("ar")]
+    [InlineData("pt-BR")]
     public void Home_page_search_finds_old_conversions_in_a_long_history(string language)
     {
         TestServices.EnsureInitialized(language);
@@ -510,7 +512,7 @@ public class RenderTests
         var profiles = store.Profiles.Select(p => p.Clone()).ToList();
         try
         {
-            var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<UpdateService>());
+            using var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<UpdateService>());
             vm.Navigate("toolbar");
             var page = (ToolbarPageViewModel)vm.CurrentPage!;
             var window = new MainWindow { DataContext = vm, Width = 1080, Height = 820 };
@@ -554,7 +556,7 @@ public class RenderTests
     public void Dragging_a_preset_opens_a_gap_with_a_preview_slice()
     {
         TestServices.EnsureInitialized("ko");
-        var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<UpdateService>());
+        using var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<UpdateService>());
         vm.Navigate("toolbar");
         var window = new MainWindow { DataContext = vm, Width = 1080, Height = 820 };
         window.Show();
@@ -958,7 +960,7 @@ public class RenderTests
         TestServices.EnsureInitialized("en");
         var theme = new ThemeSettings { Mode = ThemeMode.Dark, Accent = "#1D9E75", CornerRadius = 22 };
         AppHost.Get<ThemeService>().Apply(theme, "en");
-        var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<UpdateService>());
+        using var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<UpdateService>());
         vm.Navigate("toolbar");
         var window = new MainWindow { DataContext = vm, Width = 1080, Height = 820 };
         window.Show();
@@ -1065,6 +1067,49 @@ public class RenderTests
         Assert.Equal(Filee.Core.Presets.ImageRotation.Left90, preset.Image.Rotation);
         Assert.Equal(Filee.Core.Presets.ImageFlip.Horizontal, preset.Image.Flip);
         Assert.Equal("jpg", preset.TargetFormat);
+    }
+
+    [AvaloniaTheory]
+    [InlineData("en", false)]
+    [InlineData("ru", false)]
+    [InlineData("ar", true)]
+    public void Preset_editor_offers_the_subfolder_only_for_several_files_with_a_subfolder(string language, bool dark)
+    {
+        TestServices.EnsureInitialized(language);
+        var theme = AppHost.Get<ThemeService>();
+        var loc = AppHost.Get<Filee.Core.Localization.ILocalizer>();
+        // PDF → page images saves into a folder per document.
+        var preset = Filee.Core.Presets.BuiltInData.CreatePresets().Single(p => p.Id == "pdf-split");
+        var vm = new PresetEditorViewModel(preset, loc);
+        Assert.True(vm.ShowSubfolder);
+        Assert.False(vm.SubfolderOnlyForSeveralFiles);
+
+        vm.SubfolderOnlyForSeveralFiles = true;
+        if (dark)
+            theme.Apply(new ThemeSettings { Mode = ThemeMode.Dark }, language);
+        try
+        {
+            var window = new PresetEditorWindow { DataContext = vm, Height = 1400 };
+            window.Show();
+            Pump();
+            Save(window, $"preset-subfolder-{language}{(dark ? "-dark" : "")}.png");
+            window.Close();
+        }
+        finally
+        {
+            if (dark)
+                theme.Apply(new ThemeSettings(), language);
+        }
+        Assert.True(vm.Apply());
+        Assert.True(preset.Output.SubfolderOnlyForSeveralFiles);
+
+        // Hidden with another location, and not kept on behind it.
+        vm = new PresetEditorViewModel(preset, loc);
+        Assert.True(vm.SubfolderOnlyForSeveralFiles);
+        vm.Location = vm.Locations.Single(l => l.Value == Filee.Core.Presets.OutputLocation.SameFolder);
+        Assert.False(vm.ShowSubfolder);
+        Assert.True(vm.Apply());
+        Assert.False(preset.Output.SubfolderOnlyForSeveralFiles);
     }
 
     [AvaloniaFact]
@@ -1396,6 +1441,7 @@ public class RenderTests
     [InlineData("ko", true)]
     [InlineData("ru", false)]
     [InlineData("ar", true)]
+    [InlineData("pt-BR", false)]
     public void Preset_editor_shows_media_and_archive_options(string language, bool dark)
     {
         TestServices.EnsureInitialized(language);
@@ -1613,7 +1659,7 @@ public class RenderTests
     }
 
     [AvaloniaFact]
-    public void Preset_editor_offers_hardware_encoding_for_h264_and_hevc()
+    public void Preset_editor_offers_hardware_encoding_for_h264_hevc_and_av1()
     {
         TestServices.EnsureInitialized("en");
         var preset = new Filee.Core.Presets.Preset { TargetFormat = "mp4", Name = "Fast" };
@@ -1622,9 +1668,9 @@ public class RenderTests
         Assert.False(vm.HardwareEncoding); // off unless asked for
         vm.HardwareEncoding = true;
 
-        // AV1 and VP9 have no hardware path; HEVC does.
+        // HEVC and AV1 have a hardware path; VP9 (WebM's usual codec) has none.
         vm.VideoCodecChoice = vm.VideoCodecs.Single(c => c.Value == Filee.Core.Presets.VideoCodec.Av1);
-        Assert.False(vm.ShowHardwareEncoding);
+        Assert.True(vm.ShowHardwareEncoding);
         vm.VideoCodecChoice = vm.VideoCodecs.Single(c => c.Value == Filee.Core.Presets.VideoCodec.Hevc);
         Assert.True(vm.ShowHardwareEncoding);
         vm.Target = vm.Targets.Single(t => t.Value == "webm");
@@ -1641,6 +1687,12 @@ public class RenderTests
         Assert.Equal(Filee.Core.Presets.VideoCodec.Hevc, preset.Media.VideoCodec);
 
         Assert.True(new PresetEditorViewModel(preset, AppHost.Get<ILocalizer>()).HardwareEncoding);
+
+        // WebM written as AV1 (the "MP4 AV1" kind of preset, in WebM) offers it too.
+        var webm = new PresetEditorViewModel(new Filee.Core.Presets.Preset { TargetFormat = "webm", Name = "AV1" }, AppHost.Get<ILocalizer>());
+        Assert.False(webm.ShowHardwareEncoding);
+        webm.VideoCodecChoice = webm.VideoCodecs.Single(c => c.Value == Filee.Core.Presets.VideoCodec.Av1);
+        Assert.True(webm.ShowHardwareEncoding);
     }
 
     [AvaloniaFact]
@@ -1712,7 +1764,7 @@ public class RenderTests
             change(store.Profiles);
             if (dark)
                 theme.Apply(new ThemeSettings { Mode = ThemeMode.Dark }, language);
-            var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<ILocalizer>(), AppHost.Get<UpdateService>());
+            using var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<ILocalizer>(), AppHost.Get<UpdateService>());
             vm.Navigate("toolbar");
             window = new MainWindow { DataContext = vm, Width = 1080, Height = height };
             window.Show();
@@ -1831,6 +1883,7 @@ public class RenderTests
     [InlineData("zh-CN")]
     [InlineData("ru")]
     [InlineData("ar")]
+    [InlineData("pt-BR")]
     public void Live_photo_options_render_for_jpg_and_heic_and_save_only_there(string language)
     {
         TestServices.EnsureInitialized(language);
