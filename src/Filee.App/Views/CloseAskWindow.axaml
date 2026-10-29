@@ -16,12 +16,13 @@
       <TextBlock Classes="caption" TextWrapping="Wrap" Text="{DynamicResource close.text}" />
     </StackPanel>
     <CheckBox x:Name="DontAsk" Content="{DynamicResource close.dont_ask}" />
-    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-      <Button MinWidth="88" HorizontalContentAlignment="Center" Content="{DynamicResource common.cancel}"
+    <!-- Translated actions can need a second row; never push an action outside the dialog. -->
+    <WrapPanel HorizontalAlignment="Right">
+      <Button MinWidth="88" Margin="0,4,8,0" HorizontalContentAlignment="Center" Content="{DynamicResource common.cancel}"
               Click="OnCancel" IsCancel="True" />
-      <Button MinWidth="88" HorizontalContentAlignment="Center" Content="{DynamicResource close.quit}" Click="OnQuit" />
-      <Button Classes="accent" MinWidth="88" HorizontalContentAlignment="Center" Content="{DynamicResource close.tray}"
+      <Button MinWidth="88" Margin="0,4,8,0" HorizontalContentAlignment="Center" Content="{DynamicResource close.quit}" Click="OnQuit" />
+      <Button Classes="accent" MinWidth="88" Margin="0,4,0,0" HorizontalContentAlignment="Center" Content="{DynamicResource close.tray}"
               Click="OnTray" IsDefault="True" />
-    </StackPanel>
+    </WrapPanel>
   </StackPanel>
 </Window>

@@ -6,6 +6,7 @@ using Filee.Core.Localization;
 using Filee.Core.Presets;
 using Filee.Core.Settings;
 using Filee.Engines.Magick;
+using Filee.Engines.Pdf;
 using ImageMagick;
 using Microsoft.Extensions.Logging;
 
@@ -33,6 +34,8 @@ public static class CropService
 
     private static void EnsureNotAnimated(string inputPath)
     {
+        if (inputPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            return;
         if (inputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) && Apng.IsAnimated(inputPath))
             throw new NotSupportedException("Animated PNG files cannot be cropped interactively.");
 
@@ -53,6 +56,12 @@ public static class CropService
     {
         return await Task.Run(() =>
         {
+            if (inputPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                var preview = PdfPageTools.Preview(inputPath);
+                using var previewStream = new MemoryStream(preview.Png);
+                return (new Bitmap(previewStream), preview.Width, preview.Height);
+            }
             EnsureNotAnimated(inputPath);
 
             var readSettings = CreateReadSettings(inputPath);
@@ -60,6 +69,8 @@ public static class CropService
                 ? new MagickImage(inputPath, readSettings)
                 : new MagickImage(inputPath);
 
+            if (readSettings.Format == MagickFormat.Dds)
+                DdsChannelOrder.Correct(inputPath, image);
             image.AutoOrient();
             var origWidth = (int)image.Width;
             var origHeight = (int)image.Height;
@@ -90,7 +101,9 @@ public static class CropService
         Preset preset,
         UserDataStore store,
         ILocalizer loc,
-        ILogger? log = null)
+        ILogger? log = null,
+        int? originalWidth = null,
+        int? originalHeight = null)
     {
         return await Task.Run(() =>
         {
@@ -112,11 +125,26 @@ public static class CropService
                 if (!string.IsNullOrEmpty(outDir))
                     Directory.CreateDirectory(outDir);
 
+                if (ext.Equals("pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    var fullWidth = Math.Max(1, originalWidth ?? x + width);
+                    var fullHeight = Math.Max(1, originalHeight ?? y + height);
+                    PdfPageTools.CropAll(inputPath, outputPath,
+                        (double)x / fullWidth,
+                        (double)y / fullHeight,
+                        (double)width / fullWidth,
+                        (double)height / fullHeight);
+                    PreserveDates(inputPath, outputPath, appliedPreset, store, log);
+                    return new CropResult(CropStatus.Success, outputPath, null, null);
+                }
+
                 var readSettings = CreateReadSettings(inputPath);
                 using var image = readSettings.Format != MagickFormat.Unknown
                     ? new MagickImage(inputPath, readSettings)
                     : new MagickImage(inputPath);
 
+                if (readSettings.Format == MagickFormat.Dds)
+                    DdsChannelOrder.Correct(inputPath, image);
                 image.AutoOrient();
 
                 var clampedX = Math.Clamp(x, 0, Math.Max(0, (int)image.Width - 1));
@@ -136,18 +164,7 @@ public static class CropService
 
                 image.Write(outputPath);
 
-                if (appliedPreset.Output.KeepDates || store.Settings.KeepFileDates)
-                {
-                    try
-                    {
-                        File.SetCreationTimeUtc(outputPath, File.GetCreationTimeUtc(inputPath));
-                        File.SetLastWriteTimeUtc(outputPath, File.GetLastWriteTimeUtc(inputPath));
-                    }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                    {
-                        log?.LogDebug(ex, "Could not preserve file timestamps for {Path}", outputPath);
-                    }
-                }
+                PreserveDates(inputPath, outputPath, appliedPreset, store, log);
 
                 return new CropResult(CropStatus.Success, outputPath, null, null);
             }
@@ -162,5 +179,20 @@ public static class CropService
                 return new CropResult(CropStatus.Failed, null, "error.conversion_failed", ex.Message);
             }
         });
+    }
+
+    private static void PreserveDates(string inputPath, string outputPath, Preset preset, UserDataStore store, ILogger? log)
+    {
+        if (!preset.Output.KeepDates && !store.Settings.KeepFileDates)
+            return;
+        try
+        {
+            File.SetCreationTimeUtc(outputPath, File.GetCreationTimeUtc(inputPath));
+            File.SetLastWriteTimeUtc(outputPath, File.GetLastWriteTimeUtc(inputPath));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log?.LogDebug(ex, "Could not preserve file timestamps for {Path}", outputPath);
+        }
     }
 }

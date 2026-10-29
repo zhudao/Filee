@@ -220,27 +220,29 @@ public sealed class WebDownloaderTests : IDisposable
     [Fact]
     public async Task Cancelling_stops_the_download_and_removes_the_partial_file()
     {
-        var started = new TaskCompletionSource();
+        // A first chunk past the sniffed head, so the file gets created, then nothing until the test is over.
+        var chunk = new byte[WebFormats.SniffLength * 4];
+        Png.CopyTo(chunk, 0);
         _routes["/slow.png"] = async context =>
         {
             context.Response.ContentType = "image/png";
             context.Response.ContentLength64 = 10_000;
-            await context.Response.OutputStream.WriteAsync(Png);
+            await context.Response.OutputStream.WriteAsync(chunk);
             await context.Response.OutputStream.FlushAsync();
-            started.TrySetResult();
-            await Task.Delay(TimeSpan.FromSeconds(5), _stop.Token);
+            await Task.Delay(Timeout.Infinite, _stop.Token);
         };
         using var downloader = Downloader();
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var progress = new List<TransferProgress>();
+        // The first report comes right after the file is created and the head written into it.
+        var written = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var download = downloader.DownloadAsync(Url("/slow.png"), _dir.Path, null, new SyncProgress(progress), cancel.Token);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-        await WaitUntil(() => Directory.GetFiles(_dir.Path).Length == 1);
+        var download = downloader.DownloadAsync(Url("/slow.png"), _dir.Path, null, new ProgressCallback(_ => written.TrySetResult()), cancel.Token);
+        await await Task.WhenAny(written.Task, download); // a download that fails before writing fails the test with its reason
+        Assert.Single(Directory.GetFiles(_dir.Path));
         cancel.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => download);
-        Assert.Empty(Directory.GetFiles(_dir.Path));
+        Assert.Empty(Directory.GetFiles(_dir.Path)); // deleted before the cancellation reaches the caller
     }
 
     [Fact]
@@ -295,11 +297,9 @@ public sealed class WebDownloaderTests : IDisposable
             program.SaveAsync(_dir.Path, downloader, null, TestContext.Current.CancellationToken))).ErrorKey);
     }
 
-    private static async Task WaitUntil(Func<bool> condition)
+    private sealed class ProgressCallback(Action<TransferProgress> report) : IProgress<TransferProgress>
     {
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
-        while (!condition() && DateTime.UtcNow < deadline)
-            await Task.Delay(10);
+        public void Report(TransferProgress value) => report(value);
     }
 
     private sealed class SyncProgress(List<TransferProgress> values) : IProgress<TransferProgress>

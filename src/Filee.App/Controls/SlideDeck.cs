@@ -10,6 +10,7 @@
 //   ]
 // }
 
+using System.Collections.Frozen;
 using System.Text.Json;
 using Avalonia.Platform;
 
@@ -19,7 +20,20 @@ namespace Filee.App.Controls;
 /// One slide: a picture or animation, a title and a line or two of text (i18n keys). <paramref name="PosterFrame"/> is
 /// the frame shown with reduced motion (the first unless the manifest says <c>"poster"</c>).
 /// </summary>
-public sealed record Slide(string Id, Uri Media, string TitleKey, string TextKey, int PosterFrame = 0);
+public sealed record Slide(string Id, Uri Media, string TitleKey, string TextKey, int PosterFrame = 0)
+{
+    /// <summary>Optional recordings of the same demonstration in particular UI languages.</summary>
+    public IReadOnlyDictionary<string, SlideMedia> LocalizedMedia { get; init; } =
+        FrozenDictionary<string, SlideMedia>.Empty;
+
+    /// <summary>Exact language match only: pt-PT must never borrow a pt-BR recording, or vice versa.</summary>
+    public SlideMedia MediaFor(string? language) =>
+        language is not null && LocalizedMedia.TryGetValue(language, out var localized)
+            ? localized : new SlideMedia(Media, PosterFrame);
+}
+
+/// <summary>A recording and its own reduced-motion frame; localized recordings can have different frame counts.</summary>
+public sealed record SlideMedia(Uri Source, int PosterFrame = 0);
 
 /// <summary>The slides introducing <see cref="Version"/>.</summary>
 public sealed record SlideDeck(Version Version, IReadOnlyList<Slide> Slides)
@@ -81,9 +95,18 @@ public sealed record SlideDeck(Version Version, IReadOnlyList<Slide> Slides)
             if (Text(item, "id") is { } id && Text(item, "media") is { } media
                 && Text(item, "title") is { } title && Text(item, "text") is { } text
                 && IsPlainRelative(media))
-                slides.Add(new Slide(id, new Uri(folder, media), title, text,
-                    item.TryGetProperty("poster", out var poster) && poster.ValueKind == JsonValueKind.Number
-                    && poster.TryGetInt32(out var frame) && frame > 0 ? frame : 0));
+            {
+                var localized = new Dictionary<string, SlideMedia>(StringComparer.OrdinalIgnoreCase);
+                if (item.TryGetProperty("localizedMedia", out var variants) && variants.ValueKind == JsonValueKind.Object)
+                    foreach (var variant in variants.EnumerateObject())
+                        if (Text(variant.Value, "media") is { } path && IsPlainRelative(path))
+                            localized[variant.Name] = new SlideMedia(new Uri(folder, path), Poster(variant.Value));
+                slides.Add(new Slide(id, new Uri(folder, media), title, text, Poster(item))
+                {
+                    LocalizedMedia = localized.Count == 0 ? FrozenDictionary<string, SlideMedia>.Empty
+                        : localized.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
+                });
+            }
         }
         return slides.Count == 0 ? null : new SlideDeck(version, slides);
     }
@@ -112,6 +135,10 @@ public sealed record SlideDeck(Version Version, IReadOnlyList<Slide> Slides)
     /// </summary>
     private static bool IsPlainRelative(string media) =>
         !media.Contains("..", StringComparison.Ordinal) && !media.Contains(':') && media[0] is not ('/' or '\\');
+
+    private static int Poster(JsonElement item) =>
+        item.TryGetProperty("poster", out var poster) && poster.ValueKind == JsonValueKind.Number
+        && poster.TryGetInt32(out var frame) && frame > 0 ? frame : 0;
 
     private static string? Text(JsonElement item, string name) =>
         item.ValueKind == JsonValueKind.Object && item.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String

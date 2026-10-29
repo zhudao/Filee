@@ -15,6 +15,7 @@ public partial class CloseAskWindow : Window
     {
         InitializeComponent();
         Motion.Track(this);
+        UiZoom.Track(this);
     }
 
     /// <summary>"Don't ask again" was ticked: the answer becomes the setting.</summary>

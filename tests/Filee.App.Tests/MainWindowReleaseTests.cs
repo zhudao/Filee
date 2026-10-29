@@ -12,6 +12,7 @@ using Filee.App.Views;
 
 namespace Filee.App.Tests;
 
+[Collection("MainWindow")]
 public class MainWindowReleaseTests
 {
     private static void Pump()

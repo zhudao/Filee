@@ -3,6 +3,7 @@
 // back face greys out what can't convert the files like the front, and "Reduce animations" swaps the faces at once.
 
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -84,6 +85,538 @@ public class DonutFlipTests
     private static void HintLikeTheController(RadialViewModel vm, DonutMenu donut) =>
         donut.ActiveIndexChanged += (_, index) => vm.ShowHint(index, donut.ActiveSubIndex, donut.IsCenterHot);
 
+    private static (DonutMenu Donut, Avalonia.Controls.Window Window) Wave(int front = 6, int back = 4)
+    {
+        TestServices.EnsureInitialized();
+        Motion.Configure(false, () => false);
+        DonutItem[] Face(int count, string prefix) =>
+            Enumerable.Range(0, count).Select(i => new DonutItem { Id = $"{prefix}{i}", Label = $"{prefix}{i}" }).ToArray();
+        var first = Face(front, "front");
+        var second = Face(back, "back");
+        var donut = new DonutMenu { Items = first, CanFlip = true };
+        var backShown = false;
+        donut.FaceSwapping += (_, _) => donut.Items = (backShown = !backShown) ? second : first;
+        var window = new Avalonia.Controls.Window { Content = donut, SizeToContent = Avalonia.Controls.SizeToContent.WidthAndHeight };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        return (donut, window);
+    }
+
+    private static Point At(DonutMenu donut, double angle) =>
+        DonutGeometry.PointAt(new Point(donut.Bounds.Width / 2, donut.Bounds.Height / 2), donut.OuterRadius * 0.7, angle);
+
+    private static byte[] PixelAt(DonutMenu donut, Point at)
+    {
+        using var image = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)donut.Bounds.Width, (int)donut.Bounds.Height));
+        image.Render(donut);
+        var pixel = new byte[4];
+        var pin = System.Runtime.InteropServices.GCHandle.Alloc(pixel, System.Runtime.InteropServices.GCHandleType.Pinned);
+        try { image.CopyPixels(new PixelRect((int)at.X, (int)at.Y, 1, 1), pin.AddrOfPinnedObject(), 4, 4); }
+        finally { pin.Free(); }
+        // Always B, G, R, A: macOS renders RGBA where Windows and Linux render BGRA.
+        if (image.Format == Avalonia.Platform.PixelFormat.Rgba8888)
+            (pixel[0], pixel[2]) = (pixel[2], pixel[0]);
+        return pixel;
+    }
+
+    private static byte AlphaAt(DonutMenu donut, Point at) => PixelAt(donut, at)[3];
+
+    [AvaloniaTheory]
+    [InlineData(0.01)]
+    [InlineData(0.1)]
+    public void T1_drop_during_the_wave_uses_the_new_face_preset(double elapsed) => With(true, null, () =>
+    {
+        var provider = new TriggerServiceLifecycleTests.DelayedProvider();
+        provider.AllowExit.Set();
+        using var triggers = TriggerServiceLifecycleTests.Create(provider, () => { });
+        var vm = AppHost.Get<RadialViewModel>();
+        var radial = new RadialController(vm, AppHost.Get<ConversionService>(), AppHost.Get<WindowService>(), Store,
+            AppHost.Get<IPlatformServices>(), triggers, NullLogger<RadialController>.Instance);
+        var folder = Directory.CreateTempSubdirectory("filee-wave-drop-");
+        var conversions = AppHost.Get<ConversionService>();
+        try
+        {
+            var file = Path.Combine(folder.FullName, "photo.jpg");
+            File.WriteAllBytes(file, [0xFF, 0xD8, 0xFF]);
+            radial.ShowForDrag(400, 400);
+            var window = radial.Window!;
+            RenderTests.Pump();
+            var data = new DataTransfer();
+            data.Add(DataTransferItem.CreateFile(window.StorageProvider.TryGetFileFromPathAsync(file).GetAwaiter().GetResult()!));
+            var donut = window.DonutControl;
+            var at = At(donut, DonutGeometry.MidAngle(7, ImageBack.Count)); // "to-gif", not the crop tool
+            var inWindow = donut.TranslatePoint(at, window)!.Value;
+            window.DragDrop(inWindow, RawDragEventType.DragEnter, data, DragDropEffects.Copy, RawInputModifiers.Control);
+            Dispatcher.UIThread.RunJobs();
+            var frontPreset = vm.PresetAt(donut.HitTest(at).Index, -1)!;
+            Assert.True(donut.Flip());
+            donut.Advance(elapsed);
+            var preset = vm.PresetAt(donut.HitTest(at).Index, -1)!;
+            Assert.Contains(preset.Id, ImageBack);
+            Assert.NotEqual(frontPreset.Id, preset.Id);
+            var before = conversions.Jobs.Select(j => j.Job.Id).ToHashSet();
+            window.DragDrop(inWindow, RawDragEventType.Drop, data, DragDropEffects.Copy, RawInputModifiers.Control);
+            var job = Assert.Single(conversions.Jobs, j => !before.Contains(j.Job.Id));
+            Assert.Equal(preset.Id, job.Job.Preset.Id);
+            job.CancelCommand.Execute(null);
+            radial.Close(animate: false);
+            window.Close();
+        }
+        finally
+        {
+            radial.Close(animate: false);
+            folder.Delete(recursive: true);
+        }
+    });
+
+    [AvaloniaFact]
+    public void T2_spoke_transforms_origin_priority_and_shadow_are_staggered()
+    {
+        var (donut, window) = Wave();
+        try
+        {
+            donut.SetExternalHit(donut.HitTest(At(donut, Math.PI / 6)), At(donut, Math.PI / 6));
+            Assert.True(donut.Flip());
+            Assert.Equal(Math.PI / 6, donut.FlipOrigin!.Value, 8);
+            Assert.Equal(1, donut.ShadowCoverage, 8);
+            donut.Advance(0.02);
+            Assert.InRange(donut.SliceFlipWidth(true, 0), 0.01, 0.99); // off-centre origin has no delay
+            Assert.Equal(1, donut.SliceFlipWidth(true, 3));
+            var center = new Point(donut.Bounds.Width / 2, donut.Bounds.Height / 2);
+            var top = donut.SliceFlipTransform(true, 0);
+            var right = donut.SliceFlipTransform(true, 1);
+            var topWidth = donut.SliceFlipWidth(true, 0);
+            var rightWidth = donut.SliceFlipWidth(true, 1);
+            Assert.Equal(topWidth, (new Point(center.X + 1, center.Y) * top).X - (center * top).X, 6);
+            Assert.Equal(-1, (new Point(center.X, center.Y - 1) * top).Y - (center * top).Y, 6);
+            var rightTangent = new Vector(Math.Cos(Math.PI / 3), Math.Sin(Math.PI / 3));
+            var basePoint = center * right;
+            var tangentPoint = (center + rightTangent) * right;
+            Assert.Equal(rightWidth, new Vector(tangentPoint.X - basePoint.X, tangentPoint.Y - basePoint.Y).Length, 6);
+            Assert.InRange(donut.ShadowCoverage, 0, 0.999);
+            donut.Advance(DonutMenu.FlipDuration);
+            Assert.False(donut.HasOldFace);
+            Assert.All(Enumerable.Range(0, 4), i => Assert.Equal(1, donut.SliceFlipWidth(false, i)));
+            Assert.Equal(1, donut.ShadowCoverage, 8);
+        }
+        finally { window.Close(); }
+        var (four, fourWindow) = Wave(4, 4);
+        try
+        {
+            four.Flip();
+            four.Advance(0.06);
+            var center = new Point(four.Bounds.Width / 2, four.Bounds.Height / 2);
+            var transform = four.SliceFlipTransform(true, 1);
+            var transformed = center * transform;
+            var radial = (center + new Vector(1, 0)) * transform;
+            var tangent = (center + new Vector(0, 1)) * transform;
+            Assert.Equal(1, new Vector(radial.X - transformed.X, radial.Y - transformed.Y).Length, 6);
+            Assert.Equal(four.SliceFlipWidth(true, 1),
+                new Vector(tangent.X - transformed.X, tangent.Y - transformed.Y).Length, 6);
+        }
+        finally { fourWindow.Close(); }
+        foreach (var source in new[] { "pointer", "keyboard", "none" })
+        {
+            var (other, host) = Wave();
+            try
+            {
+                if (source == "pointer")
+                    host.MouseMove(At(other, Math.PI));
+                if (source == "keyboard")
+                {
+                    for (var i = 0; i < 4; i++)
+                        other.HandleKey(Key.Right);
+                }
+                other.Flip();
+                Assert.Equal(source == "none" ? 0 : Math.PI, other.FlipOrigin!.Value, 6);
+            }
+            finally { host.Close(); }
+        }
+        var (centred, centredHost) = Wave();
+        try
+        {
+            centredHost.MouseMove(At(centred, Math.PI));
+            var hub = new Point(centred.Bounds.Width / 2, centred.Bounds.Height / 2);
+            centred.SetExternalHit(centred.HitTest(hub), hub);
+            centred.Flip();
+            Assert.Equal(0, centred.FlipOrigin!.Value, 6); // a drag exactly on the centre is rule 4, not the pointer
+        }
+        finally { centredHost.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void T4_a_fresh_drag_highlight_is_kept_as_it_was_drawn()
+    {
+        var (donut, window) = Wave();
+        try
+        {
+            donut.SliceBrush = Avalonia.Media.Brushes.Blue;
+            donut.AccentBrush = Avalonia.Media.Brushes.Red;
+            donut.SliceOpacity = 1;
+            donut.SliceBorderBrush = null;
+            var at = At(donut, Math.PI / 3);
+            donut.SetExternalHit(donut.HitTest(at), at);
+            var probe = At(donut, Math.PI / 3 + 0.35);
+            var before = PixelAt(donut, probe);
+            Assert.True(before[0] > before[2], "The highlight has not lit up yet");
+            Assert.True(donut.Flip());
+            var after = PixelAt(donut, probe);
+            Assert.All(Enumerable.Range(0, 4), c => Assert.InRange(after[c] - before[c], -2, 2));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void T3_unequal_faces_wait_for_overlapping_old_slices()
+    {
+        foreach (var (front, back) in new[] { (6, 4), (1, 6), (6, 1) })
+        {
+            var (donut, window) = Wave(front, back);
+            try
+            {
+                Assert.True(donut.Flip());
+                donut.Advance(0.061);
+                if (front == 1)
+                {
+                    Assert.Equal(0, donut.SliceFlipWidth(true, 0));
+                    Assert.True(donut.SliceFlipWidth(false, 0) > 0);
+                    Assert.Equal(0, donut.SliceFlipWidth(false, 1));
+                }
+                if (back == 1)
+                    Assert.Equal(0, donut.SliceFlipWidth(false, 0));
+                if (front == 6 && back == 4)
+                {
+                    Assert.True(donut.SliceFlipWidth(true, 1) > 0);
+                    Assert.Equal(0, donut.SliceFlipWidth(false, 1));
+                    donut.Advance(0.039);
+                    Assert.Equal(0, donut.SliceFlipWidth(true, 1));
+                    Assert.True(donut.SliceFlipWidth(true, 2) > 0);
+                    Assert.Equal(0, donut.SliceFlipWidth(false, 1));
+                    donut.Advance(0.014);
+                    Assert.Equal(0, donut.SliceFlipWidth(true, 2));
+                    Assert.True(donut.SliceFlipWidth(false, 1) > 0);
+                }
+                Assert.True(donut.ShadowCoverage <= 1);
+                donut.Advance(DonutMenu.FlipDuration);
+                Assert.All(Enumerable.Range(0, back), i => Assert.Equal(1, donut.SliceFlipWidth(false, i)));
+            }
+            finally { window.Close(); }
+        }
+        var (pointed, pointedWindow) = Wave(6, 1);
+        try
+        {
+            pointed.SetExternalHit(pointed.HitTest(At(pointed, Math.PI)), At(pointed, Math.PI));
+            pointed.Flip();
+            pointed.Advance(0.061);
+            Assert.True(pointed.SliceFlipWidth(false, 0) > 0);
+            Assert.True(pointed.SliceFlipWidth(true, 0) > 0);
+        }
+        finally { pointedWindow.Close(); }
+        var (layered, layeredWindow) = Wave(6, 1);
+        try
+        {
+            layered.SliceBrush = Avalonia.Media.Brushes.Blue;
+            layered.AccentBrush = Avalonia.Media.Brushes.Red;
+            layered.SliceOpacity = 1;
+            layered.SliceBorderBrush = null;
+            layered.SetExternalHit(layered.HitTest(At(layered, 0)), At(layered, 0));
+            layered.Flip();
+            layered.Advance(0.13);
+            Assert.True(layered.SliceFlipWidth(true, 3) > 0);
+            Assert.True(layered.SliceFlipWidth(false, 0) > 0);
+            var oldOnTop = PixelAt(layered, At(layered, Math.PI));
+            layered.FinishAnimations();
+            var newFace = PixelAt(layered, At(layered, Math.PI));
+            Assert.True(oldOnTop[0] > oldOnTop[2], "The old blue slice must cover the new red ring");
+            Assert.True(newFace[2] > newFace[0], "The new highlighted ring must be red at the same point");
+        }
+        finally { layeredWindow.Close(); }
+        var (keyboard, keyboardWindow) = Wave(6, 1);
+        try
+        {
+            keyboard.HandleKey(Key.Right);
+            keyboard.HandleKey(Key.Right); // 60 degrees on the old face
+            keyboard.Flip();
+            Assert.Equal(Math.PI / 3, keyboard.FlipOrigin!.Value, 8);
+            keyboard.Advance(0.13);
+            Assert.Equal(0, keyboard.SliceFlipWidth(false, 0));
+            keyboard.Advance(0.011);
+            Assert.True(keyboard.SliceFlipWidth(false, 0) > 0);
+        }
+        finally { keyboardWindow.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void T4_moving_a_drag_retargets_the_old_and_new_slices()
+    {
+        var (donut, window) = Wave(6, 1);
+        try
+        {
+            donut.SliceBrush = Avalonia.Media.Brushes.Blue;
+            donut.AccentBrush = Avalonia.Media.Brushes.Red;
+            donut.SliceOpacity = 1;
+            donut.SliceBorderBrush = null;
+            donut.SetExternalHit(donut.HitTest(At(donut, 0)), At(donut, 0));
+            donut.FinishAnimations(); // the drag highlight is fully lit before the flip keeps it
+            donut.Flip();
+            Assert.Equal("back0", donut.Items![0].Id);
+            Assert.True(donut.HasOldFace);
+            donut.Advance(0.01);
+            var paintAt = DonutGeometry.PointAt(new Point(donut.Bounds.Width / 2, donut.Bounds.Height / 2),
+                donut.OuterRadius * 0.9, 0);
+            var oldHighlight = PixelAt(donut, paintAt);
+            donut.SetExternalHit(donut.HitTest(At(donut, Math.PI)), At(donut, Math.PI));
+            var clearedHighlight = PixelAt(donut, paintAt);
+            Assert.True(oldHighlight[2] > oldHighlight[0], $"The old highlighted slice starts red: {string.Join(',', oldHighlight)}");
+            Assert.True(clearedHighlight[0] > clearedHighlight[2], $"Moving the drag clears the old red highlight: {string.Join(',', clearedHighlight)}");
+            donut.Advance(0.061);
+            Assert.Equal(0, donut.SliceFlipWidth(true, 3));
+            Assert.True(donut.SliceFlipWidth(false, 0) > 0);
+            Assert.True(donut.SliceFlipWidth(true, 1) > 0);
+            var newHighlight = PixelAt(donut, DonutGeometry.PointAt(
+                new Point(donut.Bounds.Width / 2, donut.Bounds.Height / 2), donut.OuterRadius * 0.9, Math.PI));
+            Assert.True(newHighlight[2] > 50 && newHighlight[0] < 255,
+                $"The new highlighted slice is visible under the drag: {string.Join(',', newHighlight)}");
+        }
+        finally { window.Close(); }
+        var (pointer, pointerWindow) = Wave(6, 1);
+        try
+        {
+            pointer.SliceBrush = Avalonia.Media.Brushes.Blue;
+            pointer.AccentBrush = Avalonia.Media.Brushes.Red;
+            pointer.SliceOpacity = 1;
+            pointer.SliceBorderBrush = null;
+            pointerWindow.MouseMove(At(pointer, 0));
+            pointer.Flip();
+            pointer.Advance(0.01);
+            pointerWindow.MouseMove(At(pointer, Math.PI));
+            pointer.Advance(0.061);
+            Assert.Equal(0, pointer.SliceFlipWidth(true, 3));
+            Assert.True(pointer.SliceFlipWidth(false, 0) > 0);
+            var belowPointer = PixelAt(pointer, DonutGeometry.PointAt(
+                new Point(pointer.Bounds.Width / 2, pointer.Bounds.Height / 2), pointer.OuterRadius * 0.9, Math.PI));
+            Assert.True(belowPointer[2] > 50 && belowPointer[0] < 255,
+                $"The pointed new ring is visible after the old slice folds: {string.Join(',', belowPointer)}");
+        }
+        finally { pointerWindow.Close(); }
+        var (keyboard, keyboardWindow) = Wave();
+        try
+        {
+            keyboard.Flip();
+            keyboard.Advance(0.01);
+            Assert.Equal(0, keyboard.SliceFlipWidth(false, 1));
+            keyboard.HandleKey(Key.Right);
+            keyboard.HandleKey(Key.Right);
+            keyboard.Advance(0.001);
+            Assert.True(keyboard.SliceFlipWidth(false, 1) > 0);
+            keyboard.Advance(0.061);
+            Assert.Equal(0, keyboard.SliceFlipWidth(true, 2));
+        }
+        finally { keyboardWindow.Close(); }
+        With(animations: true, back: null, () =>
+        {
+            var (vm, live, control) = OpenClickMode();
+            control.HandleKey(Key.Right);
+            control.HandleKey(Key.Right);
+            Assert.Equal(1, control.ActiveIndex);
+            control.Flip();
+            Assert.True(vm.IsBackFace);
+            Assert.Equal(-1, control.ActiveIndex);
+            Assert.Equal(AppHost.Get<ILocalizer>()["donut.close_hint"], vm.CenterSubtitle);
+            live.MouseMove(control.TranslatePoint(At(control, 0), live)!.Value);
+            Assert.Equal(0, control.ActiveIndex);
+            Assert.Contains(vm.Items[0].Label, vm.CenterSubtitle);
+            live.Close();
+        });
+    }
+
+    [AvaloniaFact]
+    public void Drag_entering_a_slice_on_the_same_spoke_pulls_the_wave_forward()
+    {
+        var (donut, window) = Wave(6, 1);
+        try
+        {
+            donut.SetExternalHit(donut.HitTest(At(donut, 0)), At(donut, 0));
+            donut.Flip();
+            donut.Advance(0.01);
+            var outside = DonutGeometry.PointAt(
+                new Point(donut.Bounds.Width / 2, donut.Bounds.Height / 2), donut.OuterRadius + 40, Math.PI);
+            donut.SetExternalHit(donut.HitTest(outside), outside);
+            Assert.Equal(1, donut.SliceFlipWidth(true, 3));
+            var inside = At(donut, Math.PI);
+            donut.SetExternalHit(donut.HitTest(inside), inside);
+            donut.Advance(0.061);
+            Assert.Equal(0, donut.SliceFlipWidth(true, 3));
+            Assert.True(donut.SliceFlipWidth(false, 0) > 0);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void T5_group_ring_is_retained_only_for_drawing()
+    {
+        var (donut, window) = Wave();
+        try
+        {
+            donut.ReserveSubRing = true;
+            Dispatcher.UIThread.RunJobs();
+            donut.SliceBrush = Avalonia.Media.Brushes.Blue;
+            donut.AccentBrush = Avalonia.Media.Brushes.Red;
+            donut.SliceOpacity = 1;
+            donut.SliceBorderBrush = null;
+            donut.Items = [new DonutItem { Id = "group", Label = "Group",
+                Children = [new DonutItem { Id = "child", Label = "Child" },
+                    new DonutItem { Id = "other", Label = "Other" }] },
+                .. donut.Items!.Skip(1)];
+            donut.SetExternalHit(donut.HitTest(At(donut, 0)), At(donut, 0));
+            donut.ExpandPendingGroup();
+            donut.Advance(0.04);
+            var sub = donut.SubSliceCenter(0, 0);
+            Assert.Equal(DonutHitKind.SubSegment, donut.HitTest(sub).Kind);
+            donut.SetExternalHit(donut.HitTest(sub), sub);
+            var center = new Point(donut.Bounds.Width / 2, donut.Bounds.Height / 2);
+            var sample = center + (sub - center) * ((donut.OuterRadius + 23) / (donut.OuterRadius + 36));
+            donut.FinishAnimations();
+            var highlighted = PixelAt(donut, sample);
+            Assert.True(highlighted[2] - highlighted[0] >= 32, $"The selected sub-slice is red: {string.Join(',', highlighted)}");
+            donut.Flip();
+            Assert.True(donut.HasOldGroupRing);
+            Assert.NotEqual(DonutHitKind.SubSegment, donut.HitTest(sub).Kind);
+            var retained = PixelAt(donut, sample);
+            Assert.All(Enumerable.Range(0, 4), i => Assert.InRange((int)retained[i] - highlighted[i], -2, 2));
+            Assert.True(retained[2] - retained[0] >= 32, $"The snapshot retains the selected sub-slice highlight: {string.Join(',', retained)}");
+            donut.Advance(0.061);
+            Assert.Equal(0, donut.SliceFlipWidth(true, 0));
+            Assert.Equal(0, AlphaAt(donut, sample));
+            donut.Advance(DonutMenu.FlipDuration);
+            Assert.False(donut.HasOldGroupRing);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void T6_finishing_cancelling_and_closing_release_old_drawings()
+    {
+        for (var scenario = 0; scenario < 4; scenario++)
+        {
+            var (donut, window) = Wave();
+            try
+            {
+                donut.Flip();
+                Assert.True(donut.HasOldFace);
+                switch (scenario)
+                {
+                    case 0: Motion.Configure(true, () => false); donut.Advance(0); break;
+                    case 1: donut.FinishAnimations(); break;
+                    case 2: donut.Items = [new DonutItem { Id = "new", Label = "New" }]; break;
+                    case 3: donut.PlayCloseAnimation(() => { }); break;
+                }
+                Assert.False(donut.HasOldFace);
+                Assert.False(donut.HasOldGroupRing);
+            }
+            finally { window.Close(); Motion.Configure(false, () => false); }
+        }
+    }
+
+    [AvaloniaFact]
+    public void T7_editor_flip_in_starts_half_open_and_ends_in_point_fourteen_seconds()
+    {
+        TestServices.EnsureInitialized();
+        Motion.Configure(false, () => false);
+        var originalBack = Images.BackPresetIds?.ToList();
+        using var main = new MainWindowViewModel(AppHost.Services, AppHost.Get<ILocalizer>(), AppHost.Get<UpdateService>());
+        main.Navigate("toolbar");
+        var window = new MainWindow { DataContext = main, Width = 1080, Height = 1000 };
+        try
+        {
+            window.Show();
+            var page = (ToolbarPageViewModel)main.CurrentPage!;
+            page.SelectedProfile = page.Profiles.Single(p => p.Profile.Id == "images");
+            RenderTests.Pump();
+            Motion.Configure(false, () => false);
+            var donut = window.GetVisualDescendants().OfType<DonutMenu>().Single();
+            var faces = window.GetVisualDescendants().OfType<Avalonia.Controls.Border>()
+                .Single(b => b.Name == "FaceSwitch").GetVisualDescendants().OfType<Avalonia.Controls.RadioButton>().ToList();
+            faces[1].IsChecked = true;
+            Assert.True(page.EditingBack);
+            Assert.Equal(ImageBack, page.DonutItems.Select(i => i.Id));
+            Assert.True(donut.IsFlipping);
+            Assert.False(donut.HasOldFace);
+            Assert.Equal(0, donut.FlipOrigin);
+            Assert.True(donut.SliceFlipWidth(false, 0) > 0);
+            Assert.Equal(0, donut.SliceFlipWidth(false, 2));
+            donut.Advance(DonutMenu.FlipDuration - DonutMenu.SliceTurn / 2);
+            Assert.False(donut.IsFlipping);
+            Assert.Equal(1, donut.SliceFlipWidth(false, 2));
+            donut.AccentBrush = Avalonia.Media.Brushes.Red;
+            var button = DonutGeometry.PointAt(new Point(donut.Bounds.Width / 2, donut.Bounds.Height / 2),
+                donut.OuterRadius - 14 + 7, 0);
+            var buttonEdge = new Point(button.X + 8, button.Y);
+            var beforeHover = PixelAt(donut, buttonEdge);
+            window.MouseMove(donut.TranslatePoint(At(donut, 0), window)!.Value);
+            var drawnButton = PixelAt(donut, buttonEdge);
+            Assert.NotEqual(beforeHover, drawnButton);
+            Assert.True(drawnButton[2] > drawnButton[0], "The edit button is drawn after the switch completes");
+            var beforeFront = Images.PresetIds.ToList();
+            var beforeBack = ImageBack;
+            page.RemoveAt(page.SliceCount - 1);
+            RenderTests.Pump();
+            var chip = window.GetVisualDescendants().OfType<Avalonia.Controls.Border>()
+                .Single(b => b.Classes.Contains("chip") && b.DataContext is PaletteChip { PresetId: "to-psd" });
+            chip.BringIntoView();
+            RenderTests.Pump();
+            var from = chip.TranslatePoint(new Point(chip.Bounds.Width / 2, chip.Bounds.Height / 2), window)!.Value;
+            var to = donut.TranslatePoint(new Point(donut.Bounds.Width / 2, donut.Bounds.Height / 2), window)!.Value;
+            window.MouseDown(from, Avalonia.Input.MouseButton.Left);
+            window.MouseMove(to);
+            window.MouseUp(to, Avalonia.Input.MouseButton.Left);
+            RenderTests.Pump();
+            Assert.Contains("to-psd", Images.BackPresetIds!);
+            Assert.Equal(beforeFront, Images.PresetIds);
+            Assert.Equal(beforeBack.Count, Images.BackPresetIds!.Count);
+            Motion.Configure(true, () => false);
+            faces[0].IsChecked = true;
+            Assert.False(donut.IsFlipping);
+            Assert.Equal(1, donut.SliceFlipWidth(false, 0));
+        }
+        finally
+        {
+            window.Close();
+            Images.BackPresetIds = originalBack;
+            Store.SaveLibrary();
+            Motion.Configure(false, () => false);
+        }
+    }
+
+    [AvaloniaFact]
+    public void T8_wedge_cache_does_not_grow_on_the_second_wave()
+    {
+        var (donut, window) = Wave();
+        try
+        {
+            donut.Flip();
+            using (var image = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)window.Bounds.Width, (int)window.Bounds.Height)))
+                image.Render(window);
+            donut.FinishAnimations();
+            using (var image = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)window.Bounds.Width, (int)window.Bounds.Height)))
+                image.Render(window);
+            donut.Flip();
+            donut.FinishAnimations();
+            using (var image = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)window.Bounds.Width, (int)window.Bounds.Height)))
+                image.Render(window);
+            var cached = donut.CachedWedgeCount;
+            donut.Flip();
+            foreach (var dt in new[] { 0.02, 0.03, 0.04, 0.05, 0.06 })
+            {
+                donut.Advance(dt);
+                using var image = new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)window.Bounds.Width, (int)window.Bounds.Height));
+                image.Render(window);
+                Assert.Equal(cached, donut.CachedWedgeCount);
+            }
+        }
+        finally { window.Close(); }
+    }
+
     [AvaloniaFact]
     public void Tab_flips_to_the_back_and_shift_tab_back_to_the_front_in_click_mode() => With(animations: true, back: null, () =>
     {
@@ -96,19 +629,20 @@ public class DonutFlipTests
 
         Assert.True(donut.HandleKey(Key.Tab));
         Assert.True(donut.IsFlipping);
-        donut.Advance(DonutMenu.FlipDuration * 0.3);
-        Assert.InRange(donut.FlipScale, 0.01, 0.99); // turning, still the front
-        Assert.False(vm.IsBackFace);
-        Assert.Equal(front, vm.Items.Select(i => i.Id));
+        Assert.True(vm.IsBackFace);
+        Assert.Equal(ImageBack, vm.Items.Select(i => i.Id));
+        donut.Advance(DonutMenu.FlipDuration * 0.2);
+        Assert.InRange(donut.SliceFlipWidth(true, 0), 0.01, 0.99);
 
-        donut.Advance(DonutMenu.FlipDuration * 0.3); // past edge-on: the back
+        donut.Advance(DonutMenu.FlipDuration * 0.3);
         Assert.True(vm.IsBackFace);
         Assert.Equal(ImageBack, vm.Items.Select(i => i.Id));
         Assert.Equal(loc.Format("donut.flip_to_front", "Tab"), donut.CenterHint);
         Assert.Equal(loc["donut.close_hint"], vm.CenterSubtitle);
         donut.Advance(DonutMenu.FlipDuration);
         Assert.False(donut.IsFlipping);
-        Assert.Equal(1, donut.FlipScale);
+        Assert.Equal(1, donut.SliceFlipWidth(false, 0));
+        Assert.False(donut.HasOldFace);
 
         Assert.True(donut.HandleKey(Key.Tab, KeyModifiers.Shift));
         donut.Advance(DonutMenu.FlipDuration);
@@ -169,7 +703,8 @@ public class DonutFlipTests
         var (vm, window, donut) = OpenClickMode();
         Assert.True(donut.Flip());
         Assert.False(donut.IsFlipping);
-        Assert.Equal(1, donut.FlipScale);
+        Assert.False(donut.HasOldFace);
+        Assert.Equal(1, donut.SliceFlipWidth(false, 0));
         Assert.True(vm.IsBackFace);
         Assert.False(donut.Advance(0)); // nothing left to animate
         window.Close();
@@ -246,13 +781,17 @@ public class DonutFlipTests
         var group = vm.Items.Count - 1;
         donut.SetExternalHit(new DonutHit(DonutHitKind.Segment, group));
         donut.ExpandPendingGroup();
-        Assert.Equal(DonutHitKind.SubSegment, donut.HitTest(donut.SubSliceCenter(group, 1)).Kind);
+        var sub = donut.SubSliceCenter(group, 1);
+        Assert.Equal(DonutHitKind.SubSegment, donut.HitTest(sub).Kind);
+        donut.Advance(0.04);
 
         donut.HandleKey(Key.Tab);
-        Assert.NotEqual(DonutHitKind.SubSegment, donut.HitTest(donut.SubSliceCenter(group, 1)).Kind);
-        Assert.False(vm.IsBackFace); // the ring folds first, the faces swap halfway through the turn
+        Assert.NotEqual(DonutHitKind.SubSegment, donut.HitTest(sub).Kind);
+        Assert.True(vm.IsBackFace); // only the drawing keeps the old ring
+        Assert.True(donut.HasOldGroupRing);
         donut.Advance(DonutMenu.FlipDuration);
         Assert.True(vm.IsBackFace);
+        Assert.False(donut.HasOldGroupRing);
         window.Close();
     });
 
@@ -323,6 +862,9 @@ public class DonutFlipTests
             Assert.True(triggers.WatchFlipKey);
 
             provider.PostKey(EventType.KeyPressed, KeyCode.VcTab, EventMask.LeftCtrl);
+            // #504: macOS can hand the donut's window the same press as well; it must not flip a second time.
+            window.KeyPress(Key.Tab, RawInputModifiers.Control, PhysicalKey.Tab, null);
+            Dispatcher.UIThread.RunJobs();
             Assert.True(TriggerServiceLifecycleTests.Settle(() => vm.IsBackFace));
             Assert.Equal(ImageBack, vm.Items.Select(i => i.Id));
             provider.PostKey(EventType.KeyReleased, KeyCode.VcTab, EventMask.LeftCtrl);
@@ -362,10 +904,15 @@ public class DonutFlipTests
             window.Close();
         });
 
-    /// <summary>No key, the wheel on: the hub shows a mouse; neither: no hint and the donut doesn't flip by input.</summary>
-    [AvaloniaFact]
-    public void The_hub_shows_a_mouse_when_only_the_wheel_flips_and_nothing_when_nothing_does() =>
-        With(animations: false, back: null, flipKey: "", wheel: true, test: () =>
+    /// <summary>
+    /// No key, the wheel on: the hub shows a mouse and the flip arrow; neither: no hint and the donut doesn't flip by
+    /// input. Arabic puts the icons at the right, where its line starts (#554).
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("en")]
+    [InlineData("ar")]
+    public void The_hub_shows_a_mouse_when_only_the_wheel_flips_and_nothing_when_nothing_does(string language) =>
+        With(animations: false, back: null, language: language, flipKey: "", wheel: true, test: () =>
         {
             var (vm, window, donut) = OpenClickMode();
             Assert.Null(donut.FlipKey);
@@ -373,7 +920,7 @@ public class DonutFlipTests
             Assert.Equal(AppHost.Get<ILocalizer>().Format("donut.flip_to_back", "").Trim(), vm.FlipHint);
             Assert.False(donut.HandleKey(Key.Tab));
             RenderTests.Pump();
-            RenderTests.Save(window, "donut-front-hint-wheel-en.png");
+            RenderTests.Save(window, $"donut-front-hint-wheel-{language}.png");
             window.Close();
 
             Store.Settings.Donut.FlipWithWheel = false;
@@ -592,6 +1139,7 @@ public class DonutFlipTests
     [InlineData("ru", false)]
     [InlineData("ar", true)]
     [InlineData("pt-BR", false)]
+    [InlineData("fr", false)]
     public void The_back_face_renders(string language, bool dark) => With(animations: true, back: null, () =>
     {
         var theme = AppHost.Get<ThemeService>();
@@ -610,19 +1158,20 @@ public class DonutFlipTests
             // Drawn right here, not by the render loop: that would play the rest of the turn first.
             donut.HandleKey(Key.Tab);
             donut.Advance(DonutMenu.FlipDuration * 0.3);
-            Assert.InRange(donut.FlipScale, 0.2, 0.8);
+            Assert.InRange(donut.SliceFlipWidth(false, 0), 0.01, 0.99);
             var size = new PixelSize((int)window.Bounds.Width, (int)window.Bounds.Height);
             using (var turning = new Avalonia.Media.Imaging.RenderTargetBitmap(size))
             {
                 turning.Render(window);
-                turning.Save(Path.Combine(TestServices.ScreenshotDirectory, $"donut-flip-midway-{suffix}.png"));
+                using var png = File.Create(Path.Combine(TestServices.ScreenshotDirectory, $"donut-flip-midway-{suffix}.png"));
+                turning.Save(png, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
             }
 
             donut.FinishAnimations();
             Assert.True(vm.IsBackFace);
             donut.SetExternalHighlight(2);
             RenderTests.Pump();
-            Assert.Equal(1, donut.FlipScale);
+            Assert.Equal(1, donut.SliceFlipWidth(false, 0));
             RenderTests.Save(window, $"donut-back-{suffix}.png");
             window.Close();
         }
@@ -632,6 +1181,37 @@ public class DonutFlipTests
                 theme.Apply(new ThemeSettings(), language);
         }
     }, language);
+
+    /// <summary>The PDF back face exposes Edit as a slice, then fans its six tools out around that slice.</summary>
+    [AvaloniaFact]
+    public void The_pdf_edit_group_renders_as_a_subring() => With(animations: false, back: null, () =>
+    {
+        var theme = AppHost.Get<ThemeService>();
+        try
+        {
+            theme.Apply(new ThemeSettings { Mode = ThemeMode.Dark, CornerRadius = 16 }, "en");
+            Motion.Configure(true, () => false);
+            var (vm, window, donut) = OpenClickMode(@"C:\docs\report.pdf");
+
+            Assert.True(donut.HandleKey(Key.Tab));
+            Assert.True(vm.IsBackFace);
+            Assert.Equal("pdf-edit", vm.Items[0].Id);
+            Assert.Equal(6, vm.Items[0].Children!.Count);
+
+            donut.SetExternalHit(new DonutHit(DonutHitKind.Segment, 0));
+            donut.ExpandPendingGroup();
+            donut.SetExternalHit(new DonutHit(DonutHitKind.SubSegment, 0, 3));
+            RenderTests.Pump();
+            RenderTests.Save(window, "donut-pdf-edit-en.png");
+
+            Assert.Equal(DonutHitKind.SubSegment, donut.HitTest(donut.SubSliceCenter(0, 3)).Kind);
+            window.Close();
+        }
+        finally
+        {
+            theme.Apply(new ThemeSettings(), "en");
+        }
+    });
 
     /// <summary>
     /// The editor's Front / Back switch: the donut shows and edits the back face, the front stays as it was, and
@@ -681,9 +1261,10 @@ public class DonutFlipTests
             RenderTests.Save(window, $"toolbar-back-face-{language}{(dark ? "-dark" : "")}.png");
 
             var back = ImageBack;
+            // The built-in back face is full (settings schema 37): a slice goes before another comes in.
+            page.RemoveAt(page.SliceCount - 1);
             Assert.True(page.Insert("to-psd", 0));
             page.Move(0, 2);
-            page.RemoveAt(page.SliceCount - 1);
             List<string> edited = [.. back[..2], "to-psd", .. back[2..^1]];
             Assert.Equal(edited, Images.BackPresetIds);
             Assert.Equal(front, Images.PresetIds); // the front as it was

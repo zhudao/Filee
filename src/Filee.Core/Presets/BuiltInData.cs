@@ -43,10 +43,49 @@ public static class BuiltInData
             Id = "remove-background", NameKey = "preset.remove_background", TargetFormat = "png",
             Image = { RemoveBackground = true }, Output = { FileNamePattern = "{name}_transparent" },
         },
+        .. TrimPresets(),
         new()
         {
             Id = "tool-crop", NameKey = "preset.crop", TargetFormat = SameAsSource,
             Kind = PresetKind.Tool, Output = { FileNamePattern = "{name}_cropped" },
+        },
+        .. ImageEditPresets(),
+        .. HidePresets(),
+        new()
+        {
+            Id = "tool-sheet-studio", NameKey = "preset.sheet_studio", TargetFormat = "pdf",
+            Kind = PresetKind.Tool, Output = { FileNamePattern = "{name}_prepared" },
+        },
+        new()
+        {
+            Id = "tool-pdf-crop", NameKey = "preset.pdf_crop", TargetFormat = SameAsSource,
+            Kind = PresetKind.Tool, Output = { FileNamePattern = "{name}_cropped" },
+        },
+        new()
+        {
+            Id = "tool-pdf-pages", NameKey = "preset.pdf_pages", TargetFormat = SameAsSource,
+            Kind = PresetKind.Tool, Output = { FileNamePattern = "{name}_edited" },
+        },
+        new()
+        {
+            Id = "tool-pdf-add", NameKey = "preset.pdf_add", TargetFormat = SameAsSource,
+            Kind = PresetKind.Tool, Output = { FileNamePattern = "{name}_merged" },
+        },
+        new()
+        {
+            Id = "pdf-rotate-left", NameKey = "preset.rotate_left", TargetFormat = "pdf",
+            Pdf = { Rotation = PdfRotation.Left90 }, Output = { FileNamePattern = "{name}_left" },
+        },
+        new()
+        {
+            Id = "pdf-rotate-right", NameKey = "preset.rotate_right", TargetFormat = "pdf",
+            Pdf = { Rotation = PdfRotation.Right90 }, Output = { FileNamePattern = "{name}_right" },
+        },
+        new()
+        {
+            Id = "pdf-edit", NameKey = "preset.group_pdf_edit", TargetFormat = Preset.GroupTarget,
+            Kind = PresetKind.Group,
+            SubPresetIds = ["tool-pdf-crop", "pdf-rotate-left", "pdf-rotate-right", "tool-pdf-pages", "pdf-split", "tool-pdf-add"],
         },
         .. ImageToolPresets(),
         new()
@@ -71,10 +110,14 @@ public static class BuiltInData
             Pdf = { SplitPages = true }, Output = { Location = OutputLocation.Subfolder, SubfolderName = "{name}" },
         },
         .. PdfCompressionPresets(),
+        .. OcrPresets(),
         .. PdfSlidesPresets(),
         .. FramePresets(),
         .. MotionPhotoPresets(),
         .. LivePhotoPresets(),
+        .. ClipPresets(),
+        .. MediaToolPresets(),
+        .. MergeImagesPresets(),
         new() { Id = "to-docx", Name = "DOCX", TargetFormat = "docx" },
         new() { Id = "to-hwpx", Name = "HWPX", TargetFormat = "hwpx" },
         .. HwpPresets(),
@@ -90,6 +133,35 @@ public static class BuiltInData
         .. ModelPresets(),
         .. GeoPresets(),
         .. TracePresets(),
+    ];
+
+    /// <summary>
+    /// Ready-made presets for where a file is sent (#553), offered only by Settings → Presets → Add: not in the library
+    /// of a new install, on no donut, and with no settings migration. Each Add makes a new copy.
+    /// Email: 18 MB, since an attachment grows by a third on the way and most providers stop at 25 MB.
+    /// </summary>
+    public static List<Preset> PlacePresets() =>
+    [
+        new()
+        {
+            Id = "for-email", NameKey = "preset.for_email", TargetFormat = "mp4",
+            Media = { MaxSizeMb = 18 }, Output = { FileNamePattern = "{name}_email" },
+        },
+        new()
+        {
+            Id = "for-discord", NameKey = "preset.for_discord", TargetFormat = "mp4",
+            Media = { MaxSizeMb = 10 }, Output = { FileNamePattern = "{name}_discord" },
+        },
+        new()
+        {
+            Id = "for-whatsapp", NameKey = "preset.for_whatsapp", TargetFormat = "mp4",
+            Media = { MaxHeight = 720, MaxSizeMb = 16 }, Output = { FileNamePattern = "{name}_whatsapp" },
+        },
+        new()
+        {
+            Id = "for-instagram", NameKey = "preset.for_instagram", TargetFormat = "jpg",
+            Image = { Resize = ResizeMode.Width, Width = 1080 }, Output = { FileNamePattern = "{name}_instagram" },
+        },
     ];
 
     /// <summary>
@@ -112,6 +184,128 @@ public static class BuiltInData
     ];
 
     /// <summary>
+    /// "Cut a clip" (added in settings schema 45): a part of a video, chosen on a timeline, as a file of its own. First on
+    /// the back of the video donut, as "Crop" is on the images donut.
+    /// </summary>
+    public static List<Preset> ClipPresets() =>
+    [
+        new()
+        {
+            Id = "tool-clip", NameKey = "preset.clip", TargetFormat = SameAsSource,
+            Kind = PresetKind.Tool, Tool = Preset.ClipTool, Output = { FileNamePattern = "{name}_clip" },
+        },
+    ];
+
+    /// <summary>
+    /// "Edit pictures" (#584, added in settings schema 51): size, format, turn and colour chosen in a window each time, on
+    /// the front of the images donut after "Half size".
+    /// </summary>
+    public static List<Preset> ImageEditPresets() =>
+    [
+        new()
+        {
+            Id = "tool-image-edit", NameKey = "preset.image_edit", TargetFormat = SameAsSource,
+            Kind = PresetKind.Tool, Tool = Preset.ImageEditTool, Output = { FileNamePattern = "{name}_edited" },
+        },
+    ];
+
+    /// <summary>
+    /// "Pixelate / blur" (added in settings schema 52): parts of a picture (names, faces, numbers) covered before it is
+    /// shared. On the front of the images donut after "Edit pictures".
+    /// </summary>
+    public static List<Preset> HidePresets() =>
+    [
+        new()
+        {
+            Id = "tool-hide", NameKey = "preset.hide", TargetFormat = SameAsSource,
+            Kind = PresetKind.Tool, Tool = Preset.HideTool, Output = { FileNamePattern = "{name}_hidden" },
+        },
+    ];
+
+    /// <summary>
+    /// "Trim transparent borders" (issue #332, added in settings schema 33): a copy cropped to the visible pixels, in the
+    /// same format. On the images donut's back face after "Remove background".
+    /// </summary>
+    public static List<Preset> TrimPresets() =>
+    [
+        new()
+        {
+            Id = "trim-transparent", NameKey = "preset.trim_transparent", TargetFormat = SameAsSource,
+            Image = { TrimTransparent = true }, Output = { FileNamePattern = "{name}_trimmed" },
+        },
+    ];
+
+    /// <summary>
+    /// Everyday tools (added in settings schema 37): smaller copies of images, videos and audio, a video of photos,
+    /// a video's sound as M4A, videos or audio files joined into one, and a copy without metadata. On the back faces
+    /// of the images, PDF, video and audio donuts where they have room.
+    /// </summary>
+    public static List<Preset> MediaToolPresets() =>
+    [
+        new()
+        {
+            // Quality 75 like most photo apps' "smaller"; a JPEG saved below it stays at its own quality.
+            Id = "compress-image", NameKey = "preset.compress_image", TargetFormat = SameAsSource,
+            Image = { Quality = 75, MaxCompression = true, TiffCompression = TiffCompression.Zip },
+            Output = { FileNamePattern = "{name}_compressed", OnlyIfSmaller = true },
+        },
+        new()
+        {
+            // H.264 at the Small quality, at most 1080p: plays everywhere, a fraction of a phone video's size.
+            Id = "compress-video", NameKey = "preset.compress_video", TargetFormat = "mp4",
+            Media = { Quality = MediaQuality.Small, MaxHeight = 1080 }, Output = { FileNamePattern = "{name}_compressed", OnlyIfSmaller = true },
+        },
+        new()
+        {
+            Id = "video-from-images", NameKey = "preset.video_from_images", TargetFormat = "mp4",
+            Media = { Slideshow = true }, Output = { FileNamePattern = "{name}_video" },
+        },
+        new()
+        {
+            Id = "extract-audio", NameKey = "preset.extract_audio", TargetFormat = "m4a",
+            Media = { CopyAudioWhenPossible = true },
+        },
+        new()
+        {
+            Id = "merge-videos", NameKey = "preset.merge_videos", TargetFormat = "mp4",
+            Media = { JoinIntoOne = true }, Output = { FileNamePattern = "{name}_merged" },
+        },
+        new()
+        {
+            // AAC at the Small quality: 128 kbit/s for stereo.
+            Id = "compress-audio", NameKey = "preset.compress_audio", TargetFormat = "m4a",
+            Media = { Quality = MediaQuality.Small }, Output = { FileNamePattern = "{name}_compressed", OnlyIfSmaller = true },
+        },
+        new()
+        {
+            Id = "merge-audio", NameKey = "preset.merge_audio", TargetFormat = "m4a",
+            Media = { JoinIntoOne = true }, Output = { FileNamePattern = "{name}_merged" },
+        },
+        new()
+        {
+            // Everything goes, the colour profile too; the preset editor can keep it. File dates are new ones.
+            Id = "remove-metadata", NameKey = "preset.remove_metadata", TargetFormat = SameAsSource,
+            Image = { Quality = 90, KeepMetadata = false, KeepColorProfile = false, KeepSourceQuality = true },
+            Pdf = { RemoveMetadata = true }, Media = { RemoveMetadata = true },
+            Output = { FileNamePattern = "{name}_clean" },
+        },
+    ];
+
+    /// <summary>
+    /// "Merge images" (issue #645, added in settings schema 53): the dropped pictures, in the order set in the merge
+    /// order window, as one image, one under another or side by side, in the first picture's format. Quality 90 as the
+    /// JPG preset. On the back of the images donut next to "Merge PDF", where it took the slot of "GIF".
+    /// </summary>
+    public static List<Preset> MergeImagesPresets() =>
+    [
+        new()
+        {
+            Id = "merge-images", NameKey = "preset.merge_images", TargetFormat = SameAsSource,
+            Image = { JoinIntoOne = true, Quality = 90 }, Output = { FileNamePattern = "{name}_merged" },
+        },
+    ];
+
+    /// <summary>
     /// "Compress PDF": pictures at 150 dpi, the rest compressed losslessly (added in settings schema 20). On no default
     /// donut, the PDF donut is full: users add it in Settings → Toolbar.
     /// </summary>
@@ -121,6 +315,19 @@ public static class BuiltInData
         {
             Id = "compress-pdf", NameKey = "preset.compress_pdf", TargetFormat = "pdf",
             Pdf = { Compression = PdfCompression.Ebook }, Output = { FileNamePattern = "{name}_compressed" },
+        },
+    ];
+
+    /// <summary>
+    /// "Searchable PDF": scans and pictures with their text recognized by Tesseract (added in settings schema 40). On no
+    /// donut, like "Compress PDF".
+    /// </summary>
+    public static List<Preset> OcrPresets() =>
+    [
+        new()
+        {
+            Id = "searchable-pdf", NameKey = "preset.searchable_pdf", TargetFormat = "pdf",
+            Pdf = { Ocr = true }, Output = { FileNamePattern = "{name}_searchable" },
         },
     ];
 
@@ -339,7 +546,7 @@ public static class BuiltInData
 
     /// <summary>
     /// Structured data and contacts targets (added in settings schema 14, see SettingsMigrations). EML is for Outlook
-    /// MSG files, vCard for contact lists in CSV; neither is on a donut.
+    /// MSG files; vCard and iCalendar are on the back of the spreadsheets donut.
     /// </summary>
     public static List<Preset> DataPresets() =>
     [
@@ -349,6 +556,7 @@ public static class BuiltInData
         new() { Id = "to-xml", Name = "XML", TargetFormat = "xml" },
         new() { Id = "to-eml", Name = "EML", TargetFormat = "eml" },
         new() { Id = "to-vcf", Name = "vCard", TargetFormat = "vcf" },
+        new() { Id = "to-ics", Name = "iCalendar", TargetFormat = "ics" },
     ];
 
     /// <summary>
@@ -362,15 +570,19 @@ public static class BuiltInData
         {
             Id = "images", NameKey = "profile.images",
             Extensions = ExtensionsOf(FormatCategory.Image),
-            PresetIds = ["to-png", "to-jpg", "to-webp", "to-pdf", "trace-svg", "trace-line-art", "to-tiff", "to-bmp", "to-ico", "half-size"],
-            BackPresetIds = ["tool-crop", "rotate", "flip", "remove-background", "grayscale", "extract-motion", "to-avif", "to-gif", "merge-pdf", "zip-all"],
+            PresetIds = ["to-png", "to-jpg", "to-webp", "to-pdf", "trace-svg", "trace-line-art", "to-tiff", "to-bmp", "to-ico", "half-size",
+                "tool-image-edit", "tool-hide"],
+            // Full (ToolbarProfile.MaxSlices): "Extract Live Photo video" stays in the library, on no donut, and "GIF"
+            // since "Merge images" took its slot (settings schema 53): a still picture as GIF is the least wanted here.
+            BackPresetIds = ["tool-crop", "rotate", "flip", "remove-background", "trim-transparent", "grayscale", "to-avif", "merge-images",
+                "merge-pdf", "compress-image", "remove-metadata", "zip-all"],
         },
         new()
         {
             Id = "pdf", NameKey = "profile.pdf",
             Extensions = ["pdf"],
             PresetIds = [.. PdfDonut],
-            BackPresetIds = ["compress-pdf", "to-webp", "to-tiff", "to-html", "to-odt", "to-rtf", "to-azw3", "to-cbz", "zip-all"],
+            BackPresetIds = ["pdf-edit", "compress-pdf", "to-webp", "to-tiff", "to-html", "to-odt", "to-rtf", "to-azw3", "to-cbz", "remove-metadata", "zip-all"],
         },
         new()
         {
@@ -419,7 +631,7 @@ public static class BuiltInData
         NameKey = "profile.spreadsheets",
         Extensions = ExtensionsOf(FormatCategory.Spreadsheet),
         PresetIds = ["to-pdf", "to-xlsx", "to-csv", "to-json", "to-ods", "to-hwpx", "to-hwp", "to-html", "merge-pdf"],
-        BackPresetIds = ["to-docx", "to-md", "to-txt", "to-yaml", "to-xml", "to-vcf", "to-png", "zip-all"],
+        BackPresetIds = ["tool-sheet-studio", "to-docx", "to-md", "to-txt", "to-yaml", "to-xml", "to-vcf", "to-ics", "to-png", "zip-all"],
     };
 
     /// <summary>PowerPoint and OpenDocument slides (split from "office" in settings schema 5).</summary>
@@ -458,16 +670,17 @@ public static class BuiltInData
             Extensions = ExtensionsOf(FormatCategory.Video),
             PresetIds = ["to-mp4", "mp4-720", "mp4-hevc", "to-webm", "to-mov", "to-gif", "to-mp3", "extract-subtitles", "to-mkv", "to-avi"],
             // Every frame as pictures is on no front (a long video gives thousands of files): behind a flip, a drop that
-            // misses its slice doesn't start it. Live / Motion Photos of a clip are there too.
-            BackPresetIds = ["mp4-av1", "to-webp", "extract-frames-png", "extract-frames-jpg", "live-photo-iphone", "motion-photo-android",
-                "to-m4a", "to-wav", "to-flac", "zip-all"],
+            // misses its slice doesn't start it. Live / Motion Photos of a clip are there too, and "Cut a clip" first
+            // (in place of FLAC, which stays in the library).
+            BackPresetIds = ["tool-clip", "mp4-av1", "to-webp", "extract-frames-png", "extract-frames-jpg", "live-photo-iphone", "motion-photo-android",
+                "extract-audio", "to-wav", "compress-video", "merge-videos", "zip-all"],
         },
         new()
         {
             Id = "audio", NameKey = "profile.audio",
             Extensions = ExtensionsOf(FormatCategory.Audio),
             PresetIds = ["to-mp3", "mp3-128", "to-m4a", "to-wav", "to-flac", "to-ogg", "to-opus", "to-aac"],
-            BackPresetIds = ["to-alac", "zip-all"],
+            BackPresetIds = ["to-alac", "compress-audio", "merge-audio", "remove-metadata", "zip-all"],
         },
         new()
         {
@@ -501,7 +714,7 @@ public static class BuiltInData
         },
     ];
 
-    /// <summary>JSON, YAML, TOML, XML and vCard files (added in settings schema 14, after "fonts").</summary>
+    /// <summary>JSON, YAML, TOML, XML, vCard and iCalendar files (added in settings schema 14, after "fonts").</summary>
     public static ToolbarProfile DataProfile() => new()
     {
         Id = "data",

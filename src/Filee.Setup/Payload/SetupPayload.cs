@@ -3,6 +3,10 @@
 //   [Setup program][LZMA streams: the app's files, one after the other][manifest JSON][trailer, 72 bytes]
 //   (then, once Setup is signed, the Authenticode signature: the trailer sits right before it)
 //
+// A release signs the Setup program first (it becomes the uninstaller) and Setup.exe last. The program's signature
+// stays at the end of the program, Setup.exe's header stops pointing to it, and the manifest says where it is so the
+// uninstaller written from Setup.exe is signed as well.
+//
 // Trailer: "FILEE-PAYLOAD-01", payload offset, compressed length, manifest length (little-endian Int64 each) and the
 // SHA-256 of the manifest. The manifest holds the SHA-256 of the compressed data and of every file. Files are packed
 // into a few large LZMA streams (segments, compressed in parallel; SharpCompress, which the engines use already)
@@ -94,34 +98,82 @@ public sealed class SetupPayload : IDisposable
     internal static long OverlayEnd(Stream file)
     {
         var length = file.Length;
+        var signature = Signature(file);
+        return signature is null ? length : signature.Offset;
+    }
+
+    /// <summary>The certificate table a PE file ends with (its Authenticode signature), or null.</summary>
+    internal static ProgramSignature? Signature(Stream file)
+    {
+        var entry = SecurityDirectory(file);
+        if (entry < 0)
+            return null;
+        Span<byte> buffer = stackalloc byte[8];
+        file.Position = entry;
+        file.ReadExactly(buffer);
+        var certificates = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
+        var size = BinaryPrimitives.ReadUInt32LittleEndian(buffer[4..]);
+        // The certificate table's "address" is a file offset.
+        return certificates > 0 && size > 0 && certificates + (long)size == file.Length ? new ProgramSignature(certificates, (int)size) : null;
+    }
+
+    /// <summary>
+    /// True when the PE header names a certificate table that runs past the end of the file: a signed program that was
+    /// cut off (a download that didn't finish), the payload's trailer in front of the signature gone with it.
+    /// </summary>
+    internal static bool SignatureCutOff(Stream file)
+    {
+        var entry = SecurityDirectory(file);
+        if (entry < 0)
+            return false;
+        Span<byte> buffer = stackalloc byte[8];
+        file.Position = entry;
+        file.ReadExactly(buffer);
+        var certificates = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
+        var size = BinaryPrimitives.ReadUInt32LittleEndian(buffer[4..]);
+        return certificates > 0 && size > 0 && certificates + (long)size > file.Length;
+    }
+
+    /// <summary>File position of the PE header's security directory entry (IMAGE_DIRECTORY_ENTRY_SECURITY), or -1.</summary>
+    private static long SecurityDirectory(Stream file)
+    {
+        var length = file.Length;
         try
         {
-            Span<byte> buffer = stackalloc byte[8];
+            Span<byte> buffer = stackalloc byte[4];
             file.Position = 0x3C;
-            file.ReadExactly(buffer[..4]);
+            file.ReadExactly(buffer);
             var pe = BinaryPrimitives.ReadInt32LittleEndian(buffer);
             if (pe <= 0 || pe > length - 24)
-                return length;
+                return -1;
             file.Position = pe;
-            file.ReadExactly(buffer[..4]);
+            file.ReadExactly(buffer);
             if (BinaryPrimitives.ReadUInt32LittleEndian(buffer) != 0x00004550) // "PE\0\0"
-                return length;
+                return -1;
             var optionalHeader = pe + 4 + 20;
             file.Position = optionalHeader;
             file.ReadExactly(buffer[..2]);
             var magic = BinaryPrimitives.ReadUInt16LittleEndian(buffer);
-            var directories = optionalHeader + (magic == 0x20B ? 112 : 96);
-            file.Position = directories + 4 * 8; // IMAGE_DIRECTORY_ENTRY_SECURITY
-            file.ReadExactly(buffer);
-            var certificates = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
-            var size = BinaryPrimitives.ReadUInt32LittleEndian(buffer[4..]);
-            // The certificate table's "address" is a file offset.
-            return certificates > 0 && certificates + (long)size == length ? certificates : length;
+            var entry = optionalHeader + (magic == 0x20B ? 112 : 96) + 4 * 8;
+            return entry + 8 <= length ? entry : -1;
         }
         catch (EndOfStreamException)
         {
-            return length;
+            return -1;
         }
+    }
+
+    /// <summary>Points the security directory of the PE file in <paramref name="file"/> at a certificate table (null: none).</summary>
+    private static void SetSecurityDirectory(Stream file, ProgramSignature? signature)
+    {
+        var entry = SecurityDirectory(file);
+        if (entry < 0)
+            throw new InvalidDataException("The Setup program is not a PE file.");
+        Span<byte> buffer = stackalloc byte[8];
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer, (uint)(signature?.Offset ?? 0));
+        BinaryPrimitives.WriteUInt32LittleEndian(buffer[4..], (uint)(signature?.Size ?? 0));
+        file.Position = entry;
+        file.Write(buffer);
     }
 
     /// <summary>Checks the compressed stream against the manifest. Throws <see cref="InvalidDataException"/>.</summary>
@@ -249,13 +301,22 @@ public sealed class SetupPayload : IDisposable
         }
     }
 
-    /// <summary>Writes the Setup program without the payload: the uninstaller.</summary>
+    /// <summary>
+    /// Writes the Setup program without the payload: the uninstaller. A program signed before the payload was
+    /// appended gets its own signature back.
+    /// </summary>
     public void CopyProgramTo(string path)
     {
         _file.Position = 0;
-        using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize);
-        using var program = new BoundedReadStream(_file, Offset);
-        program.CopyTo(output, BufferSize);
+        using var output = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize);
+        using (var program = new BoundedReadStream(_file, Offset))
+            program.CopyTo(output, BufferSize);
+        if (Manifest.Signature is { } signature)
+        {
+            if (signature.Offset + signature.Size != Offset)
+                throw new InvalidDataException("The program signature in the payload doesn't fit the program.");
+            SetSecurityDirectory(output, signature);
+        }
     }
 
     public void Dispose() => _file.Dispose();
@@ -342,12 +403,19 @@ public sealed class SetupPayload : IDisposable
         var partial = output + ".partial";
         using (var target = new FileStream(partial, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize))
         {
+            // A signed program keeps its signature in front of the payload, but Setup.exe stops pointing to it: the
+            // signature of the whole Setup.exe goes at the end. The uninstaller (CopyProgramTo) points to it again.
+            ProgramSignature? signature;
             using (var program = File.OpenRead(setupProgram))
             {
-                if (SetupPayload.OverlayEnd(program) != program.Length)
-                    throw new InvalidOperationException("Sign Setup after appending the payload, not before.");
+                signature = Signature(program);
                 program.Position = 0;
                 program.CopyTo(target);
+            }
+            if (signature is not null)
+            {
+                SetSecurityDirectory(target, null);
+                target.Seek(0, SeekOrigin.End);
             }
             var offset = target.Position;
             using var compressedHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -358,8 +426,13 @@ public sealed class SetupPayload : IDisposable
             }
             var length = target.Position - offset;
             var manifest = new PayloadManifest(version, hashed.SelectMany(f => f).ToList(), PayloadManifest.Hex(compressedHash.GetHashAndReset()),
-                engines, engineMarker, compressed.Select(c => (long)c.Length).ToList(), Convert.ToBase64String(properties ?? []));
+                engines, engineMarker, compressed.Select(c => (long)c.Length).ToList(), Convert.ToBase64String(properties ?? []), signature);
             var json = manifest.ToJson();
+            // Spaces after the JSON end the file on an 8-byte boundary: signtool puts the certificate table there and
+            // would pad in front of it otherwise, and the trailer has to sit right before the table.
+            var padding = (int)((8 - (target.Position + json.Length + TrailerLength) % 8) % 8);
+            if (padding > 0)
+                json = [.. json, .. Enumerable.Repeat((byte)' ', padding)];
             target.Write(json);
             var trailer = new byte[TrailerLength];
             Encoding.ASCII.GetBytes(Magic).CopyTo(trailer, 0);

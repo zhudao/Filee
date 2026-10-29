@@ -18,8 +18,8 @@ public enum PresetKind
     Group,
 
     /// <summary>
-    /// Opens its own window on the dropped files instead of converting them (the interactive Crop). Like a group,
-    /// never offered where a conversion is picked.
+    /// Opens its own window on the dropped files instead of converting them (the interactive Crop, Cut a clip; see
+    /// <see cref="Preset.Tool"/>). Like a group, never offered where a conversion is picked.
     /// </summary>
     Tool,
 }
@@ -61,6 +61,19 @@ public sealed class PresetKindJsonConverter : LenientEnumJsonConverter<PresetKin
 }
 
 /// <summary>
+/// Reads like the lenient converter and, when writing, never emits <see cref="ResizeMode.Custom"/> or
+/// <see cref="ResizeMode.MinShortEdge"/> (editor-only choices): a preset with custom sizing stores Resize None plus
+/// CustomSize, one with a minimum short edge Resize None plus MinShortEdge, so a version without the mode keeps
+/// reading presets.json instead of rejecting it as broken and overwriting the user's presets with the built-in
+/// ones (issues #576, #652).
+/// </summary>
+public sealed class ResizeModeJsonConverter : LenientEnumJsonConverter<ResizeMode>
+{
+    public override void Write(Utf8JsonWriter writer, ResizeMode value, JsonSerializerOptions options) =>
+        writer.WriteStringValue((value is ResizeMode.Custom or ResizeMode.MinShortEdge ? ResizeMode.None : value).ToString());
+}
+
+/// <summary>
 /// A named conversion recipe. The donut toolbar shows presets; dropping files on one runs it.
 /// </summary>
 /// <remarks>
@@ -98,6 +111,9 @@ public sealed class Preset
 
     /// <summary>Options used when a raster image is traced into vector shapes (PNG → SVG, DXF ...).</summary>
     public TracingOptions Trace { get; set; } = new();
+
+    /// <summary>Options used when a DWG or DXF is written or drawn.</summary>
+    public CadOptions Cad { get; set; } = new();
 
     /// <summary>Where and how output files are written.</summary>
     public OutputRule Output { get; set; } = new();
@@ -164,14 +180,101 @@ public sealed class Preset
         MediaOptions.LivePhotoTargets(Media.LivePhoto).Contains(TargetFormat)
         && Formats.FormatRegistry.FindById(sourceFormat)?.Category == Formats.FormatCategory.Video;
 
+    /// <summary>
+    /// True if converting a <paramref name="sourceFormat"/> file recognizes its text first (<see cref="PdfOptions.Ocr"/>):
+    /// the file is a PDF or a picture and the target one of <see cref="PdfOptions.OcrTargets"/>.
+    /// </summary>
+    public bool RecognizesTextOf(string sourceFormat) =>
+        Pdf.Ocr
+        && PdfOptions.OcrTargets.Contains(TargetFormat)
+        && (sourceFormat == "pdf" || Formats.FormatRegistry.FindById(sourceFormat)?.Category == Formats.FormatCategory.Image);
+
+    /// <summary>
+    /// True for "Merge videos", "Merge audio" and "Video from images": every dropped file goes, in order, into one
+    /// video or audio file (<see cref="MediaOptions.JoinIntoOne"/>, <see cref="MediaOptions.Slideshow"/>).
+    /// </summary>
+    [JsonIgnore]
+    public bool JoinsIntoOneMedia =>
+        (Media.JoinIntoOne || Media.Slideshow) && MediaOptions.JoinTargets.Contains(TargetFormat);
+
+    /// <summary>
+    /// True for "Merge images": every dropped picture goes, in order, into one image (<see cref="ImageOptions.JoinIntoOne"/>)
+    /// of a picture format, or of the first picture's format for <see cref="BuiltInData.SameAsSource"/>.
+    /// </summary>
+    [JsonIgnore]
+    public bool JoinsImages =>
+        Image.JoinIntoOne
+        && (TargetFormat == BuiltInData.SameAsSource || Formats.FormatRegistry.FindById(TargetFormat)?.Category == Formats.FormatCategory.Image);
+
     /// <summary>True for a <see cref="PresetKind.Tool"/>.</summary>
     [JsonIgnore]
     public bool IsTool => Kind == PresetKind.Tool;
+
+    /// <summary><see cref="Tool"/> of the interactive crop (also a tool saved without one, from before clips).</summary>
+    public const string CropTool = "crop";
+
+    /// <summary><see cref="Tool"/> of "Cut a clip": a part of a video, chosen on a timeline.</summary>
+    public const string ClipTool = "clip";
+
+    /// <summary>
+    /// <see cref="Tool"/> of "Edit pictures": the size, format, turn and colour of pictures, chosen in a small window each
+    /// time (#584).
+    /// </summary>
+    public const string ImageEditTool = "image-edit";
+
+    /// <summary>
+    /// <see cref="Tool"/> of "Pixelate / blur": parts of a picture covered before it is shared (names, faces, numbers).
+    /// </summary>
+    public const string HideTool = "hide";
+
+    /// <summary>
+    /// <see cref="PresetKind.Tool"/>: which window it opens, <see cref="CropTool"/> (or null, as saved before there were
+    /// other tools), <see cref="ClipTool"/>, <see cref="ImageEditTool"/> or <see cref="HideTool"/>. A tool this version
+    /// doesn't know (from a newer Filee) opens nothing. Ignored for other kinds.
+    /// </summary>
+    public string? Tool { get; set; }
+
+    /// <summary>True for the interactive crop.</summary>
+    [JsonIgnore]
+    public bool IsCropTool => IsTool && Tool is null or CropTool;
+
+    /// <summary>True for "Cut a clip".</summary>
+    [JsonIgnore]
+    public bool IsClipTool => IsTool && Tool == ClipTool;
+
+    /// <summary>True for "Edit pictures".</summary>
+    [JsonIgnore]
+    public bool IsImageEditTool => IsTool && Tool == ImageEditTool;
+
+    /// <summary>True for "Pixelate / blur".</summary>
+    [JsonIgnore]
+    public bool IsHideTool => IsTool && Tool == HideTool;
+
+    /// <summary>
+    /// True if converting a <paramref name="sourceFormat"/> file cuts a clip of it (<see cref="MediaOptions.Clip"/>,
+    /// set by the clip window on the conversion it starts): the file is a video. Other files convert as usual.
+    /// </summary>
+    public bool CutsClipOf(string sourceFormat) =>
+        Media.Clip is { Parts.Count: > 0 } && Formats.FormatRegistry.FindById(sourceFormat)?.Category == Formats.FormatCategory.Video;
 
     /// <summary>Creates a new random preset id.</summary>
     public static string NewId() => Guid.NewGuid().ToString("N")[..12];
 
     /// <summary>Deep copy, used by editors so changes can be cancelled.</summary>
+    /// <summary>
+    /// This preset without its PDF password, for copies that leave the library (history, an export).
+    /// <paramref name="mark"/> records that it was taken out (<see cref="PdfOptions.PasswordLeftOut"/>).
+    /// </summary>
+    public Preset WithoutPassword(bool mark)
+    {
+        if (Pdf.Password.Length == 0)
+            return this;
+        var copy = Clone();
+        copy.Pdf.Password = "";
+        copy.Pdf.PasswordLeftOut = mark;
+        return copy;
+    }
+
     public Preset Clone() => new()
     {
         Id = Id,
@@ -184,8 +287,10 @@ public sealed class Preset
         Media = Media.Clone(),
         Archive = Archive.Clone(),
         Trace = Trace.Clone(),
+        Cad = Cad.Clone(),
         Output = Output.Clone(),
         Kind = Kind,
+        Tool = Tool,
         SubPresetIds = [.. SubPresetIds],
     };
 }
@@ -201,6 +306,19 @@ public enum ResizeMode
     LongEdge,
     /// <summary>Scale to <see cref="ImageOptions.Width"/> pixels wide, height in proportion (never upscales).</summary>
     Width,
+    /// <summary>
+    /// Scale to the free width x height in <see cref="ImageOptions.CustomSize"/>: stretched to exactly that size, or
+    /// with the aspect kept, scaled (up or down) to the largest size that fits inside (issue #576). An editor choice
+    /// only: a preset with custom sizing stores <see cref="ImageOptions.Resize"/> None plus
+    /// <see cref="ImageOptions.CustomSize"/>, so a version without the mode still reads the file.
+    /// </summary>
+    Custom,
+    /// <summary>
+    /// Scale up so the shorter edge is at least <see cref="ImageOptions.MinShortEdge"/>, in proportion; a picture
+    /// that already reaches it is left as it is (never shrinks; issue #652). An editor choice only, stored like
+    /// <see cref="Custom"/>: <see cref="ImageOptions.Resize"/> None plus <see cref="ImageOptions.MinShortEdge"/>.
+    /// </summary>
+    MinShortEdge,
 }
 
 /// <summary>How an image is turned, after its EXIF orientation is applied.</summary>
@@ -224,6 +342,24 @@ public enum ImageFlip
     Vertical,
 }
 
+/// <summary>Which way merged pictures follow each other (<see cref="ImageOptions.JoinIntoOne"/>).</summary>
+public enum ImageJoinDirection
+{
+    /// <summary>One under another, the first at the top.</summary>
+    Vertical,
+    /// <summary>Side by side, the first on the left.</summary>
+    Horizontal,
+}
+
+/// <summary>How merged pictures of different sizes line up (<see cref="ImageOptions.JoinIntoOne"/>).</summary>
+public enum ImageJoinFit
+{
+    /// <summary>Scaled to the widest picture (one under another) or the tallest (side by side), so the edges line up.</summary>
+    SameSize,
+    /// <summary>Each at its own size, centred.</summary>
+    Original,
+}
+
 /// <summary>TIFF compression schemes.</summary>
 public enum TiffCompression
 {
@@ -232,12 +368,57 @@ public enum TiffCompression
     Zip,
 }
 
+/// <summary>What a FITS astronomy picture becomes in a TIFF (<see cref="ImageOptions.FitsTiff"/>).</summary>
+public enum FitsTiffMode
+{
+    /// <summary>The data as it is, at the file's own bit depth: for further processing.</summary>
+    Linear,
+    /// <summary>Automatically stretched like a capture program's preview, at the file's own bit depth.</summary>
+    Stretched,
+}
+
+/// <summary>How "Pixelate / blur" covers the parts of a picture it hides (<see cref="ImageOptions.HideStyle"/>).</summary>
+public enum HideStyle
+{
+    /// <summary>Squares of the average colour of what is under them.</summary>
+    Pixelate,
+    /// <summary>A strong blur.</summary>
+    Blur,
+}
+
+/// <summary>
+/// A part of a picture to hide, in parts of the picture as it is seen (EXIF orientation applied): 0 to 1 from its left
+/// and top edges.
+/// </summary>
+public sealed class HiddenArea
+{
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+
+    public HiddenArea Clone() => (HiddenArea)MemberwiseClone();
+}
+
 /// <summary>Raster image encoding options.</summary>
 public sealed class ImageOptions
 {
     /// <summary>Lossy quality 1-100 (JPG, WEBP, AVIF, HEIC).</summary>
     public int Quality { get; set; } = 90;
 
+    /// <summary>
+    /// Keep each picture under this many MB of 1,000,000 bytes; 0 = no limit. A larger one is saved again at a lower
+    /// quality, then smaller (down to a long edge of 640 px), until it fits (#553).
+    /// </summary>
+    public double MaxSizeMb { get; set; }
+
+    /// <summary>
+    /// How the picture is scaled. A preset with <see cref="CustomSize"/> or <see cref="MinShortEdge"/> set stores None
+    /// here (that sizing wins), so a version without it simply does not resize instead of rejecting a name it does
+    /// not know. The lenient converter also reads a name a future version might add as None, and the writer maps
+    /// Custom and MinShortEdge down to None (see <see cref="ResizeModeJsonConverter"/>).
+    /// </summary>
+    [JsonConverter(typeof(ResizeModeJsonConverter))]
     public ResizeMode Resize { get; set; } = ResizeMode.None;
 
     /// <summary>Turns the image (after its EXIF orientation is applied).</summary>
@@ -252,6 +433,17 @@ public sealed class ImageOptions
     [JsonIgnore]
     public bool TurnsOrMirrors => Rotation != ImageRotation.None || Flip != ImageFlip.None;
 
+    /// <summary>
+    /// Turns, mirrors or covers parts of the image (<see cref="HidesAreas"/>): done once, in the first step of a route whose
+    /// engine applies image options (<see cref="Conversion.IImageTransformer"/>); a file is never passed on as it is.
+    /// </summary>
+    [JsonIgnore]
+    public bool ReworksPixels => TurnsOrMirrors || HidesAreas;
+
+    /// <summary>Whether the preset edits picture content, size, or playback speed.</summary>
+    [JsonIgnore]
+    public bool EditsPicture => Resize != ResizeMode.None || Grayscale || TrimTransparent || RemoveBackground || MaxCompression || ChangesSpeed || CustomSize is not null || MinShortEdge is not null;
+
     /// <summary>Scale in percent when <see cref="Resize"/> is <see cref="ResizeMode.Percent"/>.</summary>
     public int ResizePercent { get; set; } = 50;
 
@@ -260,6 +452,32 @@ public sealed class ImageOptions
 
     /// <summary>Target width in pixels when <see cref="Resize"/> is <see cref="ResizeMode.Width"/>.</summary>
     public int Width { get; set; } = 1200;
+
+    /// <summary>
+    /// Free width x height resizing (issue #576): stretched to exactly that size, or with
+    /// <see cref="CustomImageSize.LockAspect"/> scaled (up or down) to the largest size that fits inside. When set it
+    /// wins over <see cref="Resize"/>; null leaves <see cref="Resize"/> in charge. Stored as one object so a
+    /// presets.json written by this version never carries a resize name an older version rejects: older versions skip
+    /// the unknown property and simply do not resize.
+    /// </summary>
+    public CustomImageSize? CustomSize { get; set; }
+
+    /// <summary>
+    /// The shortest the shorter edge may be, in pixels (issue #652): a smaller picture is scaled up in proportion
+    /// until its shorter edge reaches this, a picture that already does is left as it is. When set it wins over
+    /// <see cref="Resize"/> (only <see cref="CustomSize"/> comes first); null leaves <see cref="Resize"/> in charge.
+    /// A separate field for the same reason as <see cref="CustomSize"/>: older versions skip it and do not resize.
+    /// </summary>
+    public int? MinShortEdge { get; set; }
+
+    /// <summary>
+    /// <see cref="MinShortEdge"/> as it is used: within the editor's range (<see cref="CustomImageSize.MinSide"/> to
+    /// <see cref="CustomImageSize.MaxSide"/>), or null when it is unset or, from a hand-edited file, 0 or below.
+    /// </summary>
+    [JsonIgnore]
+    public int? ClampedMinShortEdge => MinShortEdge is > 0 and var edge
+        ? Math.Clamp(edge, CustomImageSize.MinSide, CustomImageSize.MaxSide)
+        : null;
 
     /// <summary>Output DPI written into the file. <c>null</c> keeps the source value.</summary>
     public int? Dpi { get; set; }
@@ -273,8 +491,26 @@ public sealed class ImageOptions
     /// </summary>
     public bool KeepColorProfile { get; set; } = true;
 
+    /// <summary>
+    /// "Compress image": PNG with zlib's best compression, and a JPEG never saved above the quality it had (a photo
+    /// saved at 75 would otherwise come back at the preset's quality, bigger and no better).
+    /// </summary>
+    public bool MaxCompression { get; set; }
+
+    /// <summary>
+    /// JPEG → JPEG at the quality the photo had (ImageMagick's estimate), not at <see cref="Quality"/>: "Remove
+    /// metadata" re-encodes the picture as little as it can. Other targets use <see cref="Quality"/>.
+    /// </summary>
+    public bool KeepSourceQuality { get; set; }
+
     /// <summary>Convert to grayscale.</summary>
     public bool Grayscale { get; set; }
+
+    /// <summary>
+    /// Crop away the fully transparent padding around a picture's visible pixels (PNGs exported with a margin, sprites,
+    /// icons). Pictures without transparency, and animations, stay as they are.
+    /// </summary>
+    public bool TrimTransparent { get; set; }
 
     /// <summary>
     /// Make a plain background (paper behind a signature or stamp, the backdrop of a logo) transparent. Targets without
@@ -305,8 +541,79 @@ public sealed class ImageOptions
     /// <summary>Use lossless WEBP encoding.</summary>
     public bool WebpLossless { get; set; }
 
+    /// <summary>
+    /// "Merge images": every dropped picture goes, in order, into one image named after the first (<see cref="Preset.JoinsImages"/>),
+    /// one under another or side by side (<see cref="JoinDirection"/>). Each picture is turned as its EXIF and
+    /// <see cref="Rotation"/> say first; the other options (resize, grayscale, quality …) apply to the merged image.
+    /// </summary>
+    public bool JoinIntoOne { get; set; }
+
+    /// <summary>With <see cref="JoinIntoOne"/>: one under another or side by side. A direction from a newer Filee reads as vertical.</summary>
+    [JsonConverter(typeof(LenientEnumJsonConverter<ImageJoinDirection>))]
+    public ImageJoinDirection JoinDirection { get; set; }
+
+    /// <summary>With <see cref="JoinIntoOne"/>: pictures of different sizes scaled to line up, or kept as they are, centred.</summary>
+    [JsonConverter(typeof(LenientEnumJsonConverter<ImageJoinFit>))]
+    public ImageJoinFit JoinFit { get; set; }
+
+    /// <summary>Largest <see cref="JoinGap"/>.</summary>
+    public const int MaxJoinGap = 1000;
+
+    /// <summary>With <see cref="JoinIntoOne"/>: pixels of <see cref="JoinBackground"/> between two pictures (0 to <see cref="MaxJoinGap"/>).</summary>
+    public int JoinGap { get; set; }
+
+    /// <summary><see cref="JoinBackground"/> for a see-through background (in a format that holds one).</summary>
+    public const string TransparentJoin = "transparent";
+
+    /// <summary>
+    /// With <see cref="JoinIntoOne"/>: the colour of the gaps and of the room around smaller pictures, <c>#RRGGBB</c>, or
+    /// <see cref="TransparentJoin"/>. A format without transparency (JPG) gets <see cref="Background"/> there instead.
+    /// </summary>
+    public string JoinBackground { get; set; } = "#FFFFFF";
+
+    /// <summary><see cref="JoinGap"/> within its limits (a hand-edited preset file may hold anything).</summary>
+    [JsonIgnore]
+    public int JoinSpacing => Math.Clamp(JoinGap, 0, MaxJoinGap);
+
+    /// <summary>
+    /// FITS → TIFF: the data as it is (the default) or stretched. Either way the TIFF follows the file's BITPIX: 8 and
+    /// 16 bits stay so, 32-bit integer and floating-point data become 32-bit floating point.
+    /// </summary>
+    [JsonConverter(typeof(LenientEnumJsonConverter<FitsTiffMode>))]
+    public FitsTiffMode FitsTiff { get; set; }
+
+    /// <summary>
+    /// FITS → any other picture (stretched automatically): a raw frame of a colour camera becomes colour with the Bayer
+    /// pattern in its header. Off keeps it mono. Mono cameras and three-plane colour files are not affected.
+    /// </summary>
+    public bool FitsDebayer { get; set; } = true;
+
     /// <summary>Icon sizes embedded in an ICO file.</summary>
     public List<int> IcoSizes { get; set; } = [256, 128, 64, 48, 32, 16];
+
+    /// <summary>
+    /// "Pixelate / blur": how <see cref="HiddenAreas"/> are covered. Kept in the tool, so its window opens with the last
+    /// one. A field of its own (not a value added to another option), read leniently: an older Filee skips it.
+    /// </summary>
+    [JsonConverter(typeof(LenientEnumJsonConverter<HideStyle>))]
+    public HideStyle HideStyle { get; set; }
+
+    /// <summary>
+    /// How large the squares or how wide the blur over <see cref="HiddenAreas"/> is, <see cref="HideTool.MinStrength"/>
+    /// to <see cref="HideTool.MaxStrength"/> (see <see cref="HideTool.EffectSize"/>). Kept in the tool, as
+    /// <see cref="HideStyle"/>.
+    /// </summary>
+    public int HideStrength { get; set; } = HideTool.DefaultStrength;
+
+    /// <summary>
+    /// The parts of the picture "Pixelate / blur" covers. Set by its window on the conversion it starts, never on a
+    /// saved preset.
+    /// </summary>
+    public List<HiddenArea>? HiddenAreas { get; set; }
+
+    /// <summary>The picture gets parts of it covered (<see cref="HiddenAreas"/>).</summary>
+    [JsonIgnore]
+    public bool HidesAreas => HiddenAreas is { Count: > 0 };
 
     /// <summary>The playback speeds the preset editor offers (<see cref="AnimationSpeed"/>).</summary>
     public static readonly double[] AnimationSpeeds = [0.25, 0.5, 0.75, 1, 1.5, 2, 4];
@@ -332,8 +639,88 @@ public sealed class ImageOptions
     {
         var copy = (ImageOptions)MemberwiseClone();
         copy.IcoSizes = [.. IcoSizes];
+        copy.HiddenAreas = HiddenAreas?.Select(area => area.Clone()).ToList();
+        copy.CustomSize = CustomSize is { } size
+            ? new CustomImageSize { Width = size.Width, Height = size.Height, LockAspect = size.LockAspect, Unit = size.Unit, Dpi = size.Dpi }
+            : null;
         return copy;
     }
+}
+
+/// <summary>The free width x height a preset resizes to: <see cref="ImageOptions.CustomSize"/> (issue #576). The
+/// editor keeps both sides within <see cref="MinSide"/>-<see cref="MaxSide"/>; a size read from a hand-edited file
+/// with a side of 0 or below is ignored where it is used, so the picture keeps the preset's own resize behavior
+/// instead, and any other side is brought into that range (<see cref="ClampedWidth"/>, <see cref="ClampedHeight"/>).</summary>
+public sealed class CustomImageSize
+{
+    /// <summary>The smallest side the editor offers.</summary>
+    public const int MinSide = 16;
+
+    /// <summary>The largest side the editor offers.</summary>
+    public const int MaxSide = 16384;
+
+    /// <summary>Target width in pixels.</summary>
+    public int Width { get; set; } = 1920;
+
+    /// <summary>Target height in pixels.</summary>
+    public int Height { get; set; } = 1080;
+
+    /// <summary>
+    /// Keep each file's own shape and scale it to the largest size that fits inside Width x Height, instead of
+    /// stretching it to exactly that size.
+    /// </summary>
+    public bool LockAspect { get; set; }
+
+    /// <summary>
+    /// The unit the Edit pictures window shows the size in (#725). <see cref="Width"/> and <see cref="Height"/> stay in
+    /// pixels whatever it is; a size in cm, mm or inches was turned into pixels at <see cref="Dpi"/>.
+    /// </summary>
+    [JsonConverter(typeof(LenientEnumJsonConverter<SizeUnit>))]
+    public SizeUnit Unit { get; set; }
+
+    /// <summary>The resolution a size in cm, mm or inches is turned into pixels at, and written into the picture.</summary>
+    public int Dpi { get; set; } = 300;
+
+    /// <summary><see cref="Width"/> within the editor's range, so a hand-edited 200000 cannot ask for a picture no
+    /// machine can hold.</summary>
+    [JsonIgnore]
+    public int ClampedWidth => Math.Clamp(Width, MinSide, MaxSide);
+
+    /// <summary><see cref="Height"/> within the editor's range (see <see cref="ClampedWidth"/>).</summary>
+    [JsonIgnore]
+    public int ClampedHeight => Math.Clamp(Height, MinSide, MaxSide);
+
+    /// <summary>The resolutions a size in cm, mm or inches may be turned into pixels at.</summary>
+    public const int MinDpi = 1, MaxDpi = 9600;
+
+    /// <summary>How many <paramref name="unit"/> make an inch; 0 for pixels.</summary>
+    public static double PerInch(SizeUnit unit) => unit switch
+    {
+        SizeUnit.Centimetres => 2.54,
+        SizeUnit.Millimetres => 25.4,
+        SizeUnit.Inches => 1,
+        _ => 0,
+    };
+
+    /// <summary>A length of <paramref name="value"/> <paramref name="unit"/> in pixels at <paramref name="dpi"/>.</summary>
+    public static int ToPixels(double value, SizeUnit unit, int dpi) =>
+        (int)Math.Round(unit == SizeUnit.Pixels ? value : value / PerInch(unit) * dpi, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// <paramref name="pixels"/> in <paramref name="unit"/> at <paramref name="dpi"/>, rounded as the window shows it:
+    /// two decimals for cm and inches, one for mm.
+    /// </summary>
+    public static double FromPixels(int pixels, SizeUnit unit, int dpi) =>
+        unit == SizeUnit.Pixels ? pixels : Math.Round(pixels * PerInch(unit) / dpi, unit == SizeUnit.Millimetres ? 1 : 2);
+}
+
+/// <summary>The unit a <see cref="CustomImageSize"/> is entered in.</summary>
+public enum SizeUnit
+{
+    Pixels,
+    Centimetres,
+    Millimetres,
+    Inches,
 }
 
 /// <summary>Page size used when images are placed into a PDF.</summary>
@@ -361,6 +748,15 @@ public enum PdfCompression
     Print,
 }
 
+/// <summary>A lossless turn applied to every page of a PDF.</summary>
+public enum PdfRotation
+{
+    None,
+    Left90,
+    Right90,
+    Rotate180,
+}
+
 /// <summary>PDF related options.</summary>
 public sealed class PdfOptions
 {
@@ -380,6 +776,10 @@ public sealed class PdfOptions
 
     /// <summary>For PDF → PDF: write every page as its own file.</summary>
     public bool SplitPages { get; set; }
+
+    /// <summary>For PDF → PDF: rotate every selected page without rendering it.</summary>
+    [JsonConverter(typeof(LenientEnumJsonConverter<PdfRotation>))]
+    public PdfRotation Rotation { get; set; }
 
     /// <summary>For PDF → image: stack the pages into one tall image instead of one image per page.</summary>
     public bool CombinePages { get; set; }
@@ -404,10 +804,51 @@ public sealed class PdfOptions
     public PdfCompression Compression { get; set; }
 
     /// <summary>
+    /// For PDF → PDF: drop the document information (title, author, dates, creator) and every XMP packet. Pages,
+    /// links, bookmarks and form fields stay as they are.
+    /// </summary>
+    public bool RemoveMetadata { get; set; }
+
+    /// <summary>
     /// With <see cref="Compression"/>: also let Ghostscript rewrite the PDF when it is installed, and keep whichever
     /// result is smaller. Off by default: it rewrites the whole file (fonts, structure), not only the pictures.
     /// </summary>
     public bool CompressWithGhostscript { get; set; }
+
+    /// <summary>Text written large and faint across every page of a PDF ("DRAFT", "CONFIDENTIAL"); empty for none.</summary>
+    public string Watermark { get; set; } = "";
+
+    /// <summary>"1 / 5" at the bottom of every page of a PDF.</summary>
+    public bool PageNumbers { get; set; }
+
+    /// <summary>
+    /// A password the PDF opens with (AES-256); empty for none. Saved with the preset in the settings file, like the
+    /// rest of it.
+    /// </summary>
+    public string Password { get; set; } = "";
+
+    /// <summary>
+    /// The <see cref="Password"/> was left out of this copy (the one history keeps to convert failed files again): a
+    /// retry takes it from the preset again, and fails rather than write a PDF without it.
+    /// </summary>
+    public bool PasswordLeftOut { get; set; }
+
+    /// <summary>A PDF this preset writes gets a watermark, page numbers or a password (<see cref="Conversion.IPdfFinisher"/>).</summary>
+    [JsonIgnore]
+    public bool FinishesPdf => !string.IsNullOrWhiteSpace(Watermark) || PageNumbers || Password.Length > 0 || PasswordLeftOut;
+
+    /// <summary>Formats text read from scans can go into (<see cref="Ocr"/>): those Filee writes from a PDF's text itself.</summary>
+    public static readonly IReadOnlyList<string> OcrTargets = ["pdf", "docx", "txt", "md", "hwpx"];
+
+    /// <summary>
+    /// Recognize the text of scanned pages and pictures with Tesseract (<see cref="Preset.RecognizesTextOf"/>): a PDF
+    /// gets a searchable text layer, a DOCX, TXT, Markdown or HWPX gets the text. Pages that already have text stay as
+    /// they are.
+    /// </summary>
+    public bool Ocr { get; set; }
+
+    /// <summary>With <see cref="Ocr"/>: the language of the text, as a Tesseract code (<c>eng</c>, <c>deu</c>, <c>chi_sim</c>).</summary>
+    public string OcrLanguage { get; set; } = "eng";
 
     public PdfOptions Clone() => (PdfOptions)MemberwiseClone();
 }
@@ -444,6 +885,12 @@ public sealed class MediaOptions
 
     /// <summary>Largest output height in pixels (e.g. 720); 0 keeps the source size. Never upscales.</summary>
     public int MaxHeight { get; set; }
+
+    /// <summary>
+    /// Keep each video under this many MB of 1,000,000 bytes (WhatsApp 16, Discord 10, email 18 …); 0 = no limit. Its
+    /// bitrate is capped at what its length allows, and it is encoded once more if it still misses (#553).
+    /// </summary>
+    public double MaxSizeMb { get; set; }
 
     /// <summary>Audio bitrate in kbit/s for lossy audio; 0 uses a good default for the format.</summary>
     public int AudioBitrateKbps { get; set; }
@@ -540,13 +987,82 @@ public sealed class MediaOptions
     public int FrameInterval { get; set; } = 1;
 
     /// <summary>
+    /// "Cut a clip": cut exactly at the chosen frames by encoding the clip again (with <see cref="Quality"/>,
+    /// <see cref="MaxHeight"/>, <see cref="VideoCodec"/>, …). Off by default: the streams are copied as they are, which
+    /// takes a moment and loses nothing, but the clip starts at the key frame before the chosen start.
+    /// </summary>
+    public bool ExactCut { get; set; }
+
+    /// <summary>
+    /// A clip of a video (<see cref="Preset.CutsClipOf"/>): its parts, their volume and speed, and its fades. Set by the
+    /// clip window on the conversion it starts, never on a saved preset.
+    /// </summary>
+    public ClipEdit? Clip { get; set; }
+
+    /// <summary>
     /// Most pictures one video may become (<see cref="SaveEveryFrame"/>): about an hour at 30 fps, already more than
     /// anyone looks through. A longer video needs a larger <see cref="FrameInterval"/>.
     /// </summary>
     public const long MaxFrames = 100_000;
 
+    /// <summary>Targets the dropped files can be joined into (<see cref="JoinIntoOne"/>, <see cref="Slideshow"/>).</summary>
+    public static readonly IReadOnlyList<string> JoinTargets = ["mp4", "m4a"];
 
-    public MediaOptions Clone() => (MediaOptions)MemberwiseClone();
+    /// <summary>
+    /// MP4 or M4A: every dropped video (or audio file) goes, in order and without gaps, into one file named after the
+    /// first. Clips that share codecs and picture size are copied; others are encoded to match the first.
+    /// </summary>
+    public bool JoinIntoOne { get; set; }
+
+    /// <summary>
+    /// MP4: the dropped pictures become one 1080p video, each shown for <see cref="SlideSeconds"/>, fitted in with
+    /// black bars.
+    /// </summary>
+    public bool Slideshow { get; set; }
+
+    /// <summary>
+    /// Most pictures one <see cref="Slideshow"/> takes: every picture is an FFmpeg input, held while the video is encoded.
+    /// </summary>
+    public const int MaxSlides = 300;
+
+    /// <summary>Shortest and longest time one picture of a <see cref="Slideshow"/> is shown, in seconds.</summary>
+    public const double MinSlideSeconds = 0.5, MaxSlideSeconds = 60;
+
+    /// <summary>With <see cref="Slideshow"/>: how long each picture is shown, in seconds.</summary>
+    public double SlideSeconds { get; set; } = 3;
+
+    /// <summary>With <see cref="Slideshow"/>: fade from one picture into the next instead of cutting.</summary>
+    public bool Crossfade { get; set; } = true;
+
+    /// <summary>With <see cref="Crossfade"/>: how long a fade takes, in seconds (at most half a picture's time).</summary>
+    public const double CrossfadeSeconds = 1;
+
+    /// <summary>
+    /// Audio target: copy the sound as it is when the target takes its codec (AAC from a phone video into M4A), with
+    /// no bitrate, channel or Small quality asking for an encode. Off: always encoded, as before the option existed.
+    /// </summary>
+    public bool CopyAudioWhenPossible { get; set; }
+
+    /// <summary>
+    /// Video and audio: drop the tags (title, artist, dates, location, camera, encoder) and chapters, copying the
+    /// streams as they are. Only when the file keeps its format.
+    /// </summary>
+    public bool RemoveMetadata { get; set; }
+
+    /// <summary><see cref="SlideSeconds"/> within its limits (a hand-edited preset file may hold anything).</summary>
+    [JsonIgnore]
+    public double SlideDuration => double.IsFinite(SlideSeconds) ? Math.Clamp(SlideSeconds, MinSlideSeconds, MaxSlideSeconds) : 3;
+
+    /// <summary>The fade between two pictures in seconds: 0 without <see cref="Crossfade"/>, never over half a picture's time.</summary>
+    [JsonIgnore]
+    public double FadeDuration => Crossfade ? Math.Min(CrossfadeSeconds, SlideDuration / 2) : 0;
+
+    public MediaOptions Clone()
+    {
+        var copy = (MediaOptions)MemberwiseClone();
+        copy.Clip = Clip?.Clone();
+        return copy;
+    }
 }
 
 /// <summary>The kind of moving photo a video becomes (<see cref="MediaOptions.LivePhoto"/>).</summary>
@@ -681,3 +1197,50 @@ public sealed class TracingOptions
 
     public TracingOptions Clone() => (TracingOptions)MemberwiseClone();
 }
+
+/// <summary>The AutoCAD version a DWG or DXF is written in (#489).</summary>
+public enum CadVersion
+{
+    /// <summary>AutoCAD 2018 (AC1032): still current in AutoCAD 2026.</summary>
+    AutoCad2018,
+    AutoCad2013,
+    AutoCad2010,
+    /// <summary>A DWG is written as 2004, which AutoCAD 2007 opens: ACadSharp can't write a 2007 DWG.</summary>
+    AutoCad2007,
+    AutoCad2004,
+    AutoCad2000,
+    /// <summary>The version of the drawing converted, within what can be written (2000–2018).</summary>
+    SameAsSource,
+}
+
+/// <summary>How a DWG or DXF drawn to PDF, SVG or a picture is coloured (#411), like a plot style in AutoCAD.</summary>
+public enum CadColors
+{
+    /// <summary>The drawing's own colours; only white lines turn black on the white page.</summary>
+    AsDrawn,
+    /// <summary>
+    /// Lines, text and arrowheads in black like monochrome.ctb; filled hatches in the gray of their brightness, so a
+    /// light fill doesn't become a black block.
+    /// </summary>
+    BlackAndWhite,
+    /// <summary>Every colour as the gray of its brightness, lines and text kept dark enough to read.</summary>
+    Grayscale,
+}
+
+/// <summary>Options for DWG and DXF: the version they are written in and the colours they are drawn in.</summary>
+public sealed class CadOptions
+{
+    /// <summary>A version from a newer Filee reads as <see cref="CadVersion.AutoCad2018"/>.</summary>
+    [JsonConverter(typeof(LenientEnumJsonConverter<CadVersion>))]
+    public CadVersion Version { get; set; }
+
+    /// <summary>
+    /// Colours of a drawing rendered to PDF, SVG or a picture. Filee 2.1.0 skips the property it doesn't know, and
+    /// a choice from a newer Filee reads as <see cref="CadColors.AsDrawn"/>.
+    /// </summary>
+    [JsonConverter(typeof(LenientEnumJsonConverter<CadColors>))]
+    public CadColors Colors { get; set; }
+
+    public CadOptions Clone() => (CadOptions)MemberwiseClone();
+}
+

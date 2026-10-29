@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Motion.Track(this);
+        UiZoom.Track(this);
     }
 
     private async void OnOpenGitHub(object? sender, RoutedEventArgs e)
@@ -113,6 +114,15 @@ public partial class MainWindow : Window
                 return; // shown again meanwhile
             _releasing = true;
             Close();
+            // Still open (the close was cancelled): the next close goes to the tray again, not for good.
+            if (PlatformImpl is not null)
+                _releasing = false;
         });
     }
+
+    /// <summary>
+    /// Being closed for good after going to the tray, or closed: it can't be shown again, so
+    /// <see cref="WindowService.ShowMain"/> opens a new one instead.
+    /// </summary>
+    internal bool IsReleased => _releasing || PlatformImpl is null;
 }

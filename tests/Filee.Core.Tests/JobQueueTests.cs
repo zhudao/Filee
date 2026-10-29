@@ -29,6 +29,26 @@ public class JobQueueTests
     }
 
     [Fact]
+    public async Task Missing_fonts_from_every_step_are_combined_without_blocking_conversion()
+    {
+        using var dir = new TempDir();
+        var first = new FakeConverter("first", new ConversionEdge("jpg", "png"))
+        { FontsToReport = ["Tahoma", "Arial"] };
+        var second = new FakeConverter("second", new ConversionEdge("png", "webp"))
+        { FontsToReport = ["tahoma", "Noto Serif SC"] };
+        await using var queue = new JobQueue(new ConverterCatalog([first, second]));
+
+        var source = dir.File("photo.jpg");
+        var job = await Run(queue, [source], new Preset { TargetFormat = "webp" });
+
+        Assert.Equal(JobState.Completed, job.State);
+        Assert.Equal(["Tahoma", "Arial", "Noto Serif SC"], job.Files.Single().MissingFonts);
+        Assert.Equal([source], first.OriginalSources);
+        Assert.Equal([source], second.OriginalSources);
+        Assert.True(File.Exists(Path.Combine(dir.Path, "photo.webp")));
+    }
+
+    [Fact]
     public async Task Is_busy_from_enqueueing_until_the_job_has_finished()
     {
         // The app frees memory only while the queue is idle: a waiting or running job must count.
@@ -110,16 +130,19 @@ public class JobQueueTests
         public string DisplayName => id;
         public IReadOnlyList<ConversionEdge> Edges => edges;
         public int MaxParallelism => 0;
+        /// <summary>Files <see cref="ScanScripts"/> was called for.</summary>
         public List<string> Checked { get; } = [];
+        /// <summary>The <see cref="TextScripts.WithoutWidths"/> answer for a file (default: everything is measured).</summary>
+        public Func<string, string?> WithoutWidths { get; set; } = _ => null;
         private int _converted;
         public int Converted => _converted;
         public EngineStatus GetStatus() => EngineStatus.Available();
 
-        public string? ScriptNeedingShaping(string sourcePath, string sourceFormat)
+        public TextScripts ScanScripts(string sourcePath, string sourceFormat)
         {
             lock (Checked)
                 Checked.Add(sourcePath);
-            return script(sourcePath);
+            return new TextScripts(script(sourcePath), WithoutWidths(sourcePath));
         }
 
         public Task<IReadOnlyList<string>> ConvertAsync(ConversionStep step, IProgress<double>? progress, CancellationToken cancellationToken)
@@ -127,6 +150,64 @@ public class JobQueueTests
             Interlocked.Increment(ref _converted);
             return _inner.ConvertAsync(step, progress, cancellationToken);
         }
+    }
+
+    [Fact]
+    public async Task Text_the_engine_cannot_measure_takes_another_route_but_is_never_refused()
+    {
+        // rhwp#8143: rhwp's width tables don't cover Cyrillic, so its letters overlap — ugly but readable. Such a
+        // file takes a route around the unshaped engine when there is one, and still converts when there isn't.
+        using var dir = new TempDir();
+        var russian = dir.File("russian.docx");
+        var english = dir.File("english.docx");
+        var writer = new FakeConverter("hwpx-writer", new ConversionEdge("docx", "hwpx"));
+        var rhwp = new ShapingCheck("rhwp", _ => null, new ConversionEdge("hwpx", "pdf", Unshaped: true))
+        {
+            WithoutWidths = path => Path.GetFileName(path).StartsWith("russian", StringComparison.Ordinal) ? "Cyrillic" : null,
+        };
+        var office = new FakeConverter("libreoffice", new ConversionEdge("docx", "pdf", 25));
+        var preset = new Preset { TargetFormat = "pdf" };
+
+        await using (var queue = new JobQueue(new ConverterCatalog([writer, rhwp, office])))
+        {
+            var job = await Run(queue, [russian, english], preset);
+            Assert.Equal(JobState.Completed, job.State);
+            Assert.Equal(1, rhwp.Converted); // English only
+            Assert.Equal("russian.docx→pdf by libreoffice", File.ReadAllText(Path.Combine(dir.Path, "russian.pdf")));
+            Assert.Equal(["english.docx", "russian.docx"], rhwp.Checked.Order().Select(Path.GetFileName));
+        }
+
+        office.Available = false;
+        await using (var queue = new JobQueue(new ConverterCatalog([writer, rhwp, office])))
+        {
+            var job = await Run(queue, [dir.File("russian-2.docx")], preset);
+            var file = Assert.Single(job.Files);
+            Assert.Equal(FileState.Done, file.State);
+            Assert.EndsWith("→pdf by rhwp", File.ReadAllText(Path.Combine(dir.Path, "russian-2.pdf")));
+        }
+    }
+
+    [Fact]
+    public async Task Text_with_shaping_and_unmeasured_scripts_is_refused_for_shaping()
+    {
+        // A scan finding both (Arabic + Cyrillic): shaping takes precedence, the file fails with its reason and is
+        // never converted through the widths escape (a route kept only because the overlap stays readable).
+        using var dir = new TempDir();
+        var arabic = dir.File("arabic.docx");
+        var writer = new FakeConverter("hwpx-writer", new ConversionEdge("docx", "hwpx"));
+        var rhwp = new ShapingCheck("rhwp", _ => "Arabic", new ConversionEdge("hwpx", "pdf", Unshaped: true))
+        {
+            WithoutWidths = _ => "Cyrillic",
+        };
+        await using var queue = new JobQueue(new ConverterCatalog([writer, rhwp]));
+
+        var job = await Run(queue, [arabic], new Preset { TargetFormat = "pdf" });
+
+        var file = Assert.Single(job.Files);
+        Assert.Equal(FileState.Failed, file.State);
+        Assert.Equal("error.needs_shaping", file.ErrorKey);
+        Assert.Equal("Arabic", file.ErrorDetail);
+        Assert.Equal(0, rhwp.Converted);
     }
 
     [Fact]

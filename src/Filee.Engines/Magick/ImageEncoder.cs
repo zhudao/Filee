@@ -11,16 +11,17 @@ internal static class ImageEncoder
 {
     /// <summary>
     /// Image formats ImageMagick can read (see <see cref="ImageReader"/> for RAW, layered and metafile sources).
-    /// Camera RAW is decoded by LibRaw; XCF, HEIC, DICOM, Photo CD, OpenEXR and Radiance HDR are read only. EMF/WMF
+    /// Camera RAW is decoded by LibRaw; XCF, HEIC, DICOM, Photo CD, OpenEXR, Radiance HDR and FITS are read only. EMF/WMF
     /// are Windows metafiles, which ImageMagick renders through GDI+ on Windows only (<see cref="Metafiles"/>). APNG is
-    /// read and written by Filee's own <see cref="Apng"/> (its frames decoded and encoded by ImageMagick).
+    /// read and written by Filee's own <see cref="Apng"/> (its frames decoded and encoded by ImageMagick); FITS is read
+    /// by Filee's own <see cref="Fits"/> and written to TIFF by <see cref="FitsRendering"/>.
     /// </summary>
     public static readonly string[] Readable =
     [
         "png", "jpg", "webp", "tiff", "bmp", "gif", "ico", "avif", "heic",
         "jxl", "jp2", "psd", "psb", "tga", "ppm", "xcf", "raw",
         "apng", "mng", "qoi", "dds", "pcx", "cur", "xpm", "xbm", "wbmp", "pam", "pfm", "sgi", "ras", "miff",
-        "dcm", "pcd", "exr", "hdr",
+        "dcm", "pcd", "exr", "hdr", "fits",
     ];
 
     /// <summary>Vector metafiles ImageMagick rasterizes (Windows only: it uses GDI+).</summary>
@@ -50,10 +51,13 @@ internal static class ImageEncoder
     /// The edge an image engine offers from a picture in <paramref name="source"/> to <paramref name="target"/>. GIF
     /// holds 256 colours, so a still picture costs more there: it reaches video through a full-colour PNG instead
     /// (FFmpeg), while animations and multi-page files still go through GIF and keep their frames. Still picture → APNG
-    /// costs as much, so photos never reach video as a one-frame animation.
+    /// costs as much, so photos never reach video as a one-frame animation. FITS → TIFF is the data for further
+    /// processing (linear by default, 16 or 32 bits): it costs a little more, so FITS reaches other formats through a
+    /// stretched PNG or JPG instead.
     /// </summary>
     public static ConversionEdge Edge(string source, string target) =>
-        new(source, target, target is "gif" or "apng" && !MultiFrame.Contains(source) && !Animated.Contains(source) ? 12 : 10);
+        new(source, target, target is "gif" or "apng" && !MultiFrame.Contains(source) && !Animated.Contains(source) ? 12
+            : source == "fits" && target == "tiff" ? 11 : 10);
 
     /// <summary>True when frames of <paramref name="sourceFormat"/> are written as one animation in <paramref name="targetFormat"/>.</summary>
     public static bool KeepsAnimation(string sourceFormat, string targetFormat) =>
@@ -66,6 +70,9 @@ internal static class ImageEncoder
     /// palette writers drop them altogether).
     /// </summary>
     private static readonly HashSet<string> NoAlpha = ["jpg", "ppm", "heic", "xbm", "wbmp", "pfm", "pcx", "ras"];
+
+    /// <summary>False for formats Filee writes without transparency (<see cref="NoAlpha"/>): nothing to trim there.</summary>
+    public static bool HoldsAlpha(string format) => !NoAlpha.Contains(format);
 
     /// <summary>
     /// Formats read with their ImageMagick coder named instead of guessed from the file: some extensions mean another
@@ -192,16 +199,41 @@ internal static class ImageEncoder
     }
 
     /// <summary>
-    /// How much <see cref="ApplyOptions"/> resizes a <paramref name="width"/> × <paramref name="height"/> image before
-    /// <see cref="FitFormat"/> (1 when it does not).
+    /// How much <see cref="ApplyOptions"/> resizes a width x height image before <see cref="FitFormat"/> (1 when it
+    /// does not). Custom sizing with the aspect kept takes one scale for both sides; stretched, the height's factor
+    /// is what a tall run of pages has to fit.
     /// </summary>
-    public static double ResizeScale(double width, double height, ImageOptions options) => options.Resize switch
+    public static double ResizeScale(double width, double height, ImageOptions options) =>
+        options.CustomSize is { Width: > 0, Height: > 0 } custom
+            ? custom.LockAspect
+                ? Math.Min(custom.ClampedWidth / width, custom.ClampedHeight / height)
+                : custom.ClampedHeight / height
+            : options.ClampedMinShortEdge is { } minShortEdge
+                ? MinShortEdgeScale(width, height, minShortEdge)
+                : options.Resize switch
+                {
+                    ResizeMode.Percent when options.ResizePercent > 0 => options.ResizePercent / 100.0,
+                    ResizeMode.LongEdge when options.LongEdge > 0 => Math.Min(1, options.LongEdge / Math.Max(width, height)),
+                    ResizeMode.Width when options.Width > 0 => Math.Min(1, options.Width / width),
+                    _ => 1,
+                };
+
+    /// <summary>
+    /// The most pixels a minimum short edge enlarges a picture to: as many as the largest custom size holds. Without
+    /// it a hairline strip (16 x 4000 px, short edge to 4000) would ask for a picture of 4 billion pixels.
+    /// </summary>
+    internal const double MaxEnlargedPixels = (double)CustomImageSize.MaxSide * CustomImageSize.MaxSide;
+
+    /// <summary>
+    /// The factor that brings the shorter edge of a width x height picture up to <paramref name="minShortEdge"/>
+    /// (issue #652): 1 when it already reaches it (never below 1, so nothing shrinks), and at most what keeps the
+    /// result within <see cref="MaxEnlargedPixels"/>.
+    /// </summary>
+    public static double MinShortEdgeScale(double width, double height, int minShortEdge)
     {
-        ResizeMode.Percent when options.ResizePercent > 0 => options.ResizePercent / 100.0,
-        ResizeMode.LongEdge when options.LongEdge > 0 => Math.Min(1, options.LongEdge / Math.Max(width, height)),
-        ResizeMode.Width when options.Width > 0 => Math.Min(1, options.Width / width),
-        _ => 1,
-    };
+        var scale = minShortEdge / Math.Min(width, height);
+        return scale <= 1 ? 1 : Math.Max(1, Math.Min(scale, Math.Sqrt(MaxEnlargedPixels / (width * height))));
+    }
 
     /// <summary>Turns and mirrors an image as <paramref name="options"/> say (part of <see cref="ApplyOptions"/>).</summary>
     public static void Turn(IMagickImage<byte> image, ImageOptions options)
@@ -225,11 +257,45 @@ internal static class ImageEncoder
             image.Flip();
     }
 
+    /// <summary>
+    /// Crops <paramref name="image"/> to the box around its pixels that aren't fully transparent (issue #332). Unlike
+    /// ImageMagick's Trim, which trims whatever colour the corners have, only transparency counts: a picture whose content
+    /// touches a corner keeps its solid border. Nothing changes without transparency, or when every pixel is transparent.
+    /// </summary>
+    public static void TrimTransparentBorders(IMagickImage<byte> image)
+    {
+        if (!image.HasAlpha)
+            return;
+        int width = (int)image.Width, height = (int)image.Height;
+        var rgba = image.GetPixels().ToByteArray(PixelMapping.RGBA)!;
+        int left = width, top = height, right = -1, bottom = -1;
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                if (rgba[(y * width + x) * 4 + 3] == 0)
+                    continue;
+                left = Math.Min(left, x);
+                right = Math.Max(right, x);
+                top = Math.Min(top, y);
+                bottom = Math.Max(bottom, y);
+            }
+        }
+        if (right < 0 || (left == 0 && top == 0 && right == width - 1 && bottom == height - 1))
+            return;
+        image.Crop(new MagickGeometry(left, top, (uint)(right - left + 1), (uint)(bottom - top + 1)));
+        image.ResetPage();
+    }
+
     /// <summary>Applies resize / colour / metadata options to one frame.</summary>
     public static void ApplyOptions(IMagickImage<byte> image, ImageOptions options, string targetFormat)
     {
         var turned = options.TurnsOrMirrors || image.Orientation is not (OrientationType.TopLeft or OrientationType.Undefined);
         image.AutoOrient();
+
+        // "Pixelate / blur": the parts were drawn on the picture as it is seen, before it is turned or resized. It also
+        // drops the small previews of the uncovered picture a file can carry.
+        AreaHider.Apply(image, options);
 
         // After AutoOrient, so a phone photo turns the way it looks, not the way its pixels are stored.
         Turn(image, options);
@@ -241,19 +307,52 @@ internal static class ImageEncoder
             image.SetProfile(exif);
         }
 
-        switch (options.Resize)
+        // A hand-edited presets.json or an imported bundle can carry sizes the editor would never write, and a
+        // width of 0 or below would wrap to about 4 billion px in the (uint) casts below: such a size is skipped,
+        // so the picture keeps the preset's own resize behavior (None for a Custom preset) instead. A size above the
+        // editor's range is brought down to it, so a hand-edited 200000 x 200000 cannot ask for a 40-gigapixel picture.
+        if (options.CustomSize is { Width: > 0, Height: > 0 } custom)
         {
-            case ResizeMode.Percent when options.ResizePercent is > 0 and not 100:
-                image.Resize(new Percentage(options.ResizePercent));
-                break;
-            case ResizeMode.LongEdge when options.LongEdge > 0:
-                // Greater = only shrink images that are larger than the box, never upscale.
-                image.Resize(new MagickGeometry((uint)options.LongEdge, (uint)options.LongEdge) { Greater = true });
-                break;
-            case ResizeMode.Width when options.Width > 0 && image.Width > options.Width:
-                image.Resize((uint)options.Width, (uint)Math.Max(1, Math.Round(image.Height * (double)options.Width / image.Width)));
-                break;
+            var customWidth = custom.ClampedWidth;
+            var customHeight = custom.ClampedHeight;
+            if (custom.LockAspect)
+            {
+                // The file's own shape is kept: scaled up or down to the largest size that fits inside the box. Both
+                // sides come from one scale, so the aspect already matches and Resize keeps it, as it always does.
+                var scale = Math.Min(customWidth / (double)image.Width, customHeight / (double)image.Height);
+                if (scale != 1)
+                    image.Resize((uint)Math.Max(1, Math.Round(image.Width * scale)), (uint)Math.Max(1, Math.Round(image.Height * scale)));
+            }
+            else if (image.Width != (uint)customWidth || image.Height != (uint)customHeight)
+            {
+                // No lock: exactly the asked size, stretching or squeezing the picture on purpose (issue #576). Resize
+                // fits inside a box and keeps the aspect on its own, so the flag is what makes this a real stretch.
+                image.Resize(new MagickGeometry((uint)customWidth, (uint)customHeight) { IgnoreAspectRatio = true });
+            }
         }
+        else if (options.ClampedMinShortEdge is { } minShortEdge)
+        {
+            // Only ever up, in proportion; a picture whose shorter edge already reaches the minimum is not touched
+            // (issue #652). The default filter, as for Percent above 100 % and the locked custom size, which enlarge
+            // the same way. Both sides come from one scale, so ignoring the aspect only stops ImageMagick from
+            // rounding the shorter side one pixel under the minimum while it fits the box.
+            var scale = MinShortEdgeScale(image.Width, image.Height, minShortEdge);
+            if (scale > 1)
+                image.Resize(new MagickGeometry((uint)Math.Max(1, Math.Round(image.Width * scale)), (uint)Math.Max(1, Math.Round(image.Height * scale))) { IgnoreAspectRatio = true });
+        }
+        else switch (options.Resize)
+            {
+                case ResizeMode.Percent when options.ResizePercent is > 0 and not 100:
+                    image.Resize(new Percentage(options.ResizePercent));
+                    break;
+                case ResizeMode.LongEdge when options.LongEdge > 0:
+                    // Greater = only shrink images that are larger than the box, never upscale.
+                    image.Resize(new MagickGeometry((uint)options.LongEdge, (uint)options.LongEdge) { Greater = true });
+                    break;
+                case ResizeMode.Width when options.Width > 0 && image.Width > options.Width:
+                    image.Resize((uint)options.Width, (uint)Math.Max(1, Math.Round(image.Height * (double)options.Width / image.Width)));
+                    break;
+            }
         FitFormat(image, targetFormat);
 
         // Before grayscale (a blue signature stays blue until then) and before alpha is flattened for JPG and co.
@@ -283,8 +382,12 @@ internal static class ImageEncoder
         var quality = (uint)Math.Clamp(options.Quality, 1, 100);
         // Turning a JPEG has to re-encode it: at the photo's own quality (Magick's estimate when it read the file), not
         // above it, or a phone photo saved at 75 comes back at 95, bigger and no better.
-        if (options.TurnsOrMirrors && targetFormat == "jpg" && image.Format == MagickFormat.Jpeg && image.Quality is > 0 and <= 100)
-            quality = Math.Min(quality, image.Quality);
+        // "Compress image" likewise never raises a photo's quality, and "Remove metadata" keeps it as it was.
+        var sourceQuality = targetFormat == "jpg" && image.Format == MagickFormat.Jpeg && image.Quality is > 0 and <= 100 ? image.Quality : 0;
+        if ((options.TurnsOrMirrors || options.MaxCompression) && sourceQuality > 0)
+            quality = Math.Min(quality, sourceQuality);
+        if (options.KeepSourceQuality && sourceQuality > 0)
+            quality = sourceQuality;
         switch (targetFormat)
         {
             case "jpg":
@@ -300,6 +403,11 @@ internal static class ImageEncoder
                 image.Quality = quality;
                 if (options.WebpLossless)
                     image.Settings.SetDefine(MagickFormat.WebP, "lossless", true);
+                break;
+            case "png" when options.MaxCompression:
+                // zlib level 9 with adaptive row filters: the smallest PNG ImageMagick writes, the same pixels.
+                image.Settings.SetDefine(MagickFormat.Png, "compression-level", "9");
+                image.Settings.SetDefine(MagickFormat.Png, "compression-filter", "5");
                 break;
             case "tiff":
                 image.Settings.Compression = options.TiffCompression switch
@@ -369,9 +477,49 @@ internal static class ImageEncoder
             if (path is null)
                 continue;
             frames[i].Write(path, format);
+            // Animations and multi-page files written above aren't fitted: the queue refuses them when they're too large.
+            if (options is { MaxSizeMb: > 0 })
+                FitToSize(frames[i], path, format, SizeLimit.Bytes(options.MaxSizeMb));
             written.Add(path);
         }
         return written;
+    }
+
+    /// <summary>A fitted picture is never made smaller than this long edge (nor than its own): below it, it's a thumbnail.</summary>
+    internal const int MinFittedLongEdge = 640;
+
+    /// <summary>
+    /// Saves <paramref name="image"/> again until <paramref name="path"/> is at most <paramref name="limit"/> bytes: a
+    /// lower quality first (down to 50, where a lossy format still looks fine), then fewer pixels, but never below a
+    /// long edge of <see cref="MinFittedLongEdge"/>. Refuses when it still doesn't fit, rather than hand over a file
+    /// that breaks the limit or a thumbnail.
+    /// </summary>
+    internal static void FitToSize(IMagickImage<byte> image, string path, MagickFormat format, long limit)
+    {
+        var size = new FileInfo(path).Length;
+        if (size <= limit)
+            return;
+        using var copy = image.Clone();
+        var lossy = format is MagickFormat.Jpeg or MagickFormat.WebP or MagickFormat.Avif or MagickFormat.Jxl or MagickFormat.Jp2;
+        var floor = Math.Min(MinFittedLongEdge, Math.Max(copy.Width, copy.Height));
+        while (size > limit)
+        {
+            if (lossy && copy.Quality > 50)
+                copy.Quality = Math.Max(50, copy.Quality - 10);
+            else
+            {
+                var longEdge = Math.Max(copy.Width, copy.Height);
+                if (longEdge <= floor)
+                    break;
+                // The file shrinks about as the pixel count does: aim a little under the limit, but not below the floor.
+                var scale = Math.Max(Math.Clamp(Math.Sqrt((double)limit / size) * 0.95, 0.3, 0.9), (double)floor / longEdge);
+                copy.Resize(new MagickGeometry((uint)Math.Max(1, Math.Round(copy.Width * scale)), (uint)Math.Max(1, Math.Round(copy.Height * scale))));
+            }
+            copy.Write(path, format);
+            size = new FileInfo(path).Length;
+        }
+        if (size > limit)
+            throw new ConversionRefusedException("error.over_size_limit", SizeLimit.Describe(size, limit));
     }
 
     /// <summary>Writes one image as <paramref name="targetFormat"/> (APNG through <see cref="Apng"/>).</summary>
@@ -399,6 +547,10 @@ internal static class ImageEncoder
         var sizes = options.IcoSizes.Where(s => s is > 0 and <= 256).Distinct().OrderDescending().ToList();
         if (sizes.Count == 0)
             sizes = [256, 48, 32, 16];
+        // Resized on purpose to less than an icon holds ("Edit pictures": 512 × 512 → 32 × 32): the icon is that size and
+        // the smaller ones asked for, not the larger sizes blown up from it.
+        if (options.Resize != ResizeMode.None && side < 256)
+            sizes = [(int)side, .. sizes.Where(s => s < side)];
         image.Settings.SetDefine(MagickFormat.Icon, "auto-resize", string.Join(',', sizes));
     }
 

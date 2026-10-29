@@ -587,7 +587,11 @@ internal sealed partial class DocxReader
         {
             case "t":
                 if (ShowsText())
-                    builder.Add(new HText(child.Value, format));
+                {
+                    // Text typed in Wingdings & co. ("þ" for ☑) becomes the Unicode characters it shows.
+                    foreach (var text in SymbolFonts.Runs(child.Value, format))
+                        builder.Add(text);
+                }
                 break;
             case "tab" or "ptab":
                 if (ShowsText())
@@ -618,8 +622,13 @@ internal sealed partial class DocxReader
                     builder.Add(new HText("-", format));
                 break;
             case "sym":
+                // Insert → Symbol: a code of the font in w:font (☑ is F052 in Wingdings 2), in Unicode where known.
                 if (ShowsText() && int.TryParse(Attr(child, "char"), System.Globalization.NumberStyles.HexNumber, null, out var code))
-                    builder.Add(new HText(BulletText(((char)code).ToString()), format));
+                {
+                    builder.Add(SymbolFonts.Map(Attr(child, "font"), code) is { } symbol
+                        ? new HText(symbol, SymbolFonts.WithoutSymbolFont(format))
+                        : new HText(BulletText(((char)code).ToString()), format));
+                }
                 break;
             case "fldChar":
                 FieldChar(child, builder, format);

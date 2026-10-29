@@ -15,6 +15,7 @@ using Filee.Engines.Infrastructure;
 using Filee.Engines.Magick;
 using Filee.Engines.Media;
 using Filee.Engines.Models3D;
+using Filee.Engines.Ocr;
 using Filee.Engines.Office;
 using Filee.Engines.Pdf;
 using Filee.Engines.Subtitles;
@@ -55,6 +56,7 @@ public static class EngineRegistry
         new DocxWriterConverter(),
         new PdfTextConverter(),
         new PdfSlidesConverter(),
+        new PdfTablesConverter(),
         new EmlConverter(),
         new DataConverter(),
         new SubtitleConverter(),
@@ -66,6 +68,8 @@ public static class EngineRegistry
         new EbookConverter(),
         new PandocConverter(),
         new GhostscriptConverter(),
+        new VisionConverter(), // before Tesseract: a Mac's OCR step (Tesseract reads the languages Vision doesn't)
+        new TesseractConverter(),
         new CalibreConverter(),
         new LibreOfficeConverter(env, loggers?.CreateLogger<LibreOfficeConverter>()),
     ];
@@ -81,4 +85,8 @@ public static class EngineRegistry
     /// <summary>Finds the engine that packs several files into one archive ("Compress into one archive").</summary>
     public static IFileCombiner? FindFileCombiner(IEnumerable<IConverter> converters) =>
         converters.OfType<IFileCombiner>().FirstOrDefault();
+
+    /// <summary>The engine that joins videos, audio files and pictures into one (FFmpeg).</summary>
+    public static IMediaJoiner? FindMediaJoiner(IEnumerable<IConverter> converters) =>
+        converters.OfType<IMediaJoiner>().FirstOrDefault();
 }

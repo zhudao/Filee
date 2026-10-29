@@ -1,5 +1,5 @@
 // The Home page's recent conversions: thumbnails of the results (decoded off the UI thread, upright, without holding
-// the files) and the buttons that open a result.
+// the files), the buttons that open a result, and Undo (#553).
 
 using Avalonia;
 using Avalonia.Headless.XUnit;
@@ -94,9 +94,105 @@ public class RecentConversionTests
             File.WriteAllBytes(broken, [0x89, 0x50, 0x4E, 0x47, 1, 2, 3]);
             Assert.Null(HistoryThumbnails.Load(broken));
 
+            var brokenVideo = Path.Combine(folder, "broken.mp4");
+            File.WriteAllBytes(brokenVideo, [0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]);
+            Assert.Null(HistoryThumbnails.Load(brokenVideo));
+
             Assert.True(HistoryThumbnails.CanShow(@"C:\a\photo.JPG"));
+            Assert.True(HistoryThumbnails.CanShow(@"C:\a\clip.mp4"));
+            Assert.True(HistoryThumbnails.CanShow(@"C:\a\movie.MKV"));
+            Assert.True(HistoryThumbnails.CanShow(@"C:\a\sample.webm"));
+            Assert.True(HistoryThumbnails.CanShow(@"C:\a\phone.MOV"));
             Assert.False(HistoryThumbnails.CanShow(@"C:\a\report.pdf"));
             Assert.False(HistoryThumbnails.CanShow(@"C:\a\folder"));
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
+        }
+    }
+
+    [AvaloniaFact]
+    public void A_video_generates_a_thumbnail_when_ffmpeg_is_available()
+    {
+        var tools = Filee.Engines.Media.FfmpegConverter.Locate();
+        Assert.SkipUnless(tools is not null, "FFmpeg is not installed (pwsh build/fetch-engines.ps1 -Only ffmpeg)");
+
+        var folder = Directory.CreateTempSubdirectory("filee-videothumbs-").FullName;
+        try
+        {
+            var video = Path.Combine(folder, "sample.mp4");
+            var psi = new System.Diagnostics.ProcessStartInfo(tools.Value.Ffmpeg)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.ArgumentList.Add("-hide_banner");
+            psi.ArgumentList.Add("-nostdin");
+            psi.ArgumentList.Add("-v");
+            psi.ArgumentList.Add("error");
+            psi.ArgumentList.Add("-y");
+            psi.ArgumentList.Add("-f");
+            psi.ArgumentList.Add("lavfi");
+            psi.ArgumentList.Add("-i");
+            psi.ArgumentList.Add("testsrc=duration=2:size=320x240:rate=10");
+            psi.ArgumentList.Add("-pix_fmt");
+            psi.ArgumentList.Add("yuv420p");
+            psi.ArgumentList.Add(video);
+
+            using var process = System.Diagnostics.Process.Start(psi);
+            Assert.NotNull(process);
+            Assert.True(process.WaitForExit(20_000));
+            Assert.True(process.ExitCode == 0 && File.Exists(video), "Sample video could not be created by FFmpeg.");
+
+            var thumbnail = HistoryThumbnails.Load(video);
+            Assert.NotNull(thumbnail);
+            Assert.Equal(new PixelSize(HistoryThumbnails.Size, HistoryThumbnails.Size), thumbnail.PixelSize);
+            Assert.Same(thumbnail, HistoryThumbnails.Cached(video));
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
+        }
+    }
+
+    [AvaloniaFact]
+    public void A_video_shorter_than_one_second_generates_a_thumbnail()
+    {
+        var tools = Filee.Engines.Media.FfmpegConverter.Locate();
+        Assert.SkipUnless(tools is not null, "FFmpeg is not installed (pwsh build/fetch-engines.ps1 -Only ffmpeg)");
+
+        var folder = Directory.CreateTempSubdirectory("filee-videoshort-").FullName;
+        try
+        {
+            var video = Path.Combine(folder, "short.mp4");
+            var psi = new System.Diagnostics.ProcessStartInfo(tools.Value.Ffmpeg)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.ArgumentList.Add("-hide_banner");
+            psi.ArgumentList.Add("-nostdin");
+            psi.ArgumentList.Add("-v");
+            psi.ArgumentList.Add("error");
+            psi.ArgumentList.Add("-y");
+            psi.ArgumentList.Add("-f");
+            psi.ArgumentList.Add("lavfi");
+            psi.ArgumentList.Add("-i");
+            psi.ArgumentList.Add("testsrc=duration=0.5:size=320x240:rate=10");
+            psi.ArgumentList.Add("-pix_fmt");
+            psi.ArgumentList.Add("yuv420p");
+            psi.ArgumentList.Add(video);
+
+            using var process = System.Diagnostics.Process.Start(psi);
+            Assert.NotNull(process);
+            Assert.True(process.WaitForExit(20_000));
+            Assert.True(process.ExitCode == 0 && File.Exists(video), "Short sample video could not be created by FFmpeg.");
+
+            var thumbnail = HistoryThumbnails.Load(video);
+            Assert.NotNull(thumbnail);
+            Assert.Equal(new PixelSize(HistoryThumbnails.Size, HistoryThumbnails.Size), thumbnail.PixelSize);
+            Assert.Same(thumbnail, HistoryThumbnails.Cached(video));
         }
         finally
         {
@@ -155,6 +251,94 @@ public class RecentConversionTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task Undo_moves_the_results_to_the_trash_while_they_are_as_the_job_left_them()
+    {
+        TestServices.EnsureInitialized("en");
+        var loc = AppHost.Get<ILocalizer>();
+        var store = AppHost.Get<UserDataStore>();
+        var folder = Directory.CreateTempSubdirectory("filee-undo-").FullName;
+        store.ClearHistory();
+        try
+        {
+            var a = Path.Combine(folder, "a.png");
+            var b = Path.Combine(folder, "b.png");
+            File.WriteAllBytes(a, [1]);
+            File.WriteAllBytes(b, [2]);
+            var entry = Entry([a, b]);
+            entry.Undoable = [Stamp(a), Stamp(b)];
+            store.AddHistory(entry);
+            var platform = new OpeningPlatform(false);
+
+            // Only the Home page (with the history to save) offers it.
+            Assert.False(new HistoryItemViewModel(entry, loc, platform).CanUndo);
+
+            // The Trash refuses the second result: the first stays moved (and saved as such), the card says why and
+            // still offers Undo for the one left, even rebuilt from the saved history.
+            platform.Refuse = new TrashRefusal("trash.in_use");
+            platform.RefuseOnly = b;
+            var item = new HistoryItemViewModel(entry, loc, platform, store: store);
+            Assert.True(item.CanUndo);
+            await item.UndoCommand.ExecuteAsync(null);
+            Assert.Equal("b.png couldn't be moved to the Recycle Bin / Trash: the file is open in another program", item.UndoError);
+            Assert.Equal([a], platform.Trashed);
+            Assert.False(entry.Undone);
+            Assert.True(item.CanUndo);
+            var reloaded = new UserDataStore(store.Directory);
+            reloaded.Load();
+            Assert.Equal([true, false], Assert.Single(reloaded.History).Undoable.Select(o => o.Trashed));
+            Assert.True(new HistoryItemViewModel(reloaded.History[0], loc, platform, store: store).CanUndo);
+
+            platform.Refuse = null;
+            await item.UndoCommand.ExecuteAsync(null);
+            Assert.Equal([a, b], platform.Trashed); // the first isn't asked for again
+            Assert.True(Assert.Single(store.History).Undone);
+            var undone = new HistoryItemViewModel(store.History[0], loc, platform, store: store);
+            Assert.False(undone.CanUndo);
+            Assert.Equal("Undone: the results are in the Recycle Bin / Trash", undone.UndoneText);
+
+            // "Replace the original" sent the originals there first: the card says they're there too.
+            entry.OriginalsInTrash = true;
+            Assert.Equal("Undone: the results are in the Recycle Bin / Trash, and so are the originals they replaced",
+                new HistoryItemViewModel(entry, loc, platform, store: store).UndoneText);
+
+            // A result written again since (an edit, another conversion over it) is never moved.
+            var c = Path.Combine(folder, "c.png");
+            File.WriteAllBytes(c, [3]);
+            var changed = Entry([c]);
+            changed.Undoable = [Stamp(c)];
+            File.AppendAllText(c, "edited");
+            Assert.False(new HistoryItemViewModel(changed, loc, platform, store: store).CanUndo);
+            Assert.True(File.Exists(c));
+
+            // Every result is checked before any moves: one changed while the card was open stops it with nothing moved.
+            var d = Path.Combine(folder, "d.png");
+            var e = Path.Combine(folder, "e.png");
+            File.WriteAllBytes(d, [4]);
+            File.WriteAllBytes(e, [5]);
+            var pair = Entry([d, e]);
+            pair.Undoable = [Stamp(d), Stamp(e)];
+            var open = new HistoryItemViewModel(pair, loc, platform, store: store);
+            File.AppendAllText(e, "edited");
+            await open.UndoCommand.ExecuteAsync(null);
+            Assert.Equal("e.png couldn't be moved to the Recycle Bin / Trash: it was changed after the conversion", open.UndoError);
+            Assert.True(File.Exists(d));
+            Assert.DoesNotContain(d, platform.Trashed);
+            Assert.False(open.CanUndo);
+        }
+        finally
+        {
+            store.ClearHistory();
+            Directory.Delete(folder, true);
+        }
+    }
+
+    private static HistoryOutput Stamp(string path)
+    {
+        var info = new FileInfo(path);
+        return new HistoryOutput { Path = path, Length = info.Length, WrittenUtc = info.LastWriteTimeUtc };
+    }
+
     [AvaloniaTheory]
     [InlineData("en", false)]
     [InlineData("ru", false)]
@@ -179,7 +363,9 @@ public class RecentConversionTests
             File.WriteAllBytes(report, [0]);
             store.AddHistory(Entry([report], "PDF", [Path.Combine(folder, "Annual report.docx")]));
             store.AddHistory(Entry([sunset], "PNG", [Path.Combine(folder, "sunset.heic")]));
-            store.AddHistory(Entry([photo], "JPG 70%", [Path.Combine(folder, "IMG_0412.heic")]));
+            var newest = Entry([photo], "JPG 70%", [Path.Combine(folder, "IMG_0412.heic")]);
+            newest.Undoable = [Stamp(photo)];
+            store.AddHistory(newest);
 
             var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<ILocalizer>(), AppHost.Get<UpdateService>());
             vm.Navigate("home");
@@ -195,6 +381,7 @@ public class RecentConversionTests
             Assert.False(page.History[2].HasThumbnail);
             Assert.Equal("PDF", page.History[2].FormatBadge);
             Assert.All(page.History, item => Assert.Equal(OperatingSystem.IsWindows(), item.CanOpenWith));
+            Assert.Equal([true, false, false], page.History.Select(item => item.CanUndo));
 
             // A search lists them anew: the thumbnails come from the cache at once.
             page.Search = "sunset";
@@ -283,6 +470,21 @@ public class RecentConversionTests
     {
         public List<string> Opened { get; } = [];
         public List<string> OpenedWith { get; } = [];
+        public List<string> Trashed { get; } = [];
+        public TrashRefusal? Refuse { get; set; }
+
+        /// <summary>Refuses only this path, when set.</summary>
+        public string? RefuseOnly { get; set; }
+
+        public TrashRefusal? MoveToTrash(string path)
+        {
+            if (Refuse is not null && (RefuseOnly is null || RefuseOnly == path))
+                return Refuse;
+            File.Delete(path);
+            Trashed.Add(path);
+            return null;
+        }
+
         public bool SupportsOpenWith => openWith;
         public void OpenFile(string path) => Opened.Add(path);
         public void OpenWith(string path) => OpenedWith.Add(path);

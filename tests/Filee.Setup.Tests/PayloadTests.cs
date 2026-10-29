@@ -200,20 +200,35 @@ public class PayloadTests
     }
 
     [Fact]
-    public void A_signed_program_cannot_get_a_payload()
+    public void A_signed_program_becomes_a_signed_uninstaller()
     {
-        // Signing has to come last: a payload behind the signature would not be covered by it.
+        // A release signs the Setup program, then Setup.exe: Setup.exe's header no longer points to the program's
+        // signature (its own goes at the end), and the uninstaller copied out of it points to it again.
         using var temp = new TempFolder();
         temp.Write(@"app\Filee.exe", "Filee");
         var program = temp.Sub("program.exe");
         var bytes = MinimalPe(0, 0);
         var pe = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x3C));
-        var withCertificates = new byte[bytes.Length + 64];
-        bytes.CopyTo(withCertificates, 0);
-        BinaryPrimitives.WriteUInt32LittleEndian(withCertificates.AsSpan(pe + 4 + 20 + 112 + 32), (uint)bytes.Length);
-        BinaryPrimitives.WriteUInt32LittleEndian(withCertificates.AsSpan(pe + 4 + 20 + 112 + 36), 64);
-        File.WriteAllBytes(program, withCertificates);
-        Assert.Throws<InvalidOperationException>(() => SetupPayload.Write(program, temp.Sub("app"), temp.Sub("out.exe"), "2.0.0", [], ""));
+        var security = pe + 4 + 20 + 112 + 32;
+        var signed = new byte[bytes.Length + 64];
+        bytes.CopyTo(signed, 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(signed.AsSpan(security), (uint)bytes.Length);
+        BinaryPrimitives.WriteUInt32LittleEndian(signed.AsSpan(security + 4), 64);
+        File.WriteAllBytes(program, signed);
+
+        var setup = temp.Sub("setup.exe");
+        SetupPayload.Write(program, temp.Sub("app"), setup, "2.0.0", [], "", fast: true);
+        var written = File.ReadAllBytes(setup);
+        Assert.Equal(0u, BinaryPrimitives.ReadUInt64LittleEndian(written.AsSpan(security)));
+        // signtool adds the certificate table at the end without padding in front of it.
+        Assert.Equal(0, written.Length % 8);
+
+        using var payload = SetupPayload.Open(setup)!;
+        Assert.Equal(new ProgramSignature(bytes.Length, 64), payload.Manifest.Signature);
+        payload.Verify(cancellation: TestContext.Current.CancellationToken);
+        var uninstaller = temp.Sub("uninstall.exe");
+        payload.CopyProgramTo(uninstaller);
+        Assert.Equal(signed, File.ReadAllBytes(uninstaller));
     }
 
     /// <summary>DOS header + PE32+ headers without sections (enough for the overlay and import readers).</summary>

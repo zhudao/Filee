@@ -193,7 +193,9 @@ public class PandocMarkupTests(EngineFixture fx) : IClassFixture<EngineFixture>
         Assert.Equal("pandoc", Assert.Single(fx.Catalog.CreatePlanner().Plan("docx", "md")!.Steps).Converter.Id);
 
         var withPictures = await File.ReadAllTextAsync(await ConvertAsync(docx, "md"), TestContext.Current.CancellationToken);
-        Assert.Contains("memo_files", withPictures);
+        // Linked relative to the Markdown file, so both can be moved together (#391).
+        Assert.Contains("](memo_files/media/", withPictures);
+        Assert.DoesNotContain(Path.GetDirectoryName(docx)!, withPictures);
 
         var job = await fx.ConvertAsync([docx], new Preset { TargetFormat = "md", Document = { LeaveOutPictures = true } });
         Assert.True(job.State == JobState.Completed, string.Join("; ", job.Files.Select(f => $"{f.ErrorKey} {f.ErrorDetail}")));
@@ -202,6 +204,33 @@ public class PandocMarkupTests(EngineFixture fx) : IClassFixture<EngineFixture>
         Assert.DoesNotContain("<img", textOnly);
         Assert.Contains("Before the chart.", textOnly);
         Assert.Contains("After the chart.", textOnly);
+    }
+
+    [Fact]
+    public async Task Word_tables_with_merged_cells_become_markdown_tables()
+    {
+        // Merged cells, a cell of two paragraphs, a list in a cell and no header row: Pandoc alone writes this as an
+        // HTML <table>, which Markdown editors show as code (#391).
+        SkipUnlessInstalled();
+        var html = await WriteAsync("history.html", """
+            <table>
+            <tr><td>Version</td><td colspan="3">Date and author</td></tr>
+            <tr><td rowspan="2">1.0</td><td>2024</td><td>Kim</td><td><p>first part</p><p>second part</p></td></tr>
+            <tr><td>2025</td><td>Lee</td><td><ul><li>alpha</li><li>beta</li></ul></td></tr>
+            </table>
+            """);
+        var docx = await ConvertAsync(html, "docx");
+        File.Delete(html);
+
+        var markdown = await File.ReadAllTextAsync(await ConvertAsync(docx, "md"), TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("<table", markdown);
+        var rows = markdown.Split('\n').Select(l => l.Trim()).Where(l => l.StartsWith('|')).ToList();
+        Assert.Equal(4, rows.Count); // header, separator and two rows
+        Assert.Matches(@"^\|\s*Version\s*\|\s*Date and author\s*\|", rows[0]);
+        Assert.Matches(@"^\|\s*\|\s*2025\s*\|\s*Lee\s*\|", rows[3]); // the row span leaves its column empty below
+        Assert.Contains("first part<br>second part", rows[2]);
+        Assert.Contains("• alpha<br>• beta", rows[3]);
+        Assert.All(rows, r => Assert.Equal(5, r.Count(c => c == '|')));
     }
 
     [Fact]

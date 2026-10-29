@@ -13,8 +13,8 @@ public static class FormatRegistry
     public static IReadOnlyList<FileFormat> Known { get; } =
     [
         // Raster images
-        new("png", "PNG", FormatCategory.Image, ["png"]),
-        new("jpg", "JPG", FormatCategory.Image, ["jpg", "jpeg", "jpe", "jfif"]),
+        new("png", "PNG", FormatCategory.Image, ["png", "png_large"]),
+        new("jpg", "JPG", FormatCategory.Image, ["jpg", "jpeg", "jpe", "jfif", "jpg_large"]),
         new("webp", "WEBP", FormatCategory.Image, ["webp"]),
         new("tiff", "TIFF", FormatCategory.Image, ["tiff", "tif"]),
         new("bmp", "BMP", FormatCategory.Image, ["bmp", "dib"]),
@@ -47,6 +47,9 @@ public static class FormatRegistry
         new("pcd", "Photo CD", FormatCategory.Image, ["pcd"], Writable: false),
         new("exr", "OpenEXR", FormatCategory.Image, ["exr"], Writable: false),
         new("hdr", "Radiance HDR", FormatCategory.Image, ["hdr"], Writable: false),
+        // Astronomy pictures from telescope cameras and stacking software, read by Filee itself (issue #460). ".fit" is
+        // left to Garmin's FIT activity files (issue #451).
+        new("fits", "FITS", FormatCategory.Image, ["fits", "fts"], Writable: false),
         // Read on Windows only, with its own codec (HDR screenshots of Windows are JPEG XR).
         new("jxr", "JPEG XR", FormatCategory.Image, ["jxr", "wdp", "hdp"], Writable: false),
         new("xcf", "XCF", FormatCategory.Image, ["xcf"], Writable: false),
@@ -66,7 +69,10 @@ public static class FormatRegistry
         new("wmf", "WMF", FormatCategory.Vector, ["wmf"]),
         new("cdr", "CDR", FormatCategory.Vector, ["cdr"], Writable: false),
         new("cgm", "CGM", FormatCategory.Vector, ["cgm"], Writable: false),
+        new("plt", "PLT", FormatCategory.Vector, ["plt", "hpgl", "hpg", "hgl"], Writable: false),
         new("vsd", "VSD", FormatCategory.Vector, ["vsd", "vsdx"], Writable: false),
+        // Tajima embroidery designs: the stitches drawn as lines (issue #397).
+        new("dst", "DST", FormatCategory.Vector, ["dst"], Writable: false),
         new("odg", "ODG", FormatCategory.Vector, ["odg"]),
         new("fodg", "FODG", FormatCategory.Vector, ["fodg"], Writable: false),
 
@@ -134,8 +140,10 @@ public static class FormatRegistry
         new("sda", "SDA", FormatCategory.Presentation, ["sda", "sdd"], Writable: false),
 
         // Plain text / markup
-        // Text logs and source/proxy scripts are read as plain text, never executed (issues #273, #284, #254).
-        new("txt", "TXT", FormatCategory.Text, ["txt", "log", "py", "pac", "bat", "command"]),
+        // Text logs, source/proxy scripts, style sheets and settings files are read as plain text, never executed (issues
+        // #273, #284, #254, #388, #368, #607, #536, #630, #661, #660).
+        new("txt", "TXT", FormatCategory.Text,
+            ["txt", "log", "py", "pac", "bat", "cmd", "command", "lua", "css", "ps1", "sql", "ahk", "ini", "rsc"]),
         new("md", "Markdown", FormatCategory.Text, ["md", "markdown"]),
         new("html", "HTML", FormatCategory.Text, ["html", "htm", "xhtml"]),
         // A web page saved with its pictures in one MIME file (Chrome, Edge, Word); read as the page it holds.
@@ -163,6 +171,9 @@ public static class FormatRegistry
         new("toml", "TOML", FormatCategory.Data, ["toml"]),
         new("xml", "XML", FormatCategory.Data, ["xml"]),
         new("vcf", "vCard", FormatCategory.Data, ["vcf", "vcard"]),
+        // A browser's recorded network requests (HTTP Archive): JSON, read as one table row per request (issue #328).
+        new("har", "HAR", FormatCategory.Data, ["har"], Writable: false),
+        new("ics", "iCalendar", FormatCategory.Data, ["ics", "ical"]),
 
         // E-books
         new("epub", "EPUB", FormatCategory.Ebook, ["epub"]),
@@ -214,6 +225,17 @@ public static class FormatRegistry
         new("swf", "SWF", FormatCategory.Video, ["swf"], Writable: false),
         new("wtv", "WTV", FormatCategory.Video, ["wtv", "dvr-ms", "dvr"], Writable: false),
         new("cavs", "CAVS", FormatCategory.Video, ["cavs"], Writable: false),
+        // CRI Middleware's video for game cutscenes (#485): FFmpeg's usm demuxer reads unencrypted ones.
+        new("usm", "USM", FormatCategory.Video, ["usm"], Writable: false),
+        // Fragmented MP4 (#354): an .m4s with its own moov (ftyp + moov, then styp / sidx / moof / mdat) is read by FFmpeg;
+        // a DASH media segment that needs a separate init segment is refused (DashSegment).
+        new("m4s", "M4S", FormatCategory.Video, ["m4s"], Writable: false),
+        // Dahua and similar DVR / NVR recordings (#594): FFmpeg's dhav demuxer reads them (H.264 / H.265 video, often
+        // with G.711 or AAC sound).
+        new("dav", "DAV", FormatCategory.Video, ["dav"], Writable: false),
+        // Raw H.265 / H.264 streams with no container, as security cameras and VMS software export them (issue #301).
+        new("h265", "H.265", FormatCategory.Video, ["h265", "265", "hevc"], Writable: false),
+        new("h264", "H.264", FormatCategory.Video, ["h264", "264"], Writable: false),
 
         // Audio
         new("mp3", "MP3", FormatCategory.Audio, ["mp3"]),
@@ -277,6 +299,7 @@ public static class FormatRegistry
         new("arj", "ARJ", FormatCategory.Archive, ["arj"], Writable: false),
         new("alz", "ALZ", FormatCategory.Archive, ["alz"], Writable: false),
         new("egg", "EGG", FormatCategory.Archive, ["egg"], Writable: false),
+        new("split", "Split Archive", FormatCategory.Archive, ["001", "7z.001", "zip.001", "tar.001"], Writable: false),
         new(Folder, "Folder", FormatCategory.Archive, [""]),
 
         // CAD
@@ -289,6 +312,7 @@ public static class FormatRegistry
         new("woff", "WOFF", FormatCategory.Font, ["woff"]),
         new("woff2", "WOFF2", FormatCategory.Font, ["woff2"]),
         new("eot", "EOT", FormatCategory.Font, ["eot"]),
+        new("fon", "FON", FormatCategory.Font, ["fon"], Writable: false),
 
         // Subtitles (text)
         new("srt", "SRT", FormatCategory.Subtitle, ["srt"]),
@@ -316,6 +340,8 @@ public static class FormatRegistry
         new("kmz", "KMZ", FormatCategory.Geo, ["kmz"]),
         new("gpx", "GPX", FormatCategory.Geo, ["gpx"]),
         new("shp", "Shapefile", FormatCategory.Geo, ["shp"]),
+        // Activity files read by the geo engine (issue #451); .fits/.fts stay FITS.
+        new("fit", "Garmin FIT", FormatCategory.Geo, ["fit"], Writable: false),
     ];
 
     private static readonly Dictionary<string, FileFormat> ById =

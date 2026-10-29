@@ -14,6 +14,11 @@
   engines Setup offers from EngineDownloads. The portable zip is the publish folder as it is: without Setup's
   uninstall.exe next to Filee.exe, Filee knows it is a portable copy.
 
+.PARAMETER CertificateThumbprint
+  Signs the release (build/sign-windows.ps1): the programs in the publish folder that come unsigned, the Setup
+  program (it becomes uninstall.exe) and, after the payload is appended, Setup.exe. The release workflow builds
+  without it; build/sign-release.ps1 signs its output on a PC signed in to SimplySign.
+
 .PARAMETER CheckOnly
   Builds Setup around a stub app (fast compression) and runs it in a sandbox: install, update and uninstall into a
   scratch folder with its own registry file, nothing on the PC is touched (CI).
@@ -21,6 +26,7 @@
 .EXAMPLE
   pwsh build/build-installer.ps1
   pwsh build/build-installer.ps1 -Version 2.0.0 -Portable
+  pwsh build/build-installer.ps1 -Version 2.0.0 -Portable -PublishDir app -SetupProgram Filee.Setup.exe -CertificateThumbprint <sha1>
   pwsh build/build-installer.ps1 -CheckOnly
 #>
 [CmdletBinding()]
@@ -29,8 +35,11 @@ param(
     [string]$Version,
     # A finished publish folder (Filee.exe, FileeExplorerMenu.dll/.msix, engines\); skips publishing.
     [string]$PublishDir,
+    # A finished Setup program (Filee.Setup.exe from an earlier run); skips publishing src/Filee.Setup.
+    [string]$SetupProgram,
     [string]$OutputDir = (Join-Path $PSScriptRoot '..\Releases'),
     [switch]$Portable,
+    [string]$CertificateThumbprint,
     [switch]$CheckOnly
 )
 
@@ -100,11 +109,22 @@ if (-not $CheckOnly) {
 }
 
 # Setup: one self-contained, trimmed program (src/Filee.Setup).
-$setupProgram = Join-Path $cache 'setup'
-Remove-Item $setupProgram -Recurse -Force -ErrorAction SilentlyContinue
-Invoke-Checked 'dotnet publish (setup)' {
-    dotnet publish (Join-Path $root 'src\Filee.Setup\Filee.Setup.csproj') -c Release -r win-x64 -p:FileeSetupPublish=true `
-        "-p:Version=$Version" -o $setupProgram
+if (-not $SetupProgram) {
+    $setupFolder = Join-Path $cache 'setup'
+    Remove-Item $setupFolder -Recurse -Force -ErrorAction SilentlyContinue
+    Invoke-Checked 'dotnet publish (setup)' {
+        dotnet publish (Join-Path $root 'src\Filee.Setup\Filee.Setup.csproj') -c Release -r win-x64 -p:FileeSetupPublish=true `
+            "-p:Version=$Version" -o $setupFolder
+    }
+    $SetupProgram = Join-Path $setupFolder 'Filee.Setup.exe'
+}
+$SetupProgram = (Resolve-Path $SetupProgram).Path
+
+# Signed before packing: the app's files are signed inside the payload, and the Setup program's signature carries
+# over to the uninstaller (SetupPayload). Setup.exe itself is signed after the payload is appended.
+$sign = if ($CertificateThumbprint -and -not $CheckOnly) { Join-Path $PSScriptRoot 'sign-windows.ps1' }
+if ($sign) {
+    & $sign -Path $PublishDir, $SetupProgram -CertificateThumbprint $CertificateThumbprint
 }
 
 $setupExe = Join-Path $OutputDir "Filee-$Version-win-Setup.exe"
@@ -112,13 +132,15 @@ Write-Host "pack installer $Version"
 $fast = @(if ($CheckOnly) { '--fast' })
 Push-Location $root
 try {
-    $program = Join-Path $setupProgram 'Filee.Setup.exe'
-    Invoke-Checked 'make-setup' { dotnet run --no-cache build/tools/make-setup.cs -- $program $PublishDir $Version $setupExe @fast }
+    Invoke-Checked 'make-setup' { dotnet run --no-cache build/tools/make-setup.cs -- $SetupProgram $PublishDir $Version $setupExe @fast }
 }
 finally {
     Pop-Location
 }
 if (-not (Test-Path $setupExe)) { throw "make-setup did not write $setupExe" }
+if ($sign) {
+    & $sign -Path $setupExe -CertificateThumbprint $CertificateThumbprint
+}
 
 if ($CheckOnly) {
     # Install, update and uninstall in a sandbox: a registry file and folders of its own, no administrator rights.

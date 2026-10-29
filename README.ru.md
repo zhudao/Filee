@@ -10,6 +10,7 @@
 <p align="center">
   <a href="https://filee.sh"><b>Сайт</b></a> ·
   <a href="https://github.com/KnifeLemon/Filee/releases/latest"><b>Скачать</b></a> ·
+  <a href="https://www.linkedin.com/company/filee-sh/"><b>LinkedIn</b></a> ·
   <a href="#установка">Установка</a> ·
   <a href="#командная-строка">Командная строка</a> ·
   <a href="#для-разработчиков">Для разработчиков</a>
@@ -30,13 +31,40 @@
   <a href="https://trendshift.io/repositories/276987"><img src="https://trendshift.io/api/badge/trendshift/repositories/276987/daily?language=C%23&v=2" alt="Filee: #1 C# repository of the day on Trendshift" width="250" height="55"></a>
 </p>
 
-<p align="center"><a href="README.md">English</a> · <a href="README.es.md">Español</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.pl.md">Polski</a> · <a href="README.hi.md">हिन्दी</a> · <b>Русский</b> · <a href="README.ar.md">العربية</a> · <a href="README.pt-BR.md">Português (Brasil)</a></p>
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.zh-TW.md">繁體中文</a> ·
+  <a href="README.pl.md">Polski</a> ·
+  <a href="README.hi.md">हिन्दी</a> ·
+  <b>Русский</b> ·
+  <a href="README.ar.md">العربية</a> ·
+  <a href="README.pt-BR.md">Português (Brasil)</a> ·
+  <a href="README.pt-PT.md">Português (Portugal)</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.th.md">ไทย</a> ·
+  <a href="README.tr.md">Türkçe</a>
+</p>
 
 <table>
   <tr>
-    <td width="33%" valign="top"><b>Прямо у курсора</b><br>Не нужно открывать окно программы. Форматы появляются там, где вы уже работаете, и только те, что подходят перетаскиваемым файлам.</td>
-    <td width="33%" valign="top"><b>255 форматов без лишних программ</b><br>Изображения, PDF, Word, Excel, PowerPoint, HWP, электронные книги, архивы, шрифты, чертежи CAD, 3D-модели и геоданные работают без Office, Hancom Office и LibreOffice.</td>
-    <td width="33%" valign="top"><b>Всё остаётся на вашем компьютере</b><br>Ничего не загружается в сеть. Filee работает офлайн и сохраняет результат рядом с исходным файлом.</td>
+    <td width="33%" valign="top">
+      <b>Прямо у курсора</b><br>
+      Не нужно открывать окно программы.
+      Форматы появляются там, где вы уже работаете, и только те, что подходят перетаскиваемым файлам.
+    </td>
+    <td width="33%" valign="top">
+      <b>268 форматов без лишних программ</b><br>
+      Изображения, PDF, Word, Excel, PowerPoint, HWP, электронные книги, архивы, шрифты, чертежи CAD, 3D-модели и геоданные работают без Office, Hancom Office и LibreOffice.
+    </td>
+    <td width="33%" valign="top">
+      <b>Всё остаётся на вашем компьютере</b><br>
+      Ничего не загружается в сеть.
+      Filee работает офлайн и сохраняет результат рядом с исходным файлом.
+    </td>
   </tr>
 </table>
 
@@ -51,33 +79,59 @@
 
 Скачайте со страницы [Releases](https://github.com/KnifeLemon/Filee/releases/latest).
 
-- **Windows 10/11**: запустите `Filee-<version>-win-Setup.exe` или распакуйте `win-Portable.zip` и запустите `Filee.exe`.
-  Setup — собственный установщик Filee: он говорит на тех же языках, что и Filee, и ничего не требует от компьютера. Он может
-  добавить пункт в меню Проводника, автозапуск при входе в систему, команду `filee` и дополнительные движки; для тихой установки
-  подходят ключи Inno Setup (`/VERYSILENT /SUPPRESSMSGBOXES`).
-- **macOS 13+** (предварительная версия): распакуйте пакет `osx-arm64` или `osx-x64` и запустите `./install.sh`.
-  Сборка пока не нотаризована, поэтому при первом запуске разрешите её в Системных настройках → Конфиденциальность и безопасность → **Всё равно открыть**.
-- **Linux x64/ARM64** (Ubuntu 22.04+): распакуйте пакет и запустите `./install.sh` (права root не нужны, требуется Python 3).
-  Жесты перетаскивания работают только в X11. В Wayland пользуйтесь зоной перетаскивания и контекстным меню файлового менеджера.
+<a href="https://apps.microsoft.com/detail/XPDCN05L89WS0C?referrer=appbadge&cid=github&mode=full"><img src="https://get.microsoft.com/images/ru%20dark.svg" alt="Microsoft Store" width="200"></a>
 
-Filee сообщает о новых версиях в своём меню и обновляется сам, сохраняя ваши настройки и движки. После обновления
-несколько слайдов расскажут, что нового.
+- **Windows 10/11**: запустите `Filee-<version>-win-Setup.exe` или распакуйте `win-Portable.zip` и запустите `Filee.exe`.
+  - Setup — собственный установщик Filee: он говорит на тех же языках, что и Filee, и ничего не требует от компьютера.
+  - Он может добавить пункт в меню Проводника, автозапуск при входе в систему, команду `filee` и дополнительные движки.
+  - Для тихой установки подходят ключи Inno Setup (`/VERYSILENT /SUPPRESSMSGBOXES`).
+- **macOS 13+** (предварительная версия): распакуйте пакет `osx-arm64` или `osx-x64` и запустите `./install.sh`.
+  - Или откройте `.dmg` и перетащите Filee в «Программы» (команду `filee` добавляет только `install.sh`).
+  - Сборка пока не нотаризована, поэтому при первом запуске разрешите её в Системных настройках → Конфиденциальность и безопасность → **Всё равно открыть**.
+- **Linux x64/ARM64** (Ubuntu 22.04+): распакуйте пакет и запустите `./install.sh` (права root не нужны, требуется Python 3).
+  - Жесты перетаскивания работают только в X11.
+    В Wayland пользуйтесь зоной перетаскивания и контекстным меню файлового менеджера.
+
+Filee сообщает о новых версиях в своём меню и обновляется сам, сохраняя ваши настройки и движки.
+После обновления несколько слайдов расскажут, что нового.
+
+**Windows: Filee не запускается (ни окна, ни ошибки)?**
+Так бывает в давно не обновлявшейся Windows 10 на ПК, процессор которого поддерживает аппаратную защиту стека (CET).
+Windows включает эту защиту, но в ней нет компонента, нужного .NET, поэтому Filee и Setup сразу закрываются.
+
+- **Рекомендуется:** установите доступные обновления Windows (последнее накопительное обновление).
+- **Если обновить Windows нельзя:** обычно достаточно отключить защиту только для Filee.
+  Выполните в PowerShell от имени администратора:
+
+```powershell
+Set-ProcessMitigation -Name Filee.exe -Disable UserShadowStack
+Set-ProcessMitigation -Name filee-cli.exe -Disable UserShadowStack
+```
+
+То же сделайте с именем файла Setup (например, `Filee-<version>-win-Setup.exe`) или возьмите портативный ZIP: ему хватит этих двух строк.
+Чтобы отменить это, удалите эти записи в «Безопасность Windows» → «Управление приложениями/браузером» → «Параметры защиты от эксплойтов» → «Параметры программ».
 
 ## Возможности
 
-- **Круговое меню у курсора**: зажмите клавишу, перетащите файлы и отпустите их на формат. Показываются только форматы, подходящие этим файлам.
+- **Круговое меню у курсора**: зажмите клавишу, перетащите файлы и отпустите их на формат.
+  Показываются только форматы, подходящие этим файлам.
 - **Прямо из браузера**: так же перетаскиваются картинка, ссылка на файл или загрузка из Chrome, Edge, Firefox или Safari.
-  Filee сохраняет файл в папку «Загрузки» (или оставляет только сконвертированный) и конвертирует его. Ссылки скачиваются
-  без входа в аккаунт из вашего браузера.
-- **Своё круговое меню для каждого типа файлов**, настраивается перетаскиванием, с пресетами для качества, размера, DPI, страниц и сжатия PDF,
-  видео и аудио, папки сохранения и имён файлов.
+  - Filee сохраняет файл в папку «Загрузки» (или оставляет только сконвертированный) и конвертирует его.
+  - Ссылки скачиваются без входа в аккаунт из вашего браузера.
+- **Своё круговое меню для каждого типа файлов**, настраивается перетаскиванием, с пресетами для:
+  - качества, размера, DPI
+  - страниц и сжатия PDF
+  - видео и аудио
+  - папки сохранения и имён файлов
 - **У каждого кругового меню две стороны**: когда меню открыто, нажмите <kbd>Tab</kbd> или прокрутите колесо мыши, чтобы перевернуть его к редким форматам и инструментам.
-- **Обрезка перед конвертацией**: сектор «Обрезать» открывает картинки по одной. Перетащите рамку, выберите пропорции, и сохранится только эта часть.
-- **Много файлов сразу**, параллельно. Конвертации в несколько шагов (HWP → HWPX → DOCX) Filee находит сам.
+- **Обрезка перед конвертацией**: сектор «Обрезать» открывает картинки по одной.
+  Перетащите рамку, выберите пропорции, и сохранится только эта часть.
+- **Много файлов сразу**, параллельно.
+  Конвертации в несколько шагов (HWP → HWPX → DOCX) Filee находит сам.
 - **Папки наблюдения** конвертируют каждый файл, который в них попадает.
 - **Недавние конвертации** на главной, у каждой миниатюра: результат можно открыть («Открыть файл») или открыть в другой программе («Открыть с помощью»).
 - **Другие способы**: контекстное меню, горячая клавиша, зона перетаскивания и [команда `filee`](#командная-строка).
-- Светлая и тёмная темы со своим акцентным цветом и непрозрачностью кругового меню, интерфейс на языках English, Español, 日本語, 한국어, 简体中文, Polski, हिन्दी, Русский, العربية (справа налево) и Português (Brasil).
+- Светлая и тёмная темы со своим акцентным цветом и непрозрачностью кругового меню, интерфейс на языках English, Español, 日本語, 한국어, 简体中文, 繁體中文, Polski, हिन्दी, Русский, العربية (справа налево), Português (Brasil), Français, नेपाली, ไทย, Türkçe, Português (Portugal), Deutsch и Italiano.
 
 ## Скриншоты
 
@@ -96,28 +150,27 @@ Filee сообщает о новых версиях в своём меню и о
 
 | Из | В |
 |---|---|
-| **Изображения**: JPG, PNG, WEBP, AVIF, TIFF, BMP, GIF, APNG, ICO, ICNS, JPEG XL, JPEG 2000, PSD/PSB, TGA, PPM, HEIC, QOI, DDS, PCX, MNG, CUR, …; GIMP XCF, RAW с камер (CR2, CR3, NEF, ARW, DNG, …), DICOM, OpenEXR, HDR, JPEG XR (Windows), Live Photo iPhone (LIVP) только чтение | любой из них (HEIC⁵), PDF, SVG (трассировка), изменение размера, оттенки серого; Live/Motion Photo (iPhone, Android) → их видео (MP4, MOV⁵), а видео → Live Photo (iPhone) или Motion Photo (Android)⁵, экспериментально |
-| **Векторная графика**: SVG, SVGZ, EMF, WMF, AI · EPS, PS¹ · CDR, VSD, CGM, ODG, FODG² | PDF (векторный), PNG и другие изображения, SVG ↔ SVGZ, SVG → DXF/DWG, PDF → EPS/PS¹, SVG → EMF, WMF, ODG² |
-| **PDF** | DOCX, HWPX, TXT, PNG, JPG, TIFF, CBZ, PPTX (каждая страница картинкой), SVG²; объединение (в выбранном заранее порядке), разделение, диапазоны страниц, сжатие (PDF меньше по размеру) |
-| **Документы**: DOCX, DOCM, DOTX, EML, Outlook MSG; OFD (китайские электронные счета, официальные документы) только чтение · DOC, ODT, FODT, OTT, RTF, WPS, WPD, Pages, ClarisWorks, MacWrite, T602, …² | PDF, DOCX, HWPX, EPUB, TXT, HTML; MSG → EML · ODT, FODT, OTT² |
-| **Таблицы**: XLSX, XLSM, XLS, XLT, ODS, CSV, TSV · OTS, FODS, Numbers, ET² | PDF, XLSX, ODS, CSV, TSV, JSON, HWPX, HTML · XLT, OTS² |
-| **Презентации**: PPTX, PPTM, POTX, POTM, PPSX · PPT, ODP, OTP, FODP, Keynote² | PDF, PNG, JPG, DOCX, HWPX · OTP² |
+| **Изображения**: JPG, PNG, WEBP, AVIF, TIFF, BMP, GIF, APNG, ICO, ICNS, JPEG XL, JPEG 2000, PSD/PSB, TGA, PPM, HEIC, QOI, DDS, PCX, MNG, CUR, …;<br>GIMP XCF, RAW с камер (CR2, CR3, NEF, ARW, DNG, …), DICOM, OpenEXR, HDR, FITS, JPEG XR (Windows), Live Photo iPhone (LIVP) только чтение | любой из них (HEIC⁵), PDF, SVG (трассировка), изменение размера, оттенки серого;<br>Live/Motion Photo (iPhone, Android) → их видео (MP4, MOV⁵), а видео → Live Photo (iPhone) или Motion Photo (Android)⁵, экспериментально |
+| **Векторная графика**: SVG, SVGZ, EMF, WMF, AI<br>EPS, PS¹<br>CDR, VSD, CGM, ODG, FODG² | PDF (векторный), PNG и другие изображения,<br>SVG ↔ SVGZ, SVG → DXF/DWG, PDF → EPS/PS¹, SVG → EMF, WMF, ODG² |
+| **PDF** | DOCX, HWPX, TXT, PNG, JPG, TIFF, CBZ, PPTX (каждая страница картинкой), SVG²;<br>объединение (в выбранном заранее порядке), разделение, диапазоны страниц, сжатие (PDF меньше по размеру) |
+| **Документы**: DOCX, DOCM, DOTX, EML, Outlook MSG;<br>OFD (китайские электронные счета, официальные документы) только чтение<br>DOC, ODT, FODT, OTT, RTF, WPS, WPD, Pages, ClarisWorks, MacWrite, T602, …² | PDF, DOCX, HWPX, EPUB, TXT, HTML;<br>MSG → EML<br>ODT, FODT, OTT² |
+| **Таблицы**: XLSX, XLSM, XLS, XLT, ODS, CSV, TSV<br>OTS, FODS, Numbers, ET² | PDF, XLSX, ODS, CSV, TSV, JSON, HWPX, HTML<br>XLT, OTS² |
+| **Презентации**: PPTX, PPTM, POTX, POTM, PPSX<br>PPT, ODP, OTP, FODP, Keynote² | PDF, PNG, JPG, DOCX, HWPX<br>OTP² |
 | **HWP**: HWP, HWPX | PDF, PNG, DOCX, HWPX ↔ HWP, TXT, Markdown, HTML |
-| **Текст**: TXT, LOG, исходники скриптов (PY, PAC, BAT, COMMAND; только чтение, без запуска), Markdown, HTML; MHTML (сохранённые веб-страницы) только чтение · reStructuredText, LaTeX, Org, AsciiDoc, Typst, MediaWiki, DocBook, Jupyter, Textile, man, OPML³ | TXT в UTF-8, PDF, DOCX, HWPX, EPUB · друг в друга, слайды PPTX³ |
-| **Электронные книги**: EPUB, KEPUB, MOBI, AZW3, AZW, AZW4, FB2, CBZ, CBR, CB7, HTMLZ, TXTZ · LIT, LRF, CHM, PDB, …⁴ | PDF, EPUB, KEPUB (Kobo), DOCX, TXT, HTML, HWPX · MOBI, AZW3⁴ |
-| **Видео**⁵: MP4, MOV, MKV, WEBM, AVI, WMV, FLV, MPEG, Video CD (DAT), TS, M2TS, 3GP, OGV, VOB, … | MP4 (H.264, HEVC, AV1), WEBM, MOV, MKV, AVI, GIF, APNG, MP3, M4A, 720p, субтитры (SRT, ASS, WebVTT) |
+| **Текст**: TXT, LOG, исходники скриптов (PY, PAC, BAT, COMMAND; только чтение, без запуска), Markdown, HTML;<br>MHTML (сохранённые веб-страницы) только чтение<br>reStructuredText, LaTeX, Org, AsciiDoc, Typst, MediaWiki, DocBook, Jupyter, Textile, man, OPML³ | TXT в UTF-8, PDF, DOCX, HWPX, EPUB<br>друг в друга, слайды PPTX³ |
+| **Электронные книги**: EPUB, KEPUB, MOBI, AZW3, AZW, AZW4, FB2, CBZ, CBR, CB7, HTMLZ, TXTZ<br>LIT, LRF, CHM, PDB, …⁴ | PDF, EPUB, KEPUB (Kobo), DOCX, TXT, HTML, HWPX<br>MOBI, AZW3⁴ |
+| **Видео**⁵: MP4, MOV, MKV, WEBM, AVI, WMV, FLV, MPEG, Video CD (DAT), TS, M2TS, 3GP, OGV, VOB, … | MP4 (H.264, HEVC, AV1), WEBM, MOV, MKV, AVI, GIF, APNG, MP3, M4A, 720p,<br>субтитры (SRT, ASS, WebVTT) |
 | **Аудио**⁵: MP3, M4A, AAC, WAV, FLAC, OGG, OPUS, WMA, AIFF, AMR, APE, WavPack, TTA, DSD (DSF, DFF), DTS, AC3, E-AC3, … | MP3, M4A (AAC, ALAC), WAV, FLAC, OGG, OPUS, AAC, WavPack, TTA, W64, AC3, E-AC3 |
 | **Субтитры**: SRT, ASS/SSA, WebVTT, SAMI (SMI), LRC, TTML, MicroDVD, SCC | друг в друга, в UTF-8 (корейские файлы в CP949 читаются правильно) |
-| **Архивы**: ZIP, ANSYS Workbench (WBPZ), 7Z, RAR, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, GZ, ISO, CAB, DMG, ALZ, EGG, … | распаковка, ZIP, 7Z, TAR, TAR.GZ; любые файлы → один ZIP |
+| **Архивы**: ZIP, ANSYS Workbench (WBPZ), 7Z, RAR, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, GZ, ISO, CAB, DMG, ALZ, EGG, … | распаковка, ZIP, 7Z, TAR, TAR.GZ;<br>любые файлы → один ZIP |
 | **CAD**: DWG, DXF | PDF, SVG, PNG, DWG ↔ DXF |
-| **Шрифты**: TTF, OTF, WOFF, WOFF2, EOT | друг в друга |
-| **Данные**: JSON, JSON Lines, YAML, TOML, XML · vCard | друг в друга, CSV и XLSX (таблицы); vCard ↔ CSV |
-| **3D-модели**: GLB, glTF, STL, OBJ (+ MTL), 3MF, PLY; FBX только чтение | друг в друга, превью в PNG |
-| **Геоданные (векторные)**: Shapefile, GeoJSON, KML, KMZ, GPX · CSV с координатами | друг в друга и CSV / XLSX / JSON; данные в проекциях (UTM, Web Mercator, Ламберта, Альберса) переводятся в долготу / широту WGS 84 |
+| **Шрифты**: TTF, OTF, WOFF, WOFF2, EOT;<br>FON (растровые шрифты Windows) только чтение | преобразование друг в друга;<br>FON → один файл на размер |
+| **Данные**: JSON, JSON Lines, YAML, TOML, XML<br>vCard, iCalendar | друг в друга, CSV и XLSX (таблицы);<br>vCard, iCalendar ↔ CSV |
+| **3D-модели**: GLB, glTF, STL, OBJ (+ MTL), 3MF, PLY;<br>FBX только чтение | друг в друга, превью в PNG |
+| **Геоданные (векторные)**: Shapefile, GeoJSON, KML, KMZ, GPX<br>CSV с координатами;<br>Garmin FIT только чтение | друг в друга и CSV / XLSX / JSON;<br>данные в проекциях (UTM, Web Mercator, Ламберта, Альберса) переводятся в долготу / широту WGS 84 |
 
 Форматы без пометки работают сразу, без Office, Hancom Office и LibreOffice.
-Для помеченных нужен дополнительный движок, который скачивается только при необходимости: ¹ Ghostscript, ² LibreOffice, ³ Pandoc,
-⁴ calibre, ⁵ FFmpeg ([подробнее](docs/ENGINES.md)).
+Для помеченных нужен дополнительный движок, который скачивается только при необходимости: ¹ Ghostscript, ² LibreOffice, ³ Pandoc, ⁴ calibre, ⁵ FFmpeg ([подробнее](docs/ENGINES.md)).
 
 ## Командная строка
 
@@ -143,27 +196,29 @@ dotnet run --project src/Filee.App
 dotnet test
 ```
 
-[Архитектура](docs/ARCHITECTURE.md) · [Движки](docs/ENGINES.md) · [Как добавить конвертер](docs/ADDING-A-CONVERTER.md) ·
-[Как добавить язык](docs/ADDING-A-LANGUAGE.md) · [Участие в разработке](CONTRIBUTING.md)
+[Архитектура](docs/ARCHITECTURE.md) · [Движки](docs/ENGINES.md) · [Как добавить конвертер](docs/ADDING-A-CONVERTER.md) · [Как добавить язык](docs/ADDING-A-LANGUAGE.md) · [Участие в разработке](CONTRIBUTING.md)
 
-Пул-реквесты приветствуются. Если Filee экономит вам пару кликов, поставьте ⭐: так другие смогут его найти.
+Пул-реквесты приветствуются.
+Если Filee экономит вам пару кликов, поставьте ⭐: так другие смогут его найти.
 
 ## Подпись кода
 
 Filee разрабатывает и публикует **Myeonggu Kim** ([KnifeLemon](https://github.com/KnifeLemon)).
-Выпуски для Windows будут подписаны сертификатом [Certum](https://www.certum.eu/) для подписи кода open source,
-выданным на имя Myeonggu Kim. Сертификат сейчас оформляется.
+
+- Выпуски для Windows подписываются сертификатом [Certum](https://www.certum.eu/) для подписи кода open source, выданным на имя Myeonggu Kim.
+  - Выпуски до 2.0.0 включительно не подписаны.
 
 Полные правила и политику конфиденциальности смотрите в [английском README](README.md#code-signing-policy).
 Filee не отправляет ни ваши файлы, ни данные об использовании.
 
 ## Поддержать проект
 
-Filee бесплатный и останется бесплатным. Если хотите его поддержать, выберите удобный способ
-([Fairy](https://fairy.hada.io/@filee) принимает корейские карты и платёжные сервисы).
+Filee бесплатный и останется бесплатным.
+Если хотите его поддержать, выберите удобный способ ([Fairy](https://fairy.hada.io/@filee) принимает корейские карты и платёжные сервисы).
 
-**Здесь может быть ваше имя или логотип.** Тех, кто поддерживает проект ежемесячно, мы перечисляем здесь по имени, а логотипы спонсоров
-размещаем здесь и в разделе «О программе» в Filee. Если вы помогли разово, тоже можете попросить добавить вас в список.
+**Здесь может быть ваше имя или логотип.**
+Тех, кто поддерживает проект ежемесячно, мы перечисляем здесь по имени, а логотипы спонсоров размещаем здесь и в разделе «О программе» в Filee.
+Если вы помогли разово, тоже можете попросить добавить вас в список.
 
 <!-- sponsors: src/Filee.App/Assets/Sponsors/sponsors.json -->
 
@@ -177,7 +232,8 @@ Filee бесплатный и останется бесплатным. Если 
 
 ## Лицензия
 
-MIT, © 2026 Myeonggu Kim (KnifeLemon) и участники проекта Filee. Сторонние компоненты в комплекте распространяются под собственными лицензиями, перечисленными в [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+MIT, © 2026 Myeonggu Kim (KnifeLemon) и участники проекта Filee.
+Сторонние компоненты в комплекте распространяются под собственными лицензиями, перечисленными в [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 <p align="center">
   <a href="https://star-history.com/#KnifeLemon/Filee&Date"><img src="https://api.star-history.com/svg?repos=KnifeLemon/Filee&type=Date" alt="Star history" width="600"></a>

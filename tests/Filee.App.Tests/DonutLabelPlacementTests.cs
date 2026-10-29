@@ -8,8 +8,12 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using Filee.App.Controls;
+using Filee.App.Services;
+using Filee.Core.Localization;
+using Filee.Core.Presets;
 
 namespace Filee.App.Tests;
 
@@ -101,6 +105,45 @@ public class DonutLabelPlacementTests
         Assert.Equal(13, donut.LabelSize("去除背景去除背景", typeface, 40));
         Assert.Equal("ZIP 하\u2060나\u2060로", DonutMenu.KeepKoreanWords("ZIP 하나로"));
         Assert.Equal("Merge PDF", DonutMenu.KeepKoreanWords("Merge PDF"));
+    }
+
+    [AvaloniaTheory]
+    [InlineData("pt-PT", "preset.half_size")]
+    [InlineData("pt-BR", "preset.half_size")]
+    [InlineData("pt-PT", "preset.trace_line_art")]
+    [InlineData("pt-BR", "preset.trace_line_art")]
+    [InlineData("pt-PT", "preset.trace_svg")]
+    [InlineData("pt-BR", "preset.trace_svg")]
+    [InlineData("pt-PT", "preset.extract_motion")]
+    [InlineData("pt-BR", "preset.extract_motion")]
+    public void Portuguese_image_actions_fit_the_two_line_slice_label(string language, string key)
+    {
+        TestServices.EnsureInitialized(language);
+        var loc = AppHost.Get<LocalizationService>();
+        var preset = BuiltInData.CreatePresets().Single(p => p.NameKey == key);
+        var label = loc.DonutName(preset);
+        Assert.Equal(loc[key], loc.DisplayName(preset));
+        preset.Name = "My custom action";
+        Assert.Equal(preset.Name, loc.DonutName(preset));
+        var typeface = new Typeface(SoftPalette.FontFamilyFor(language), FontStyle.Normal, FontWeight.SemiBold);
+        var donut = new DonutMenu();
+        // Compact image donuts leave roughly 50 px for an action, over at most two lines.
+        using var text = new TextLayout(label, typeface, donut.LabelSize(label, typeface, 50), Brushes.Black,
+            textWrapping: TextWrapping.Wrap, textTrimming: TextTrimming.CharacterEllipsis, maxWidth: 50, maxLines: 2);
+        Assert.All(text.TextLines, line => Assert.False(line.HasCollapsed, $"{language}: {label} is truncated"));
+    }
+
+    /// <summary>A caption wider than its slice wraps where the slice is deep enough, rather than ending in "Same for…".</summary>
+    [AvaloniaFact]
+    public void A_caption_wider_than_its_slice_takes_a_second_line_where_there_is_room()
+    {
+        TestServices.EnsureInitialized("en");
+        var typeface = new Typeface(FontFamily.Default);
+        var oneLine = DonutMenu.MakeCaption("PNG", typeface, null, 45, labelHeight: 17, maxHeight: 80).Height;
+
+        Assert.InRange(DonutMenu.MakeCaption("Same format", typeface, null, 45, labelHeight: 17, maxHeight: 80).Height, oneLine * 1.8, oneLine * 2.2);
+        Assert.Equal(oneLine, DonutMenu.MakeCaption("Same format", typeface, null, 45, labelHeight: 17, maxHeight: 40).Height);
+        Assert.Equal(oneLine, DonutMenu.MakeCaption("Same format", typeface, null, 120, labelHeight: 17, maxHeight: 80).Height);
     }
 
     private static (byte[] Pixels, int Width, int Height) Read(Avalonia.Media.Imaging.WriteableBitmap bitmap)

@@ -45,7 +45,8 @@ public sealed class HwpxConverter : IConverter
     public async Task<IReadOnlyList<string>> ConvertAsync(ConversionStep step, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         progress?.Report(0.1);
-        var document = await DocumentReaders.ReadAsync(step.InputPath, step.From, step.WorkDirectory, cancellationToken);
+        var document = await DocumentReaders.ReadAsync(step.InputPath, step.From, step.WorkDirectory, cancellationToken,
+            ocrLayer: step.Preset.Pdf.Ocr);
         progress?.Report(0.6);
 
         var output = step.Output.Allocate("hwpx");
@@ -59,6 +60,6 @@ public sealed class HwpxConverter : IConverter
     /// <summary>Plain text: one paragraph per line (see <see cref="DocumentReaders.TextDocument"/>).</summary>
     internal static HDocument TextDocument(byte[] bytes) => DocumentReaders.TextDocument(bytes);
 
-    /// <summary>UTF-8, UTF-16 with BOM or CP949 (see <see cref="DocumentReaders.DecodeText"/>).</summary>
+    /// <summary>Text in the encoding its PC used (see <see cref="DocumentReaders.DecodeText"/>).</summary>
     internal static string DecodeText(byte[] bytes) => DocumentReaders.DecodeText(bytes);
 }

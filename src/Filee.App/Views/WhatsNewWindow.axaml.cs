@@ -21,9 +21,10 @@ public partial class WhatsNewWindow : Window
         _deck = deck;
         _loc = loc;
         Motion.Track(this);
+        UiZoom.Track(this);
         Slides.PlayAnimations = Motion.Enabled;
         Slides.IndexChanged += (_, _) => UpdateButtons();
-        Slides.Show(deck.Slides, key => loc[key]);
+        Slides.Show(deck.Slides, key => loc[key], () => loc.Language);
         ShowTexts();
         Motion.Changed += OnMotionChanged;
         loc.LanguageChanged += OnLanguageChanged;

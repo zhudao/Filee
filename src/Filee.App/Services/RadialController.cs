@@ -220,6 +220,17 @@ public sealed class RadialController(
         var window = new RadialWindow { DataContext = viewModel };
         var donut = window.DonutControl;
 
+        // On native Wayland, hiding an xdg_toplevel surface causes the compositor to destroy its surface,
+        // and re-showing raises an InvalidOperationException. Track Closed to re-create on the next gesture.
+        if (Filee.Platform.Linux.WaylandSupport.NativeWaylandRequested)
+        {
+            window.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_window, window))
+                    _window = null;
+            };
+        }
+
         window.DragEntered += () => _dragReachedDonut = true;
         // Tells "the drag reached the donut but brought no files" apart, with what it brought (file promises, say).
         window.DragWithoutFiles += formats =>
@@ -321,16 +332,26 @@ public sealed class RadialController(
             var near = _window?.Position;
             Close(animate: false);
             if (web is null)
-                windows.ShowCropOverlay(sources, preset, near);
+                windows.ShowTool(sources, preset, near);
             else
                 _ = ShowToolForBrowserFilesAsync(web, preset, near);
             return;
         }
 
-        if (preset.TargetFormat == "pdf" && preset.Pdf.MergeIntoSingle && sources.Count > 1)
+        // Merged PDFs, joined clips, slideshows and merged pictures follow the order the user picks.
+        if ((preset.TargetFormat == "pdf" && preset.Pdf.MergeIntoSingle || preset.JoinsIntoOneMedia || preset.JoinsImages) && sources.Count > 1)
         {
             Close(animate: false);
             _ = MergeInOrderAsync(sources, preset.Clone(), web);
+            return;
+        }
+
+        // "Ask every time" (#521): the save dialog first; the toast shows the job, the donut has closed for the dialog.
+        // shortcut: files from a browser aren't asked about, they save into the download folder as "next to the source".
+        if (preset.Output.AskEveryTime && web is null)
+        {
+            Close(animate: false);
+            _ = AskThenConvertAsync(sources, preset);
             return;
         }
 
@@ -350,8 +371,12 @@ public sealed class RadialController(
     {
         try
         {
-            var ordered = await windows.ChooseMergeOrderAsync(files);
-            if (ordered is not null)
+            var ordered = await windows.ChooseMergeOrderAsync(files, preset);
+            if (ordered is not null && preset.JoinsImages)
+                RememberMergeLayout(preset);
+            if (ordered is not null && preset.Output.AskEveryTime && web is null)
+                await AskThenConvertAsync(ordered, preset);
+            else if (ordered is not null)
             {
                 conversions.Start(ordered, preset, web: web);
                 web = null; // the conversion owns the browser drop now
@@ -359,7 +384,7 @@ public sealed class RadialController(
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            log.LogError(ex, "Could not start the ordered PDF merge");
+            log.LogError(ex, "Could not start the ordered merge");
         }
         finally
         {
@@ -367,13 +392,57 @@ public sealed class RadialController(
         }
     }
 
-    /// <summary>The crop tool on files from a browser: they are saved first, then it opens on them.</summary>
+    /// <summary>
+    /// "Merge images": the layout chosen in the merge order window (<paramref name="chosen"/>, a copy of the preset)
+    /// goes into the preset as saved, so the window opens with it next time.
+    /// </summary>
+    private void RememberMergeLayout(Preset chosen)
+    {
+        if (store.FindPreset(chosen.Id) is not { JoinsImages: true } saved)
+            return;
+        var image = saved.Image;
+        if (image.JoinDirection == chosen.Image.JoinDirection && image.JoinFit == chosen.Image.JoinFit
+            && image.JoinGap == chosen.Image.JoinGap && image.JoinBackground == chosen.Image.JoinBackground)
+            return;
+        image.JoinDirection = chosen.Image.JoinDirection;
+        image.JoinFit = chosen.Image.JoinFit;
+        image.JoinGap = chosen.Image.JoinGap;
+        image.JoinBackground = chosen.Image.JoinBackground;
+        try
+        {
+            store.SaveLibrary();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log.LogWarning(ex, "Could not remember the layout of merged pictures");
+        }
+    }
+
+    private async Task AskThenConvertAsync(IReadOnlyList<string> sources, Preset preset)
+    {
+        try
+        {
+            // Asked as it will run (a ZIP from Settings › General is a .zip), for one file or a folder as the job makes them.
+            var running = store.Settings.WithDefaultOutput(preset);
+            if (await windows.AskSaveLocationAsync(sources, running, AskedLocation.MakesOneResult(running, sources.Count)) is { } asked)
+            {
+                log.LogInformation("Converting {Count} file(s) with preset {Preset} where the user chose", sources.Count, preset.Id);
+                conversions.Start(sources, asked);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            log.LogError(ex, "Could not ask where to save");
+        }
+    }
+
+    /// <summary>A tool (crop, clip) on files from a browser: they are saved first, then it opens on them.</summary>
     private async Task ShowToolForBrowserFilesAsync(WebDrop web, Filee.Core.Presets.Preset preset, PixelPoint? near)
     {
         var files = await conversions.SaveBrowserFilesAsync(web, (placeholder, ex) =>
             log.LogWarning(ex, "Saving {File} from a browser for {Preset} failed", Path.GetFileName(placeholder), preset.Id));
         if (files.Count > 0)
-            windows.ShowCropOverlay(files, preset, near);
+            windows.ShowTool(files, preset, near);
     }
 
     /// <summary>
@@ -485,7 +554,13 @@ public sealed class RadialController(
     /// Has the global hook report the flip key and the wheel only while a drag-mode donut shows files that could flip;
     /// they are left alone otherwise (see <see cref="TriggerService.WatchFlipKey"/>).
     /// </summary>
-    private void WatchFlipKey() => triggers.WatchFlipKey = FlipsFromHook;
+    private void WatchFlipKey()
+    {
+        triggers.WatchFlipKey = FlipsFromHook;
+        // One source per press: the hook in drag mode, the window in click mode (#504).
+        if (_window is not null)
+            _window.DonutControl.FlipKeyFromHook = FlipsFromHook;
+    }
 
     /// <summary>A drag-mode donut shows files and nothing was dropped yet: the hook's flip key and wheel flip it.</summary>
     private bool FlipsFromHook => _visible && !_dropped && !viewModel.IsClickMode && viewModel.HasFiles;
@@ -535,7 +610,13 @@ public sealed class RadialController(
         }
         _visible = true;
         if (activate)
+        {
             window.Activate();
+            // ShowActivated is false because the same window is also used during an OS drag, where taking focus would
+            // break Explorer's drag. Click mode is different: the donut owns the keyboard until it closes, so focus it
+            // explicitly for Tab/arrow/Enter handling.
+            window.DonutControl.Focus();
+        }
     }
 
     private static bool SameFiles(IReadOnlyList<string> a, IReadOnlyList<string> b) =>

@@ -20,6 +20,7 @@
 using Filee.Core.Conversion;
 using Filee.Core.Formats;
 using Filee.Engines.Infrastructure;
+using Filee.Engines.Pdf;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PdfSharp.Pdf;
@@ -63,6 +64,9 @@ public sealed class LibreOfficeConverter : IConverter
     /// </summary>
     private static readonly string[] DrawOnlyFor = ["svg", "pdf"];
 
+    /// <summary>Outputs for which LibreOffice lays out document text rather than preserving it for a later editor.</summary>
+    private static readonly HashSet<string> RenderedTargets = ["pdf", "png", "svg", "emf", "wmf"];
+
     private readonly EngineEnvironment _env;
     private readonly ILogger _logger;
 
@@ -104,6 +108,8 @@ public sealed class LibreOfficeConverter : IConverter
     public async Task<IReadOnlyList<string>> ConvertAsync(ConversionStep step, IProgress<double>? progress, CancellationToken cancellationToken)
     {
         var soffice = _soffice ?? throw new InvalidOperationException("LibreOffice was not found.");
+        if (RenderedTargets.Contains(step.To) && DocumentFonts.Missing(step.OriginalSourcePath ?? step.InputPath) is [_, ..] missing)
+            step.MissingFonts?.Invoke(missing);
         var slot = await TakeProfileAsync(cancellationToken);
         try
         {
@@ -122,6 +128,24 @@ public sealed class LibreOfficeConverter : IConverter
                 throw new InvalidOperationException(
                     $"LibreOffice produced no output (exit {result.ExitCode}). {result.StandardError.Trim()}");
 
+            // Calc sometimes turns stale Excel print tiles into completely empty PDF pages anywhere in the output.
+            // Only remove pages with no painting operation at all; pages containing text, borders, charts, pictures
+            // or annotations stay. PDF/A is never rewritten: doing so would invalidate LibreOffice's XMP metadata.
+            try
+            {
+                var removed = RemoveEmptySpreadsheetPages(step, produced);
+                if (removed > 0)
+                {
+                    _logger.LogInformation("{File}: removed {Count} empty spreadsheet PDF pages", step.InputPath, removed);
+                    step.Notice?.Invoke("notice.empty_spreadsheet_pages_removed");
+                }
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // Post-processing is an improvement, not a reason to discard LibreOffice's otherwise valid PDF.
+                _logger.LogInformation("{File}: could not check empty spreadsheet PDF pages: {Message}", step.InputPath, e.Message);
+            }
+
             var target = step.Output.Allocate(step.To);
             if (target is null)
                 return [];
@@ -134,6 +158,15 @@ public sealed class LibreOfficeConverter : IConverter
             ReturnProfile(slot);
         }
     }
+
+    /// <summary>
+    /// Removes empty Calc PDF pages when that post-processing is safe. PDF/A stays byte-for-byte as LibreOffice wrote
+    /// it because PDFsharp changes the Info dictionary without updating the archival XMP metadata.
+    /// </summary>
+    internal static int RemoveEmptySpreadsheetPages(ConversionStep step, string path) =>
+        step.To == "pdf" && !step.Preset.Document.PdfA
+        && FamilyOf(step.From, FormatRegistry.ExtensionOf(step.InputPath)) == "calc"
+            ? PdfBlankPages.Remove(path) : 0;
 
     /// <summary>Runs LibreOffice into a fresh folder; returns the file it wrote (null if none) and how it ended.</summary>
     private async Task<(string? Produced, ProcessResult Result)> ConvertOnceAsync(string soffice, int slot, string filter, string workDirectory,

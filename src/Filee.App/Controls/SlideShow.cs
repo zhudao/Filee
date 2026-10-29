@@ -35,6 +35,7 @@ public sealed class SlideShow : UserControl
     private readonly List<(TextBlock Title, TextBlock Text, StackPanel Panel)> _slideTexts = [];
     private IReadOnlyList<Slide> _slides = [];
     private Func<string, string> _localize = key => key;
+    private Func<string?> _language = () => null;
     private DispatcherTimer? _advance;
     private int _index;
 
@@ -109,10 +110,11 @@ public sealed class SlideShow : UserControl
     public event EventHandler? IndexChanged;
 
     /// <summary>Shows <paramref name="slides"/> from the first, their texts looked up with <paramref name="localize"/>.</summary>
-    public void Show(IReadOnlyList<Slide> slides, Func<string, string> localize)
+    public void Show(IReadOnlyList<Slide> slides, Func<string, string> localize, Func<string?>? language = null)
     {
         _slides = slides;
         _localize = localize;
+        _language = language ?? (() => null);
         _texts.Children.Clear();
         _slideTexts.Clear();
         foreach (var _ in slides)
@@ -151,6 +153,7 @@ public sealed class SlideShow : UserControl
             _slideTexts[i].Title.Text = _localize(_slides[i].TitleKey);
             _slideTexts[i].Text.Text = _localize(_slides[i].TextKey);
         }
+        UpdateMedia();
     }
 
     public bool Next() => GoTo(_index + 1);
@@ -163,8 +166,7 @@ public sealed class SlideShow : UserControl
         if (index < 0 || index >= _slides.Count || index == _index)
             return false;
         _index = index;
-        _media.PosterFrame = _slides[index].PosterFrame;
-        _media.Source = _slides[index].Media;
+        UpdateMedia();
         for (var i = 0; i < _slideTexts.Count; i++)
         {
             var current = i == index;
@@ -190,6 +192,15 @@ public sealed class SlideShow : UserControl
             dot.Bind(Border.BackgroundProperty, dot.GetResourceObservable(current ? "AccentBrush" : "SubtleBorderBrush"));
             dot.Opacity = current ? 1 : 0.9;
         }
+    }
+
+    private void UpdateMedia()
+    {
+        if (_index < 0 || _index >= _slides.Count)
+            return;
+        var media = _slides[_index].MediaFor(_language());
+        _media.PosterFrame = media.PosterFrame;
+        _media.Source = media.Source;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

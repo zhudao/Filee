@@ -107,6 +107,13 @@ public sealed class ConversionService
         var files = sources.Where(Exists).Distinct(StringComparer.Ordinal).ToList();
         if (files.Count == 0)
             return null;
+        // History keeps no PDF password: it comes from the preset when that still has one (else the job refuses).
+        if (preset.Pdf.PasswordLeftOut && _store.FindPreset(preset.Id)?.Pdf.Password is { Length: > 0 } password)
+        {
+            preset = preset.Clone();
+            preset.Pdf.Password = password;
+            preset.Pdf.PasswordLeftOut = false;
+        }
         if (watchRuleId is not null && WatchRetry is { } watchRetry)
         {
             _ = watchRetry(watchRuleId, files, preset);

@@ -118,6 +118,9 @@ public partial class SetupWindow : Window
             case nameof(SetupViewModel.OptionsOpen):
                 FocusPrimary();
                 break;
+            case nameof(SetupViewModel.SelectedLanguage):
+                Find<SlideShow>("Slides")?.RefreshTexts();
+                break;
         }
     }
 
@@ -153,7 +156,7 @@ public partial class SetupWindow : Window
                 Avalonia.Threading.Dispatcher.UIThread.Post(() => slides.Media.Opacity = 1, Avalonia.Threading.DispatcherPriority.Render);
             };
         }
-        slides.Show(deck.Slides, _model.Text);
+        slides.Show(deck.Slides, _model.Text, () => _model.SelectedLanguage.Code);
     }
 
     private void FocusPrimary()

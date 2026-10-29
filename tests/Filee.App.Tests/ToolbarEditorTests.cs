@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Headless;
@@ -241,6 +242,65 @@ public class ToolbarPageTests
     }
 
     [AvaloniaFact]
+    public void A_profile_counts_both_faces_and_switching_profiles_clears_the_preset_search()
+    {
+        TestServices.EnsureInitialized("en");
+        var store = AppHost.Get<UserDataStore>();
+        var profiles = store.Profiles.Select(p => p.Clone()).ToList();
+        try
+        {
+            using var vm = new ToolbarPageViewModel(store, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<WindowService>(),
+                AppHost.Get<PresetAvailability>(), AppHost.Get<ConverterCatalog>(), NullLogger<ToolbarPageViewModel>.Instance);
+
+            // #425: the badge counted only the front face.
+            var images = vm.Profiles.Single(p => p.Profile.Id == "images");
+            images.Profile.PresetIds = ["to-png", "to-jpg", "to-webp"];
+            images.Profile.BackPresetIds = ["to-pdf"];
+            images.Refresh(AppHost.Get<Filee.Core.Localization.ILocalizer>());
+            Assert.Equal("3 · 1", images.Count);
+            Assert.Equal("Front 3 · Back 1", images.CountTip);
+            images.Profile.BackPresetIds = [];
+            images.Refresh(AppHost.Get<Filee.Core.Localization.ILocalizer>());
+            Assert.Equal("3", images.Count); // no back face: the one number, as before
+
+            // #427: a search typed for one donut's presets doesn't hide the next donut's.
+            vm.SelectedProfile = images;
+            vm.PaletteSearch = "png";
+            vm.SelectedProfile = vm.Profiles.Single(p => p.Profile.Id == "pdf");
+            Assert.Equal("", vm.PaletteSearch);
+            Assert.Equal(vm.Palette.Count, vm.VisiblePalette.Count);
+        }
+        finally
+        {
+            store.Profiles.Clear();
+            store.Profiles.AddRange(profiles);
+            store.SaveLibrary();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Search_boxes_have_a_clear_button()
+    {
+        TestServices.EnsureInitialized("en");
+        using var vm = new ToolbarPageViewModel(AppHost.Get<UserDataStore>(), AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<WindowService>(),
+            AppHost.Get<PresetAvailability>(), AppHost.Get<ConverterCatalog>(), NullLogger<ToolbarPageViewModel>.Instance);
+        var page = new ToolbarPage { DataContext = vm };
+        var window = new Window { Content = page, Width = 1100, Height = 800 };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var boxes = page.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("search")).ToList();
+        Assert.Equal(2, boxes.Count);
+        Assert.All(boxes, box => Assert.Contains("clearButton", box.Classes));
+        vm.PaletteSearch = "pdf";
+        boxes[1].Focus(); // Fluent shows the button in a focused box with text
+        Dispatcher.UIThread.RunJobs();
+        Assert.Contains(boxes[1].GetVisualDescendants().OfType<Button>(), b => b.IsEffectivelyVisible);
+        RenderTests.Save(window, "toolbar-search-clear-en.png");
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void A_new_group_heads_the_available_presets_and_every_profile_count_stays_right()
     {
         TestServices.EnsureInitialized("en");
@@ -253,6 +313,8 @@ public class ToolbarPageTests
                 AppHost.Get<PresetAvailability>(), AppHost.Get<ConverterCatalog>(), NullLogger<ToolbarPageViewModel>.Instance);
             vm.SelectedProfile = vm.Profiles.Single(p => p.Profile.Id == "images");
             vm.PaletteSearch = "png"; // a search that would hide it
+            Dispatcher.UIThread.RunJobs();
+            vm.SelectedTab = vm.Tabs.Single(t => t.Id == PaletteTab.Image);
             var pdf = vm.Profiles.Single(p => p.Profile.Id == "pdf");
             pdf.Profile.PresetIds.RemoveAt(0); // changed elsewhere, as when a deleted group leaves every donut
 
@@ -266,11 +328,14 @@ public class ToolbarPageTests
             Dispatcher.UIThread.RunJobs();
 
             Assert.Equal("", vm.PaletteSearch);
+            Assert.Equal(PaletteTab.Image, vm.SelectedTab!.Id);
+            // After "Edit" of the PDF donut, the one built-in group not on the images donut.
+            Assert.Equal(["pdf-edit", "test-new-group"], vm.VisiblePalette.Take(2).Select(c => c.PresetId));
             // Up with the groups at the top, above every conversion: not below ~80 presets.
             var chips = vm.VisiblePalette.Select(c => store.FindPreset(c.PresetId)!).ToList();
             var at = chips.FindIndex(p => p.Id == "test-new-group");
             Assert.True(at >= 0 && chips.Take(at).All(p => p.IsGroup), $"at {at}");
-            Assert.Equal($"{pdf.Profile.PresetIds.Count}", pdf.Count);
+            Assert.Equal($"{pdf.Profile.PresetIds.Count} · {pdf.Profile.BackPresetIds!.Count}", pdf.Count);
             Assert.DoesNotContain("test-new-group", vm.SelectedProfile!.Profile.PresetIds); // on no donut until dragged there
         }
         finally
@@ -312,7 +377,7 @@ public class ToolbarPageTests
             Assert.False(vm.IsMixed);
             Assert.NotNull(vm.ExtensionTags);
             Assert.Equal(builtIn.PresetIds, vm.DonutItems.Select(d => d.Id));
-            Assert.Equal($"{builtIn.PresetIds.Count}", item.Count);
+            Assert.Equal($"{builtIn.PresetIds.Count} · {builtIn.BackPresetIds!.Count}", item.Count);
             Assert.Equal(store.Profiles.Select(p => p.Id), vm.Profiles.Select(p => p.Profile.Id));
             Assert.Equal(store.Profiles.FindIndex(p => p.IsFallback) - 1, store.Profiles.IndexOf(item.Profile));
 
@@ -328,6 +393,132 @@ public class ToolbarPageTests
         {
             store.Presets.Clear();
             store.Presets.AddRange(presets);
+            store.Profiles.Clear();
+            store.Profiles.AddRange(profiles);
+            store.SaveLibrary();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Moving_a_profile_up_lets_it_open_a_shared_extension_and_is_saved()
+    {
+        TestServices.EnsureInitialized("en");
+        var store = AppHost.Get<UserDataStore>();
+        var profiles = store.Profiles.Select(p => p.Clone()).ToList();
+        try
+        {
+            using var vm = new ToolbarPageViewModel(store, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<WindowService>(),
+                AppHost.Get<PresetAvailability>(), AppHost.Get<ConverterCatalog>(), NullLogger<ToolbarPageViewModel>.Instance);
+            vm.AddProfileCommand.Execute(null);
+            var mine = vm.SelectedProfile!;
+            vm.ExtensionTags!.AddCommand.Execute("jpg");
+            Assert.StartsWith(".jpg: also in “Images”, which comes first in the list", Assert.Single(vm.ExtensionTags.Notes).Text);
+            Assert.Equal("images", ProfileSelector.Select(store.Profiles, ["a.jpg"])!.Id);
+            // The last normal profile: it can go up, not down among the mixed ones.
+            Assert.True(vm.MoveProfileUpCommand.CanExecute(null));
+            Assert.False(vm.MoveProfileDownCommand.CanExecute(null));
+
+            // #522: a search for the extension shows Images right above it, so one step up passes it.
+            vm.ProfileSearch = "jpg";
+            Assert.Equal(["images", mine.Profile.Id], vm.VisibleProfiles.Select(p => p.Profile.Id));
+            vm.MoveProfileUpCommand.Execute(null);
+
+            Assert.Same(mine, vm.SelectedProfile);
+            Assert.Equal([mine.Profile.Id, "images"], vm.VisibleProfiles.Select(p => p.Profile.Id));
+            Assert.Equal(store.Profiles.Select(p => p.Id), vm.Profiles.Select(p => p.Profile.Id));
+            Assert.Equal(store.Profiles.FindIndex(p => p.Id == "images") - 1, store.Profiles.IndexOf(mine.Profile));
+            Assert.Equal(mine.Profile.Id, ProfileSelector.Select(store.Profiles, ["a.jpg"])!.Id);
+            // The remark under the chips follows the new order.
+            Assert.StartsWith(".jpg: also in “Images”.\nThis profile comes first", Assert.Single(vm.ExtensionTags!.Notes).Text);
+            Assert.False(vm.MoveProfileUpCommand.CanExecute(null)); // nothing shown above it any more
+            Assert.True(vm.MoveProfileDownCommand.CanExecute(null));
+            vm.ProfileSearch = "";
+            Assert.Same(mine.Profile, store.Profiles[0]); // Images heads the built-in list
+            Assert.False(vm.MoveProfileUpCommand.CanExecute(null));
+
+            // Saved as the order of profiles.json, no schema change needed.
+            var reloaded = new UserDataStore(store.Directory);
+            reloaded.Load();
+            Assert.Equal(store.Profiles.Select(p => p.Id), reloaded.Profiles.Select(p => p.Id));
+
+            // Down again, one step at a time: Images opens .jpg once more.
+            vm.MoveProfileDownCommand.Execute(null);
+            Assert.Equal(store.Profiles.FindIndex(p => p.Id == "images") + 1, store.Profiles.IndexOf(mine.Profile));
+            Assert.Equal("images", ProfileSelector.Select(store.Profiles, ["a.jpg"])!.Id);
+
+            // A mixed profile moves among the mixed ones only.
+            vm.SelectedProfile = vm.Profiles.Single(p => p.Profile.Id == "mixed");
+            Assert.False(vm.MoveProfileUpCommand.CanExecute(null));
+            vm.SelectedProfile = vm.Profiles.Single(p => p.Profile.Id == "images");
+            vm.IsMixed = true; // now the last mixed profile
+            Assert.False(vm.MoveProfileDownCommand.CanExecute(null));
+            vm.MoveProfileUpCommand.Execute(null);
+            Assert.Equal("images", store.Profiles.First(p => p.IsFallback).Id);
+            Assert.Equal("mixed", ProfileSelector.CatchAll(store.Profiles)!.Id); // limited to images: not the catch-all
+            Assert.False(vm.MoveProfileUpCommand.CanExecute(null));
+        }
+        finally
+        {
+            store.Profiles.Clear();
+            store.Profiles.AddRange(profiles);
+            store.SaveLibrary();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Profiles_move_with_the_arrow_buttons_and_alt_arrows_and_keep_focus()
+    {
+        TestServices.EnsureInitialized("en");
+        var store = AppHost.Get<UserDataStore>();
+        var profiles = store.Profiles.Select(p => p.Clone()).ToList();
+        Window? window = null;
+        try
+        {
+            using var vm = new ToolbarPageViewModel(store, AppHost.Get<Filee.Core.Localization.ILocalizer>(), AppHost.Get<WindowService>(),
+                AppHost.Get<PresetAvailability>(), AppHost.Get<ConverterCatalog>(), NullLogger<ToolbarPageViewModel>.Instance);
+            var page = new ToolbarPage { DataContext = vm };
+            window = new Window { Content = page, Width = 1100, Height = 900 };
+            window.Show();
+            vm.SelectedProfile = vm.Profiles[1];
+            Dispatcher.UIThread.RunJobs();
+
+            var up = page.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "MoveProfileUp");
+            var down = page.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "MoveProfileDown");
+            Assert.Equal("Move profile up", AutomationProperties.GetName(up));
+            Assert.Equal("Move profile up", ToolTip.GetTip(up));
+            Assert.Equal("Move profile down", AutomationProperties.GetName(down));
+            Assert.Same(vm.MoveProfileUpCommand, up.Command);
+            Assert.Same(vm.MoveProfileDownCommand, down.Command);
+
+            var second = vm.Profiles[1].Profile.Id;
+            up.Command!.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(second, store.Profiles[0].Id);
+            Assert.False(up.IsEffectivelyEnabled); // at the top
+
+            // From the list itself: Alt+↓ moves the selected profile, and the keyboard stays on it.
+            var list = page.GetVisualDescendants().OfType<ListBox>().Single(l => l.Name == "ProfileList");
+            Assert.Equal("1. Choose a profile", AutomationProperties.GetName(list));
+            ((ListBoxItem)list.ContainerFromIndex(0)!).Focus(NavigationMethod.Tab);
+            Dispatcher.UIThread.RunJobs();
+            window.KeyPress(Key.Down, RawInputModifiers.Alt, PhysicalKey.ArrowDown, null);
+            window.KeyRelease(Key.Down, RawInputModifiers.Alt, PhysicalKey.ArrowDown, null);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(second, store.Profiles[1].Id);
+            Assert.Equal(second, vm.SelectedProfile!.Profile.Id);
+            Assert.True(up.IsEffectivelyEnabled);
+            var focused = window.FocusManager!.GetFocusedElement() as Visual;
+            Assert.NotNull(focused);
+            Assert.True(focused == list || list.IsVisualAncestorOf(focused), $"focus on {focused}");
+
+            window.KeyPress(Key.Up, RawInputModifiers.Alt, PhysicalKey.ArrowUp, null);
+            window.KeyRelease(Key.Up, RawInputModifiers.Alt, PhysicalKey.ArrowUp, null);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(second, store.Profiles[0].Id);
+        }
+        finally
+        {
+            window?.Close();
             store.Profiles.Clear();
             store.Profiles.AddRange(profiles);
             store.SaveLibrary();
@@ -354,9 +545,10 @@ public class ToolbarPageTests
     }
 }
 
+[Collection("MainWindow")]
 public class PresetAvailabilityTests
 {
-    private class FakeConverter(string id, IReadOnlyList<ConversionEdge> edges) : IConverter
+    internal class FakeConverter(string id, IReadOnlyList<ConversionEdge> edges) : IConverter
     {
         public FakeConverter(string id, params (string From, string To)[] edges)
             : this(id, edges.Select(e => new ConversionEdge(e.From, e.To)).ToList()) { }
@@ -376,7 +568,7 @@ public class PresetAvailabilityTests
             throw new NotSupportedException();
     }
 
-    private sealed class FakeTransformer(string id, IReadOnlyList<ConversionEdge> edges)
+    internal sealed class FakeTransformer(string id, IReadOnlyList<ConversionEdge> edges)
         : FakeConverter(id, edges), IImageTransformer
     {
         public bool Transforms(string from, string to) => true;
@@ -406,7 +598,7 @@ public class PresetAvailabilityTests
         }
     }
 
-    private sealed class Fixture : IDisposable
+    internal sealed class Fixture : IDisposable
     {
         private readonly UserDataStore _store;
         private readonly List<Preset> _presets;
@@ -499,6 +691,23 @@ public class PresetAvailabilityTests
         Assert.Null(Check("test-motion", msrc));
         Assert.Equal(f.Loc["error.no_route"], Check("test-mp4", msrc));
         Assert.Null(Check("test-merge", Fixture.Format("pdf")));
+    }
+
+    [AvaloniaFact]
+    public void Spreadsheet_print_studio_requires_xlsx_and_LibreOffice()
+    {
+        var libreOffice = new FakeConverter("libreoffice", ("xlsx", "pdf"));
+        using var f = new Fixture(libreOffice);
+        var studio = f.Preset("tool-sheet-studio");
+
+        Assert.Null(f.Availability.Check(studio, [Fixture.Format("xlsx")]));
+        Assert.Equal(f.Loc["error.unsupported_source"],
+            f.Availability.Check(studio, [Fixture.Format("ods")]));
+        Assert.Null(f.Availability.Check(studio, [Fixture.Format("xlsx"), Fixture.Format("xlsx")]));
+
+        libreOffice.Available = false;
+        Assert.Equal(f.Loc["error.no_route"],
+            f.Availability.Check(studio, [Fixture.Format("xlsx")]));
     }
 
     [AvaloniaFact]
@@ -717,6 +926,42 @@ public class PresetAvailabilityTests
     }
 
     [AvaloniaFact]
+    public void The_keyboard_adds_a_focused_chip_with_enter_and_edits_it_with_shift_f10()
+    {
+        using var f = new Fixture();
+        using var vm = f.PageWithPalette("png", "mp4");
+        Dispatcher.UIThread.RunJobs();
+        var window = new Window { Width = 1080, Height = 820, Content = new ToolbarPage { DataContext = vm } };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        Border Chip(string id) => window.GetVisualDescendants().OfType<Border>().Single(b => b.DataContext is PaletteChip c && c.PresetId == id);
+
+        var jpg = Chip("test-jpg");
+        Assert.True(jpg.Focus(NavigationMethod.Tab));
+        Assert.Equal(((PaletteChip)jpg.DataContext!).Label, AutomationProperties.GetName(jpg));
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("test-jpg", vm.SelectedProfile!.Profile.PresetIds[^1]);
+
+        var windows = OpenMain();
+        try
+        {
+            // Opening the main window made it the active one; the keys go to the page's window again.
+            window.Activate();
+            Assert.True(Chip("test-mp4").Focus(NavigationMethod.Tab));
+            window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+            SaveInEditor(windows, "jpg");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Null(vm.Palette.Single(c => c.PresetId == "test-mp4").Reason);
+        }
+        finally
+        {
+            CloseMain(windows);
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void Editing_a_preset_judges_it_again()
     {
         using var f = new Fixture();
@@ -847,5 +1092,667 @@ public class PresetAvailabilityTests
         Assert.True(f.Built.StatusCalls >= 1);
         Assert.Null(vm.Palette.Single(c => c.PresetId == "test-jpg").Reason);
         Assert.True(vm.Palette.Single(c => c.PresetId == "test-mp4").IsDimmed);
+    }
+}
+
+public class ToolbarPaletteModelTests
+{
+    private static ToolbarProfile Profile(string id, string extension) => new()
+    {
+        Id = id,
+        Name = id,
+        Extensions = [extension],
+        PresetIds = [],
+        BackPresetIds = [],
+    };
+
+    private static void Select(ToolbarPageViewModel vm, string id) =>
+        vm.SelectedProfile = vm.Profiles.Single(p => p.Profile.Id == id);
+
+    /// <summary>
+    /// Searches for the preset's name on the selected profile and checks its chip against a fresh palette session for that
+    /// profile's extensions: the same use (<paramref name="use"/>), dimmed unless usable, and the same reason.
+    /// </summary>
+    private static void AssertJudgedAfresh(PresetAvailabilityTests.Fixture f, ToolbarPageViewModel vm, string id, PresetUse use)
+    {
+        var formats = vm.SelectedProfile!.Profile.Extensions.Select(FormatRegistry.FindByExtension).OfType<FileFormat>()
+            .DistinctBy(x => x.Id).ToList();
+        var expected = f.Availability.ForPalette(formats).Judge(f.Preset(id));
+        Assert.Equal(use, expected.Use);
+        var search = vm.PaletteSearch;
+        vm.PaletteSearch = f.Loc.DisplayName(f.Preset(id));
+        var chip = Assert.Single(vm.VisiblePalette, c => c.PresetId == id);
+        Assert.Equal(expected.Use, chip.Use);
+        Assert.Equal(expected.Use != PresetUse.Usable, chip.IsDimmed);
+        Assert.Equal(expected.Reason, chip.Reason);
+        vm.PaletteSearch = search;
+    }
+
+    [AvaloniaFact]
+    public void Groups_categories_into_eight_tabs()
+    {
+        var targets = new (string Format, PaletteTab Tab)[]
+        {
+            ("png", PaletteTab.Image), ("svg", PaletteTab.Image),
+            ("pdf", PaletteTab.Document), ("csv", PaletteTab.Document),
+            ("mp4", PaletteTab.Media), ("srt", PaletteTab.Media),
+            ("zip", PaletteTab.Archive), ("geojson", PaletteTab.Map),
+            (FormatRegistry.Known.First(f => f.Category == FormatCategory.Model3D).Id, PaletteTab.Model3DCad),
+            (FormatRegistry.Known.First(f => f.Category == FormatCategory.Cad).Id, PaletteTab.Model3DCad),
+            (FormatRegistry.Known.First(f => f.Category == FormatCategory.Font).Id, PaletteTab.Font),
+        };
+        foreach (var (format, tab) in targets)
+            Assert.Equal(tab, ToolbarPageViewModel.TabOf(new Preset { TargetFormat = format }));
+        Assert.Equal(PaletteTab.Edit, ToolbarPageViewModel.TabOf(new Preset { Kind = PresetKind.Tool, TargetFormat = "mp4" }));
+        Assert.Equal(PaletteTab.Edit, ToolbarPageViewModel.TabOf(new Preset { TargetFormat = BuiltInData.SameAsSource }));
+        Assert.Equal(PaletteTab.Image, ToolbarPageViewModel.TabOf(new Preset { TargetFormat = "png" }));
+        Assert.Equal(PaletteTab.All, ToolbarPageViewModel.TabOf(new Preset { TargetFormat = "not-registered" }));
+        Assert.Equal(PaletteTab.Archive, ToolbarPageViewModel.TabOf(new Preset { TargetFormat = FormatRegistry.Folder }));
+    }
+
+    [AvaloniaFact]
+    public void Category_mapping_covers_every_enum_value()
+    {
+        var expected = new Dictionary<FormatCategory, PaletteTab>
+        {
+            [FormatCategory.Image] = PaletteTab.Image,
+            [FormatCategory.Vector] = PaletteTab.Image,
+            [FormatCategory.Pdf] = PaletteTab.Document,
+            [FormatCategory.Document] = PaletteTab.Document,
+            [FormatCategory.Spreadsheet] = PaletteTab.Document,
+            [FormatCategory.Presentation] = PaletteTab.Document,
+            [FormatCategory.Hwp] = PaletteTab.Document,
+            [FormatCategory.Text] = PaletteTab.Document,
+            [FormatCategory.Ebook] = PaletteTab.Document,
+            [FormatCategory.Data] = PaletteTab.Document,
+            [FormatCategory.Video] = PaletteTab.Media,
+            [FormatCategory.Audio] = PaletteTab.Media,
+            [FormatCategory.Subtitle] = PaletteTab.Media,
+            [FormatCategory.Archive] = PaletteTab.Archive,
+            [FormatCategory.Font] = PaletteTab.Font,
+            [FormatCategory.Model3D] = PaletteTab.Model3DCad,
+            [FormatCategory.Cad] = PaletteTab.Model3DCad,
+            [FormatCategory.Geo] = PaletteTab.Map,
+        };
+        Assert.Equal(Enum.GetValues<FormatCategory>().Length, expected.Count);
+        var definitions = ToolbarPageViewModel.TabDefinitions;
+        Assert.Equal(Enum.GetValues<PaletteTab>(), definitions.Select(t => t.Id));
+        Assert.Equal(expected.OrderBy(x => x.Key), definitions.SelectMany(t => t.Categories.Select(c => new KeyValuePair<FormatCategory, PaletteTab>(c, t.Id)))
+            .OrderBy(x => x.Key));
+        foreach (var category in Enum.GetValues<FormatCategory>())
+            Assert.Equal(expected[category], ToolbarPageViewModel.TabOf(new Preset
+            {
+                TargetFormat = FormatRegistry.Known.First(f => f.Category == category).Id,
+            }));
+    }
+
+    [AvaloniaFact]
+    public void Two_tabs_hide_the_row_only_when_their_preset_ids_match()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        f.Store.Presets.Add(new Preset { Id = "test-unregistered", Name = "OnlyPair unknown", TargetFormat = "not-registered" });
+        f.Store.Presets.Add(new Preset { Id = "test-image-pair", Name = "OnlyPair image", TargetFormat = "png" });
+        using var vm = f.PageWithPalette();
+        vm.PaletteSearch = "OnlyPair";
+        Assert.Equal([PaletteTab.All, PaletteTab.Image], vm.Tabs.Select(t => t.Id));
+        Assert.True(vm.ShowTabRow);
+        Assert.Contains(vm.VisiblePalette, c => c.PresetId == "test-unregistered");
+        Assert.Contains(vm.VisiblePalette, c => c.PresetId == "test-image-pair");
+        vm.SelectedTab = vm.Tabs[1];
+        Assert.DoesNotContain(vm.VisiblePalette, c => c.PresetId == "test-unregistered");
+        Assert.Contains(vm.VisiblePalette, c => c.PresetId == "test-image-pair");
+
+        vm.PaletteSearch = "OnlyPair image";
+        Assert.Equal([PaletteTab.All, PaletteTab.Image], vm.Tabs.Select(t => t.Id));
+        Assert.False(vm.ShowTabRow);
+        Assert.Equal(PaletteTab.All, vm.SelectedTab!.Id);
+        Assert.Contains(vm.VisiblePalette, c => c.PresetId == "test-image-pair");
+    }
+
+    [AvaloniaFact]
+    public void Tab_labels_reuse_format_categories_in_declaration_order()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        using var vm = f.PageWithPalette();
+        var expectedKeys = new[]
+        {
+            "toolbar.tab.all", "format.category.Image", "format.category.Document",
+            "toolbar.tab.media", "toolbar.tab.edit", "toolbar.tab.model3d_cad",
+            "format.category.Geo", "format.category.Archive", "format.category.Font",
+        };
+        Assert.Equal(Enum.GetValues<PaletteTab>(), vm.Tabs.Select(t => t.Id));
+        Assert.Equal(expectedKeys.Select(key => f.Loc[key]), vm.Tabs.Select(t => t.Label));
+    }
+
+    [AvaloniaFact]
+    public void Search_finds_hidden_presets_across_tabs()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        f.Preset("test-wav").Name = "Hidden WAV sample";
+        using var vm = f.PageWithPalette("png");
+        Assert.DoesNotContain(vm.VisiblePalette, c => c.PresetId == "test-wav");
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.HasJudgement("test-palette", "test-wav"));
+        Assert.DoesNotContain(vm.Palette, c => c.PresetId == "test-wav");
+        vm.SelectedTab = vm.Tabs.Single(t => t.Id == PaletteTab.Image);
+        vm.PaletteSearch = " hidden WAV ";
+        Assert.Equal(PaletteTab.All, vm.SelectedTab!.Id);
+        Assert.Contains(vm.Tabs, t => t.Id == PaletteTab.Media);
+        vm.SelectedTab = vm.Tabs.Single(t => t.Id == PaletteTab.Media);
+        var chip = Assert.Single(vm.VisiblePalette, c => c.PresetId == "test-wav");
+        Assert.Equal(PresetUse.Unusable, chip.Use);
+        Assert.False(chip.CanAdd);
+        Assert.True(chip.IsDimmed);
+        Assert.Equal(f.Loc["error.no_route"], chip.Reason);
+        vm.PaletteSearch = "";
+        Assert.DoesNotContain(vm.VisiblePalette, c => c.PresetId == "test-wav");
+        Assert.Contains(vm.VisiblePalette, c => c.PresetId == "test-group");
+    }
+
+    [AvaloniaFact]
+    public void Selecting_a_cached_profile_reuses_its_results()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        var a = Profile("cache-a", "png");
+        using var vm = f.Page(a);
+        var b = Profile("cache-b", "mp4");
+        f.Store.Profiles.Add(b);
+        vm.Profiles.Add(new ProfileItemViewModel(b, f.Loc));
+        var judged = new List<(string Profile, string Preset)>();
+        vm.JudgementObserved = (profile, preset) => judged.Add((profile, preset));
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.HasJudgement(a.Id, "test-jpg"));
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.HasJudgement(b.Id, "test-wav"));
+        var count = judged.Count;
+        Select(vm, a.Id);
+        Assert.Contains(vm.VisiblePalette, c => c.PresetId == "test-jpg");
+        Assert.Equal(PaletteTab.All, vm.SelectedTab!.Id);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(count, judged.Count);
+    }
+
+    [AvaloniaFact]
+    public void Adding_presets_judges_only_new_ids_on_visit()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        var a = Profile("add-a", "png");
+        using var vm = f.Page(a);
+        var b = Profile("add-b", "mp4");
+        f.Store.Profiles.Add(b);
+        vm.Profiles.Add(new ProfileItemViewModel(b, f.Loc));
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, a.Id);
+        var observed = new List<(string, string)>();
+        vm.JudgementObserved = (id, preset) => observed.Add((id, preset));
+        f.Store.Presets.Add(new Preset { Id = "test-jpg-after", TargetFormat = "jpg" });
+        vm.AddGroup(new Preset { Id = "test-added-group", Kind = PresetKind.Group, SubPresetIds = ["test-jpg"] });
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal([("add-a", "test-jpg-after")], observed);
+        Assert.Contains(vm.VisiblePalette, c => c.PresetId == "test-added-group");
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal([("add-a", "test-jpg-after"), ("add-b", "test-jpg-after")], observed);
+        Assert.DoesNotContain(observed, x => x.Item2 is "test-jpg" or "test-added-group");
+    }
+
+    [AvaloniaFact]
+    public async Task External_library_save_rejudges_cached_profiles()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        f.Preset("test-wav").Name = "Hidden WAV sample";
+        var a = Profile("external-a", "png");
+        using var vm = f.Page(a);
+        var b = Profile("external-b", "mp4");
+        f.Store.Profiles.Add(b);
+        vm.Profiles.Add(new ProfileItemViewModel(b, f.Loc));
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        AssertJudgedAfresh(f, vm, "test-wav", PresetUse.Unusable);
+        Select(vm, a.Id);
+        vm.SelectedTab = vm.Tabs.Single(t => t.Id == PaletteTab.Image);
+        var observed = new List<(string, string)>();
+        var lastCandidate = f.Store.Presets.Last(p => !p.IsGroup).Id;
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vm.JudgementObserved = (id, preset) =>
+        {
+            observed.Add((id, preset));
+            if (id == a.Id && preset == lastCandidate)
+                completed.TrySetResult();
+        };
+        f.Preset("test-wav").TargetFormat = "jpg";
+        f.Store.SaveLibrary();
+        Assert.False(vm.HasJudgement(a.Id, "test-wav"));
+        Assert.False(vm.HasJudgement(b.Id, "test-wav"));
+        Assert.DoesNotContain(vm.Tabs, t => t.Id == PaletteTab.Image);
+        Assert.Equal(PaletteTab.All, vm.SelectedTab!.Id);
+        Dispatcher.UIThread.RunJobs();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(PaletteTab.Image, vm.SelectedTab!.Id);
+        Assert.Contains(vm.VisiblePalette, c => c.PresetId == "test-wav" && c.Use == PresetUse.Usable);
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        AssertJudgedAfresh(f, vm, "test-wav", PresetUse.Unusable);
+        Assert.Equal(1, observed.Count(x => x == (a.Id, "test-wav")));
+        Assert.Equal(1, observed.Count(x => x == (b.Id, "test-wav")));
+    }
+
+    [AvaloniaFact]
+    public void External_save_on_another_thread_during_own_save_invalidates_all_profiles()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        var a = Profile("thread-a", "png");
+        using var vm = f.Page(a);
+        var b = Profile("thread-b", "mp4");
+        var c = Profile("thread-c", "png");
+        foreach (var profile in new[] { b, c })
+        {
+            f.Store.Profiles.Add(profile);
+            vm.Profiles.Add(new ProfileItemViewModel(profile, f.Loc));
+        }
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, c.Id);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.HasJudgement(a.Id, "test-wav"));
+        Assert.True(vm.HasJudgement(b.Id, "test-wav"));
+        var postedOffThread = false;
+        var ownThread = Environment.CurrentManagedThreadId;
+        f.Preset("test-wav").TargetFormat = "jpg";
+        vm.DuringOwnSave = () =>
+        {
+            var worker = new Thread(() =>
+            {
+                postedOffThread = Environment.CurrentManagedThreadId != ownThread;
+                f.Store.SaveLibrary();
+            });
+            worker.Start();
+            Assert.True(worker.Join(TimeSpan.FromSeconds(5)), "external save thread did not finish");
+        };
+        vm.ProfileName = "Updated C";
+        vm.DuringOwnSave = null;
+        Assert.True(postedOffThread);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(vm.HasJudgement(a.Id, "test-wav"));
+        Assert.False(vm.HasJudgement(b.Id, "test-wav"));
+        var observed = new List<(string Profile, string Preset)>();
+        vm.JudgementObserved = (profile, preset) => observed.Add((profile, preset));
+        Select(vm, a.Id);
+        Dispatcher.UIThread.RunJobs();
+        AssertJudgedAfresh(f, vm, "test-wav", PresetUse.Usable);
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        AssertJudgedAfresh(f, vm, "test-wav", PresetUse.Unusable);
+        Assert.Equal(1, observed.Count(x => x == (a.Id, "test-wav")));
+        Assert.Equal(1, observed.Count(x => x == (b.Id, "test-wav")));
+    }
+
+    [AvaloniaFact]
+    public void Search_change_cancels_pending_external_tab_restore()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        using var vm = f.PageWithPalette("png");
+        Dispatcher.UIThread.RunJobs();
+        vm.SelectedTab = vm.Tabs.Single(t => t.Id == PaletteTab.Image);
+        f.Store.SaveLibrary();
+        Assert.Equal(PaletteTab.All, vm.SelectedTab!.Id);
+        Assert.DoesNotContain(vm.Tabs, t => t.Id == PaletteTab.Image);
+        vm.PaletteSearch = "test-jpg";
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(PaletteTab.All, vm.SelectedTab!.Id);
+        vm.PaletteSearch = "";
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.ShowTabRow);
+        Assert.Contains(vm.Tabs, t => t.Id == PaletteTab.Image);
+        Assert.Equal(PaletteTab.All, vm.SelectedTab!.Id);
+    }
+
+    [AvaloniaFact]
+    public void Deleted_preset_never_resurrects_from_cache()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        f.Preset("test-wav").Name = "Hidden WAV sample";
+        f.Preset("test-jpg").Name = "Hidden JPG sample";
+        var a = Profile("delete-a", "png");
+        using var vm = f.Page(a);
+        var b = Profile("delete-b", "mp4");
+        // C has the preset on its front face.
+        var c = Profile("delete-c", "png");
+        c.PresetIds.Add("test-wav");
+        foreach (var other in new[] { b, c })
+        {
+            f.Store.Profiles.Add(other);
+            vm.Profiles.Add(new ProfileItemViewModel(other, f.Loc));
+        }
+        var page = new ToolbarPage { DataContext = vm };
+        var window = new Window { Width = 1080, Height = 820, Content = page };
+        List<string> Shown() => page.FindControl<Border>("PaletteBox")!.GetVisualDescendants().OfType<Border>()
+            .Where(x => x.Classes.Contains("chip") && x.DataContext is PaletteChip).Select(x => ((PaletteChip)x.DataContext!).PresetId).ToList();
+        try
+        {
+            window.Show();
+            RenderTests.Pump();
+            vm.PaletteSearch = "Hidden";
+            RenderTests.Pump();
+            Assert.Contains("test-wav", Shown());
+            Select(vm, b.Id);
+            RenderTests.Pump();
+            // Another donut starts with an empty search (#427), so type it again.
+            Assert.Equal("", vm.PaletteSearch);
+            vm.PaletteSearch = "Hidden";
+            RenderTests.Pump();
+            Assert.Contains("test-wav", Shown());
+            Assert.True(vm.HasJudgement(a.Id, "test-wav"));
+            Assert.True(vm.HasJudgement(b.Id, "test-wav"));
+            Assert.Equal(["test-wav"], c.PresetIds);
+
+            // As the presets page deletes: removed, then saved. Checked before any posted judging runs.
+            f.Store.Presets.Remove(f.Preset("test-wav"));
+            f.Store.SaveLibrary();
+            Assert.False(vm.HasJudgement(a.Id, "test-wav"));
+            Assert.False(vm.HasJudgement(b.Id, "test-wav"));
+            Assert.Null(f.Store.FindPreset("test-wav"));
+            Assert.DoesNotContain("test-wav", c.PresetIds);
+
+            Dispatcher.UIThread.RunJobs();
+            foreach (var id in new[] { a.Id, b.Id })
+            {
+                Select(vm, id);
+                RenderTests.Pump();
+                vm.PaletteSearch = "Hidden";
+                RenderTests.Pump();
+                var shown = Shown();
+                Assert.DoesNotContain("test-wav", shown);
+                Assert.Contains("test-jpg", shown);
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Moving_slices_and_flipping_keep_judgement_cache()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        using var vm = f.Page(Profile("moving-a", "png"));
+        Dispatcher.UIThread.RunJobs();
+        var profile = vm.SelectedProfile!.Profile;
+        string[] moved = ["test-jpg", "test-mp4", "test-rotate-png", "test-motion"];
+        Assert.All(moved, id => Assert.True(vm.HasJudgement("moving-a", id)));
+        var observed = new List<string>();
+        vm.JudgementObserved = (_, preset) => observed.Add(preset);
+
+        // Front: two slices, then the first moved onto the second.
+        Assert.True(vm.Insert("test-jpg", 0));
+        Assert.True(vm.Insert("test-mp4", 1));
+        vm.Move(0, 1);
+        Assert.Equal(["test-mp4", "test-jpg"], profile.PresetIds);
+
+        // Back: the same, the other way round.
+        vm.EditingBack = true;
+        Assert.True(vm.Insert("test-rotate-png", 0));
+        Assert.True(vm.Insert("test-motion", 1));
+        vm.Move(1, 0);
+        Assert.Equal(["test-motion", "test-rotate-png"], profile.BackPresetIds);
+        Assert.Equal(["test-mp4", "test-jpg"], profile.PresetIds);
+        Assert.DoesNotContain(vm.Palette, c => moved.Contains(c.PresetId));
+
+        // Flipped back to the front: both faces stay off the palette until a slice comes off.
+        vm.EditingBack = false;
+        Assert.DoesNotContain(vm.Palette, c => moved.Contains(c.PresetId));
+        vm.RemoveAt(0);
+        Assert.Equal(["test-jpg"], profile.PresetIds);
+        Assert.Equal(["test-motion", "test-rotate-png"], profile.BackPresetIds);
+        Assert.Contains(vm.Palette, c => c.PresetId == "test-mp4");
+        Assert.All(moved, id => Assert.True(vm.HasJudgement("moving-a", id)));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Empty(observed);
+    }
+
+    [AvaloniaFact]
+    public void Editing_a_preset_invalidates_its_id_in_every_profile()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        var a = Profile("edit-a", "png");
+        using var vm = f.Page(a);
+        var b = Profile("edit-b", "png");
+        f.Store.Profiles.Add(b);
+        vm.Profiles.Add(new ProfileItemViewModel(b, f.Loc));
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, a.Id);
+        var observed = new List<(string, string)>();
+        vm.JudgementObserved = (id, preset) => observed.Add((id, preset));
+        var preset = f.Preset("test-wav");
+        preset.TargetFormat = "jpg";
+        vm.PresetEdited(preset);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Contains(vm.Palette, c => c.PresetId == preset.Id && c.Use == PresetUse.Usable);
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal([("edit-a", preset.Id), ("edit-b", preset.Id)], observed);
+        Assert.DoesNotContain(observed, x => x.Item2 == "test-jpg");
+    }
+
+    [AvaloniaFact]
+    public void Extension_save_invalidates_only_its_profile()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        var a = Profile("extensions-a", "mp4");
+        using var vm = f.Page(a);
+        var b = Profile("extensions-b", "png");
+        f.Store.Profiles.Add(b);
+        vm.Profiles.Add(new ProfileItemViewModel(b, f.Loc));
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, a.Id);
+        var observed = new List<(string, string)>();
+        vm.JudgementObserved = (id, preset) => observed.Add((id, preset));
+        int OnA() => observed.Count(x => x == (a.Id, "test-jpg"));
+        // B (PNG) keeps its cached judgement: the chip is there at once, and nothing is judged for B.
+        void BStaysCached()
+        {
+            Select(vm, b.Id);
+            Assert.Contains(vm.Palette, c => c.PresetId == "test-jpg" && c.Use == PresetUse.Usable);
+            Dispatcher.UIThread.RunJobs();
+            Assert.DoesNotContain(observed, x => x.Item1 == b.Id);
+            Select(vm, a.Id);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        vm.ExtensionTags!.AddCommand.Execute("png");
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, OnA());
+        AssertJudgedAfresh(f, vm, "test-jpg", PresetUse.Usable);
+        BStaysCached();
+        vm.ExtensionTags!.RemoveCommand.Execute(vm.ExtensionTags.Tags.Single(t => t.Value == "png"));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, OnA());
+        Assert.DoesNotContain(vm.Palette, c => c.PresetId == "test-jpg");
+        AssertJudgedAfresh(f, vm, "test-jpg", PresetUse.Unusable);
+        BStaysCached();
+
+        // The same through the mixed-selection checkboxes: checked, then unchecked.
+        vm.IsMixed = true;
+        Dispatcher.UIThread.RunJobs();
+        var judged = OnA();
+        var png = vm.MixedExtensions!.Groups.SelectMany(g => g.Extensions).First(e => e.Extension == "png");
+        png.IsChecked = true;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(judged + 1, OnA());
+        AssertJudgedAfresh(f, vm, "test-jpg", PresetUse.Usable);
+        BStaysCached();
+        png = vm.MixedExtensions!.Groups.SelectMany(g => g.Extensions).First(e => e.Extension == "png");
+        png.IsChecked = false;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(judged + 2, OnA());
+        Assert.DoesNotContain(vm.Palette, c => c.PresetId == "test-jpg");
+        AssertJudgedAfresh(f, vm, "test-jpg", PresetUse.Unusable);
+        BStaysCached();
+    }
+
+    [AvaloniaFact]
+    public void Catalog_change_invalidates_every_profile()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        var a = Profile("catalog-a", "png");
+        using var vm = f.Page(a);
+        var b = Profile("catalog-b", "png");
+        f.Store.Profiles.Add(b);
+        vm.Profiles.Add(new ProfileItemViewModel(b, f.Loc));
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, a.Id);
+        Assert.Equal(PresetUse.NeedsPackage, vm.Palette.Single(c => c.PresetId == "test-mp4").Use);
+        var observed = new List<(string, string)>();
+        vm.JudgementObserved = (id, preset) => observed.Add((id, preset));
+        f.Gated.Available = true;
+        f.Catalog.Refresh();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(PresetUse.Usable, vm.Palette.Single(c => c.PresetId == "test-mp4").Use);
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, observed.Count(x => x == (a.Id, "test-mp4")));
+        Assert.Equal(1, observed.Count(x => x == (b.Id, "test-mp4")));
+    }
+
+    [AvaloniaFact]
+    public void Resetting_a_built_in_donut_invalidates_only_that_profile()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        var images = f.Store.Profiles.Single(p => p.Id == "images");
+        images.Extensions = ["wav"];
+        var b = Profile("reset-b", "png");
+        b.IsFallback = true;
+        using var vm = f.Page(b);
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, images.Id);
+        Dispatcher.UIThread.RunJobs();
+        Assert.DoesNotContain(vm.Palette, c => c.PresetId == "test-jpg");
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, images.Id);
+        var observed = new List<(string, string)>();
+        vm.JudgementObserved = (id, preset) => observed.Add((id, preset));
+        vm.Reset(vm.SelectedProfile!);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, observed.Count(x => x == (images.Id, "test-jpg")));
+        Assert.Contains(vm.Palette, c => c.PresetId == "test-jpg" && c.Use == PresetUse.Usable);
+        Select(vm, b.Id);
+        Assert.Contains(vm.Palette, c => c.PresetId == "test-jpg");
+        Dispatcher.UIThread.RunJobs();
+        Assert.DoesNotContain(observed, x => x.Item1 == b.Id);
+    }
+
+    [AvaloniaFact]
+    public void Closing_a_cached_page_clears_both_profiles_and_subscriptions()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        var a = Profile("closing-a", "png");
+        var vm = f.Page(a);
+        var b = Profile("closing-b", "mp4");
+        f.Store.Profiles.Add(b);
+        vm.Profiles.Add(new ProfileItemViewModel(b, f.Loc));
+        Dispatcher.UIThread.RunJobs();
+        Select(vm, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.HasJudgement(a.Id, "test-wav"));
+        Assert.True(vm.HasJudgement(b.Id, "test-wav"));
+        var library = typeof(UserDataStore).GetField("LibraryChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+        var catalog = typeof(ConverterCatalog).GetField("Changed", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(library);
+        Assert.NotNull(catalog);
+        bool Subscribed(object source, FieldInfo field) =>
+            (field.GetValue(source) as EventHandler)?.GetInvocationList().Any(d => ReferenceEquals(d.Target, vm)) == true;
+        Assert.True(Subscribed(f.Store, library));
+        Assert.True(Subscribed(f.Catalog, catalog));
+        var closed = new List<(string, string)>();
+        vm.JudgementObserved = (id, preset) => closed.Add((id, preset));
+        f.Store.Presets.Add(new Preset { Id = "test-late-control", TargetFormat = "jpg" });
+        vm.PaletteSearch = "test-late-control";
+        Dispatcher.UIThread.RunJobs();
+        Assert.Contains((b.Id, "test-late-control"), closed);
+        closed.Clear();
+        f.Store.Presets.Add(new Preset { Id = "test-late", TargetFormat = "jpg" });
+        vm.PaletteSearch = "test-late";
+        Assert.False(vm.HasJudgement(b.Id, "test-late"));
+        vm.Dispose();
+        Assert.False(vm.HasJudgement(a.Id, "test-wav"));
+        Assert.False(vm.HasJudgement(b.Id, "test-wav"));
+        Assert.False(Subscribed(f.Store, library));
+        Assert.False(Subscribed(f.Catalog, catalog));
+        f.Store.SaveLibrary();
+        f.Catalog.Refresh();
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(vm.HasJudgement(a.Id, "test-wav"));
+        Assert.Empty(closed);
+        Assert.False(vm.HasJudgement(b.Id, "test-late"));
+
+        // The page opened again: a new view model on the same library judges each profile afresh, once.
+        using var reopened = new ToolbarPageViewModel(f.Store, f.Loc, AppHost.Get<WindowService>(), f.Availability, f.Catalog,
+            NullLogger<ToolbarPageViewModel>.Instance);
+        var observed = new List<(string, string)>();
+        reopened.JudgementObserved = (id, preset) => observed.Add((id, preset));
+        Select(reopened, a.Id);
+        Dispatcher.UIThread.RunJobs();
+        Select(reopened, b.Id);
+        Dispatcher.UIThread.RunJobs();
+        Select(reopened, a.Id);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(reopened.HasJudgement(a.Id, "test-wav"));
+        Assert.True(reopened.HasJudgement(b.Id, "test-wav"));
+        Assert.True(reopened.HasJudgement(b.Id, "test-late"));
+        Assert.Equal(1, observed.Count(x => x == (a.Id, "test-wav")));
+        Assert.Equal(1, observed.Count(x => x == (b.Id, "test-wav")));
+        Assert.Empty(closed);
+    }
+
+    [AvaloniaFact]
+    public async Task Deleted_profile_loses_its_cache_entry()
+    {
+        using var f = new PresetAvailabilityTests.Fixture();
+        var original = Profile("reused-id", "png");
+        using var vm = f.Page(original);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(vm.HasJudgement(original.Id, "test-jpg"));
+        var windows = AppHost.Get<WindowService>();
+        Assert.Null(windows.Main);
+        windows.ShowMain();
+        try
+        {
+            var delete = vm.DeleteProfileCommand.ExecuteAsync(null);
+            Dispatcher.UIThread.RunJobs();
+            var dialog = Assert.Single(windows.Main!.OwnedWindows);
+            // Found wherever it sits: the window zoom wraps a dialog's content.
+            var button = dialog.GetVisualDescendants().OfType<Button>().Single(b => b.IsDefault);
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await delete.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.False(vm.HasJudgement(original.Id, "test-jpg"));
+            var replacement = Profile(original.Id, "mp4");
+            f.Store.Profiles.Add(replacement);
+            vm.Profiles.Add(new ProfileItemViewModel(replacement, f.Loc));
+            var observed = new List<(string, string)>();
+            vm.JudgementObserved = (id, preset) => observed.Add((id, preset));
+            Select(vm, replacement.Id);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, observed.Count(x => x == (replacement.Id, "test-jpg")));
+            Assert.DoesNotContain(vm.Palette, c => c.PresetId == "test-jpg");
+        }
+        finally
+        {
+            windows.Main?.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
     }
 }

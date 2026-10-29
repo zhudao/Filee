@@ -9,6 +9,7 @@ using Filee.Core.Settings;
 
 namespace Filee.App.Tests;
 
+[Collection("MainWindow")]
 public sealed class TrayServiceTests
 {
     [AvaloniaFact]

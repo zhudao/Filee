@@ -55,8 +55,14 @@ public sealed class SetupTexts
     /// <summary>Publishes every text into <paramref name="resources"/> (English for missing translations).</summary>
     public void Publish(IResourceDictionary resources)
     {
-        foreach (var key in _english.Keys.Concat(_current.Keys).Distinct())
-            resources[key] = this[key];
+        var entries = _english.Keys.Concat(_current.Keys).Distinct()
+            .Select(key => new KeyValuePair<object, object?>(key, this[key]));
+        // ResourceDictionary batches notifications; retain support for other IResourceDictionary implementations.
+        if (resources is ResourceDictionary dictionary)
+            dictionary.SetItems(entries);
+        else
+            foreach (var (key, value) in entries)
+                resources[key] = value;
     }
 
     /// <summary>
@@ -83,7 +89,12 @@ public sealed class SetupTexts
             if (normalized.Equals(code, StringComparison.OrdinalIgnoreCase))
                 return code;
         }
-        // "ko-KR" → ko, "zh-Hans-CN" / "zh-TW" → zh-CN (the only Chinese), "es-MX" → es.
+        if (Filee.App.Services.AppLanguages.PortugueseVariant(normalized) is { } portuguese)
+            return portuguese;
+        // "zh-Hant-HK" / "zh-HK" → zh-TW; the primary-language fallback below gives the other Chinese names zh-CN.
+        if (Filee.App.Services.AppLanguages.IsTraditionalChinese(normalized))
+            return "zh-TW";
+        // "ko-KR" → ko, "zh-Hans-CN" → zh-CN, "es-MX" → es.
         var primary = normalized.Split('-')[0];
         foreach (var (code, _) in Languages)
         {

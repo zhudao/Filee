@@ -35,6 +35,16 @@
     <PackageReference Include="SharpHook" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <FileeNativeWayland Condition="$(RuntimeIdentifier.StartsWith('linux')) Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux')))">true</FileeNativeWayland>
+    <DefineConstants Condition="'$(FileeNativeWayland)' == 'true'">$(DefineConstants);FILEE_NATIVE_WAYLAND</DefineConstants>
+  </PropertyGroup>
+
+  <!-- Linux-only Wayland packages to keep Windows and macOS binaries small -->
+  <ItemGroup Condition="'$(FileeNativeWayland)' == 'true'">
+    <PackageReference Include="Avalonia.Wayland" />
+  </ItemGroup>
+
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <!-- Shown on the About page. -->

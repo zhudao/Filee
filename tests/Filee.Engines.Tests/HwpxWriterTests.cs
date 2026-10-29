@@ -2,6 +2,7 @@
 // Output is checked structurally, read back with Unhwp and rendered with rhwp. DOCX has its own tests
 // (DocxToHwpxTests) because it is read without Pandoc.
 
+using System.IO.Compression;
 using System.Text;
 using Filee.Core.Conversion;
 using Filee.Core.Presets;
@@ -55,6 +56,28 @@ public class HwpxWriterTests(EngineFixture fx) : IClassFixture<EngineFixture>
         var errors = string.Join("; ", job.Files.Select(f => $"{f.ErrorKey} {f.ErrorDetail}"));
         Assert.True(job.State == JobState.Completed, errors);
         return job.Outputs.Single();
+    }
+
+    [Theory]
+    [InlineData(0x41u)]
+    [InlineData(0x40u)]
+    public async Task Markdown_dds_picture_keeps_its_colours_in_hwpx(uint flags)
+    {
+        var dir = fx.NewFolder();
+        byte[] pixels = [.. Enumerable.Repeat<byte[]>([255, 0, 0, 255], 16).SelectMany(p => p)];
+        File.WriteAllBytes(Path.Combine(dir, "red.dds"), ImageFormatTests.Dds(flags, 0xFF, 0xFF00, 0xFF0000, 0xFF000000, pixels));
+        var md = Path.Combine(dir, "document.md");
+        await File.WriteAllTextAsync(md, "![red](red.dds)", TestContext.Current.CancellationToken);
+
+        var hwpx = await ConvertAsync(md);
+
+        using var zip = ZipFile.OpenRead(hwpx);
+        using var stream = Assert.Single(zip.Entries, e => e.FullName.StartsWith("BinData/", StringComparison.Ordinal)
+            && e.FullName.EndsWith(".png", StringComparison.Ordinal)).Open();
+        using var image = new MagickImage(stream);
+        Assert.Equal(MagickFormat.Png, image.Format);
+        Assert.Equal((4u, 4u), (image.Width, image.Height));
+        Assert.Equal(pixels.Where((_, i) => i % 4 != 3).ToArray(), image.GetPixels().ToByteArray(PixelMapping.RGB));
     }
 
     [Fact]
@@ -132,6 +155,36 @@ public class HwpxWriterTests(EngineFixture fx) : IClassFixture<EngineFixture>
         Assert.Equal(Text, HwpxConverter.DecodeText(Encoding.GetEncoding(949).GetBytes(Text)));
         Assert.Equal(Text, HwpxConverter.DecodeText([0xEF, 0xBB, 0xBF, .. Encoding.UTF8.GetBytes(Text)]));
         Assert.Equal(Text, HwpxConverter.DecodeText(Encoding.Unicode.GetPreamble().Concat(Encoding.Unicode.GetBytes(Text)).ToArray()));
+    }
+
+    [Theory]
+    [InlineData(936, "我是一个学生，这是我的文件。")] // #491: GBK, "ANSI" on Chinese Windows
+    [InlineData(950, "這是繁體中文的檔案。")]
+    [InlineData(932, "これは日本語のファイルです。")]
+    [InlineData(1252, "Café, déjà vu à l'été")]
+    public void Text_files_are_read_in_the_pcs_own_code_page(int codePage, string text)
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        Assert.Equal(text, DocumentReaders.DecodeText(Encoding.GetEncoding(codePage).GetBytes(text), codePage));
+    }
+
+    [Theory]
+    [InlineData("■ Item one\n※ Note\n● Point ①")]
+    [InlineData("大韓民國 憲法 第一條")]
+    [InlineData("한글 메모 <meta charset=\"iso-8859-1\"> encoding=\"cp1252\"")]
+    public void Korean_windows_reads_any_valid_cp949_text_as_cp949(string text)
+    {
+        // Symbols and Hanja aren't "mostly Hangul", and a charset= in the text is content, not the file's encoding.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        Assert.Equal(text, DocumentReaders.DecodeText(Encoding.GetEncoding(949).GetBytes(text), 949));
+    }
+
+    [Fact]
+    public void Korean_windows_still_reads_a_western_file_as_windows_1252()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        const string Text = "Café, déjà vu à l'été. Señor Müller";
+        Assert.Equal(Text, DocumentReaders.DecodeText(Encoding.GetEncoding(1252).GetBytes(Text), 949));
     }
 
     [Fact]

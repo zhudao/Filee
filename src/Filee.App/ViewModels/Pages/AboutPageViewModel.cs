@@ -70,7 +70,7 @@ public sealed partial class AboutPageViewModel : ObservableObject, IDisposable
 
     /// <summary>Downloads and runs the new installer, which updates Filee in place (a portable copy opens the download page).</summary>
     [RelayCommand]
-    private Task DownloadUpdate() => _updates.UpdateAsync();
+    private Task DownloadUpdate() => AppHost.Get<WindowService>().StartUpdateAsync(_updates);
 
     private void ShowUpdateState(string? newer, bool afterCheck = false)
     {

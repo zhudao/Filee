@@ -302,16 +302,19 @@ public class InstallerTests
         Assert.False(bench.Registry.KeyExists(Hive.CurrentUser, SetupNames.VelopackUninstallKey));
     }
 
-    [Fact]
-    public void What_setup_hands_to_filee_is_what_filee_reads()
+    [Theory]
+    [InlineData("ko")]
+    [InlineData("pt-PT")]
+    [InlineData("pt-BR")]
+    public void What_setup_hands_to_filee_is_what_filee_reads(string language)
     {
         var fresh = new InstallChoices(@"C:\Program Files\Filee", InstallScope.Machine, SetupTasks.Defaults with { Startup = false },
-            ["pandoc", "ffmpeg"], "ko", LanguagePicked: true);
+            ["pandoc", "ffmpeg"], language, LanguagePicked: true);
         var options = CommandLine.Parse(Installer.LaunchArguments(fresh, update: false).Split(' '));
         Assert.Equal(["pandoc", "ffmpeg"], options.InstallEngines);
         Assert.False(options.StartWithWindows);
         Assert.True(options.ContextMenu);
-        Assert.Equal("ko", options.Language);
+        Assert.Equal(language, options.Language);
 
         // Setup's language only goes to Filee when the user picked it; else Filee keeps following Windows.
         Assert.Null(CommandLine.Parse(Installer.LaunchArguments(fresh with { LanguagePicked = false }, update: false).Split(' ')).Language);

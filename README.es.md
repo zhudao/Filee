@@ -10,6 +10,7 @@
 <p align="center">
   <a href="https://filee.sh/es/"><b>Sitio web</b></a> ·
   <a href="https://github.com/KnifeLemon/Filee/releases/latest"><b>Descargar</b></a> ·
+  <a href="https://www.linkedin.com/company/filee-sh/"><b>LinkedIn</b></a> ·
   <a href="#instalación">Instalación</a> ·
   <a href="#línea-de-comandos">Línea de comandos</a> ·
   <a href="#desarrollo">Desarrollo</a>
@@ -30,13 +31,40 @@
   <a href="https://trendshift.io/repositories/276987"><img src="https://trendshift.io/api/badge/trendshift/repositories/276987/daily?language=C%23&v=2" alt="Filee: #1 C# repository of the day on Trendshift" width="250" height="55"></a>
 </p>
 
-<p align="center"><a href="README.md">English</a> · <b>Español</b> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.pl.md">Polski</a> · <a href="README.hi.md">हिन्दी</a> · <a href="README.ru.md">Русский</a> · <a href="README.ar.md">العربية</a> · <a href="README.pt-BR.md">Português (Brasil)</a></p>
+<p align="center">
+  <a href="README.md">English</a> ·
+  <b>Español</b> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.zh-TW.md">繁體中文</a> ·
+  <a href="README.pl.md">Polski</a> ·
+  <a href="README.hi.md">हिन्दी</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.ar.md">العربية</a> ·
+  <a href="README.pt-BR.md">Português (Brasil)</a> ·
+  <a href="README.pt-PT.md">Português (Portugal)</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.th.md">ไทย</a> ·
+  <a href="README.tr.md">Türkçe</a>
+</p>
 
 <table>
   <tr>
-    <td width="33%" valign="top"><b>Justo en tu cursor</b><br>No hay ninguna ventana que abrir. Los formatos aparecen donde ya estás, y solo los que tienen sentido para los archivos que arrastras.</td>
-    <td width="33%" valign="top"><b>255 formatos, sin otros programas</b><br>Imágenes, PDF, Word, Excel, PowerPoint, HWP, libros electrónicos, archivos comprimidos, tipografías, CAD, modelos 3D y datos geoespaciales funcionan sin Office, Hancom Office ni LibreOffice.</td>
-    <td width="33%" valign="top"><b>Todo se queda en tu equipo</b><br>No se sube nada. Filee funciona sin conexión y guarda el resultado junto al original.</td>
+    <td width="33%" valign="top">
+      <b>Justo en tu cursor</b><br>
+      No hay ninguna ventana que abrir.
+      Los formatos aparecen donde ya estás, y solo los que tienen sentido para los archivos que arrastras.
+    </td>
+    <td width="33%" valign="top">
+      <b>268 formatos, sin otros programas</b><br>
+      Imágenes, PDF, Word, Excel, PowerPoint, HWP, libros electrónicos, archivos comprimidos, tipografías, CAD, modelos 3D y datos geoespaciales funcionan sin Office, Hancom Office ni LibreOffice.
+    </td>
+    <td width="33%" valign="top">
+      <b>Todo se queda en tu equipo</b><br>
+      No se sube nada.
+      Filee funciona sin conexión y guarda el resultado junto al original.
+    </td>
   </tr>
 </table>
 
@@ -51,33 +79,59 @@
 
 Descárgalo desde [Releases](https://github.com/KnifeLemon/Filee/releases/latest).
 
-- **Windows 10/11**: ejecuta `Filee-<version>-win-Setup.exe`, o descomprime `win-Portable.zip` y ejecuta `Filee.exe`.
-  El instalador es el propio de Filee, está en los idiomas de Filee y no necesita nada más en el equipo. Puede añadir el menú
-  del Explorador, el inicio al iniciar sesión, el comando `filee` y motores opcionales; las instalaciones silenciosas aceptan
-  las opciones de Inno Setup (`/VERYSILENT /SUPPRESSMSGBOXES`).
-- **macOS 13+** (versión preliminar): descomprime el paquete `osx-arm64` u `osx-x64` y ejecuta `./install.sh`.
-  Aún no está notarizado, así que la primera vez tendrás que permitir que se abra en Ajustes del Sistema → Privacidad y seguridad → **Abrir igualmente**.
-- **Linux x64/ARM64** (Ubuntu 22.04+): descomprime el paquete y ejecuta `./install.sh` (no necesita root, sí Python 3).
-  Los gestos de arrastre necesitan X11. En Wayland, usa la zona de suelta y el menú contextual del gestor de archivos.
+<a href="https://apps.microsoft.com/detail/XPDCN05L89WS0C?referrer=appbadge&cid=github&mode=full"><img src="https://get.microsoft.com/images/es%20dark.svg" alt="Microsoft Store" width="200"></a>
 
-Filee avisa de las versiones nuevas en su menú y se actualiza solo, sin tocar tus ajustes ni tus motores. Tras una
-actualización, unas pocas diapositivas muestran las novedades.
+- **Windows 10/11**: ejecuta `Filee-<version>-win-Setup.exe`, o descomprime `win-Portable.zip` y ejecuta `Filee.exe`.
+  - El instalador es el propio de Filee, está en los idiomas de Filee y no necesita nada más en el equipo.
+  - Puede añadir el menú del Explorador, el inicio al iniciar sesión, el comando `filee` y motores opcionales.
+  - Las instalaciones silenciosas aceptan las opciones de Inno Setup (`/VERYSILENT /SUPPRESSMSGBOXES`).
+- **macOS 13+** (versión preliminar): descomprime el paquete `osx-arm64` u `osx-x64` y ejecuta `./install.sh`.
+  - O abre el `.dmg` y arrastra Filee a Aplicaciones (el comando `filee` solo lo añade `install.sh`).
+  - Aún no está notarizado, así que la primera vez tendrás que permitir que se abra en Ajustes del Sistema → Privacidad y seguridad → **Abrir igualmente**.
+- **Linux x64/ARM64** (Ubuntu 22.04+): descomprime el paquete y ejecuta `./install.sh` (no necesita root, sí Python 3).
+  - Los gestos de arrastre necesitan X11.
+    En Wayland, usa la zona de suelta y el menú contextual del gestor de archivos.
+
+Filee avisa de las versiones nuevas en su menú y se actualiza solo, sin tocar tus ajustes ni tus motores.
+Tras una actualización, unas pocas diapositivas muestran las novedades.
+
+**Windows: ¿Filee no se abre (sin ventana ni error)?**
+Ocurre en Windows 10 que lleva mucho tiempo sin actualizarse, en un equipo cuyo procesador admite la protección de pila aplicada por hardware (CET).
+Windows activa esa protección, pero le falta una parte que .NET necesita, así que Filee y el instalador se cierran al instante.
+
+- **Recomendado:** instala las actualizaciones de Windows disponibles (la última actualización acumulativa).
+- **Si no puedes actualizar:** desactivar la protección solo para Filee suele funcionar.
+  Ejecuta esto en PowerShell como administrador:
+
+```powershell
+Set-ProcessMitigation -Name Filee.exe -Disable UserShadowStack
+Set-ProcessMitigation -Name filee-cli.exe -Disable UserShadowStack
+```
+
+Haz lo mismo con el nombre de archivo del instalador (p. ej. `Filee-<version>-win-Setup.exe`), o usa el ZIP portátil, que solo necesita estas dos líneas.
+Para deshacerlo, quita esas entradas en Seguridad de Windows → Control de aplicaciones y navegador → Configuración de protección contra vulnerabilidades → Configuración de programas.
 
 ## Funciones
 
-- **Un menú circular junto al cursor**: mantén pulsada una tecla, arrastra los archivos y suéltalos sobre un formato. Solo aparecen los formatos que encajan con esos archivos.
-- **Directamente desde el navegador**: arrastra igual una imagen, un enlace a un archivo o una descarga desde Chrome, Edge, Firefox
-  o Safari. Filee lo guarda en tu carpeta Descargas (o conserva solo el archivo convertido) y lo convierte. Los enlaces se
-  descargan sin la sesión iniciada en tu navegador.
-- **Un menú circular por tipo de archivo**, que ordenas arrastrando y soltando, con ajustes preestablecidos de calidad, tamaño, DPI,
-  páginas y compresión de PDF, vídeo y audio, carpeta de salida y nombres de archivo.
+- **Un menú circular junto al cursor**: mantén pulsada una tecla, arrastra los archivos y suéltalos sobre un formato.
+  Solo aparecen los formatos que encajan con esos archivos.
+- **Directamente desde el navegador**: arrastra igual una imagen, un enlace a un archivo o una descarga desde Chrome, Edge, Firefox o Safari.
+  - Filee lo guarda en tu carpeta Descargas (o conserva solo el archivo convertido) y lo convierte.
+  - Los enlaces se descargan sin la sesión iniciada en tu navegador.
+- **Un menú circular por tipo de archivo**, que ordenas arrastrando y soltando, con ajustes preestablecidos de:
+  - calidad, tamaño, DPI
+  - páginas y compresión de PDF
+  - vídeo y audio
+  - carpeta de salida y nombres de archivo
 - **Dos caras en cada menú circular**: con el menú abierto, pulsa <kbd>Tab</kbd> o gira la rueda del ratón para darle la vuelta y ver formatos y herramientas menos habituales.
-- **Recorta antes de convertir**: la porción Recortar abre las imágenes una a una. Arrastra el marco, elige una proporción y solo se guarda esa parte.
-- **Muchos archivos a la vez**, en paralelo. Las conversiones de varios pasos (HWP → HWPX → DOCX) se resuelven solas.
+- **Recorta antes de convertir**: la porción Recortar abre las imágenes una a una.
+  Arrastra el marco, elige una proporción y solo se guarda esa parte.
+- **Muchos archivos a la vez**, en paralelo.
+  Las conversiones de varios pasos (HWP → HWPX → DOCX) se resuelven solas.
 - **Carpetas supervisadas** que convierten cada archivo que llega a ellas.
 - **Conversiones recientes** en Inicio, cada una con su miniatura: abre el resultado o ábrelo con otra aplicación.
 - **Otras formas de usarlo**: el menú contextual, un atajo de teclado, la zona de suelta y el [comando `filee`](#línea-de-comandos).
-- Temas claro y oscuro con tu propio color de acento y la opacidad del menú circular, en English, Español, 日本語, 한국어, 简体中文, Polski, हिन्दी, Русский, العربية (de derecha a izquierda) y Português (Brasil).
+- Temas claro y oscuro con tu propio color de acento y la opacidad del menú circular, en English, Español, 日本語, 한국어, 简体中文, 繁體中文, Polski, हिन्दी, Русский, العربية (de derecha a izquierda), Português (Brasil), Français, नेपाली, ไทย, Türkçe, Português (Portugal), Deutsch e Italiano.
 
 ## Capturas de pantalla
 
@@ -96,28 +150,27 @@ actualización, unas pocas diapositivas muestran las novedades.
 
 | De | A |
 |---|---|
-| **Imágenes**: JPG, PNG, WEBP, AVIF, TIFF, BMP, GIF, APNG, ICO, ICNS, JPEG XL, JPEG 2000, PSD/PSB, TGA, PPM, HEIC, QOI, DDS, PCX, MNG, CUR, …; GIMP XCF, RAW de cámara (CR2, CR3, NEF, ARW, DNG, …), DICOM, OpenEXR, HDR, JPEG XR (Windows), Live Photo de iPhone (LIVP) solo lectura | cualquiera de ellos (HEIC⁵), PDF, SVG (vectorizado), redimensionar, escala de grises; Live/Motion Photos (iPhone, Android) → su vídeo (MP4, MOV⁵), y un vídeo → Live Photo (iPhone) o Motion Photo (Android)⁵, experimental |
-| **Vectorial**: SVG, SVGZ, EMF, WMF, AI · EPS, PS¹ · CDR, VSD, CGM, ODG, FODG² | PDF (vectorial), PNG y otras imágenes, SVG ↔ SVGZ, SVG → DXF/DWG, PDF → EPS/PS¹, SVG → EMF, WMF, ODG² |
-| **PDF** | DOCX, HWPX, TXT, PNG, JPG, TIFF, CBZ, PPTX (una imagen por página), SVG²; unir (en el orden que elijas antes), dividir, rangos de páginas, comprimir (PDF más ligeros) |
-| **Documentos**: DOCX, DOCM, DOTX, EML, Outlook MSG; OFD (facturas electrónicas y documentos oficiales chinos) solo lectura · DOC, ODT, FODT, OTT, RTF, WPS, WPD, Pages, ClarisWorks, MacWrite, T602, …² | PDF, DOCX, HWPX, EPUB, TXT, HTML; MSG → EML · ODT, FODT, OTT² |
-| **Hojas de cálculo**: XLSX, XLSM, XLS, XLT, ODS, CSV, TSV · OTS, FODS, Numbers, ET² | PDF, XLSX, ODS, CSV, TSV, JSON, HWPX, HTML · XLT, OTS² |
-| **Presentaciones**: PPTX, PPTM, POTX, POTM, PPSX · PPT, ODP, OTP, FODP, Keynote² | PDF, PNG, JPG, DOCX, HWPX · OTP² |
+| **Imágenes**: JPG, PNG, WEBP, AVIF, TIFF, BMP, GIF, APNG, ICO, ICNS, JPEG XL, JPEG 2000, PSD/PSB, TGA, PPM, HEIC, QOI, DDS, PCX, MNG, CUR, …;<br>GIMP XCF, RAW de cámara (CR2, CR3, NEF, ARW, DNG, …), DICOM, OpenEXR, HDR, FITS, JPEG XR (Windows), Live Photo de iPhone (LIVP) solo lectura | cualquiera de ellos (HEIC⁵), PDF, SVG (vectorizado), redimensionar, escala de grises;<br>Live/Motion Photos (iPhone, Android) → su vídeo (MP4, MOV⁵), y un vídeo → Live Photo (iPhone) o Motion Photo (Android)⁵, experimental |
+| **Vectorial**: SVG, SVGZ, EMF, WMF, AI<br>EPS, PS¹<br>CDR, VSD, CGM, ODG, FODG² | PDF (vectorial), PNG y otras imágenes,<br>SVG ↔ SVGZ, SVG → DXF/DWG, PDF → EPS/PS¹, SVG → EMF, WMF, ODG² |
+| **PDF** | DOCX, HWPX, TXT, PNG, JPG, TIFF, CBZ, PPTX (una imagen por página), SVG²;<br>unir (en el orden que elijas antes), dividir, rangos de páginas, comprimir (PDF más ligeros) |
+| **Documentos**: DOCX, DOCM, DOTX, EML, Outlook MSG;<br>OFD (facturas electrónicas y documentos oficiales chinos) solo lectura<br>DOC, ODT, FODT, OTT, RTF, WPS, WPD, Pages, ClarisWorks, MacWrite, T602, …² | PDF, DOCX, HWPX, EPUB, TXT, HTML;<br>MSG → EML<br>ODT, FODT, OTT² |
+| **Hojas de cálculo**: XLSX, XLSM, XLS, XLT, ODS, CSV, TSV<br>OTS, FODS, Numbers, ET² | PDF, XLSX, ODS, CSV, TSV, JSON, HWPX, HTML<br>XLT, OTS² |
+| **Presentaciones**: PPTX, PPTM, POTX, POTM, PPSX<br>PPT, ODP, OTP, FODP, Keynote² | PDF, PNG, JPG, DOCX, HWPX<br>OTP² |
 | **HWP**: HWP, HWPX | PDF, PNG, DOCX, HWPX ↔ HWP, TXT, Markdown, HTML |
-| **Texto**: TXT, LOG, código de scripts (PY, PAC, BAT, COMMAND; se leen, nunca se ejecutan), Markdown, HTML; MHTML (páginas web guardadas) solo lectura · reStructuredText, LaTeX, Org, AsciiDoc, Typst, MediaWiki, DocBook, Jupyter, Textile, man, OPML³ | TXT en UTF-8, PDF, DOCX, HWPX, EPUB · entre sí, diapositivas PPTX³ |
-| **Libros electrónicos**: EPUB, KEPUB, MOBI, AZW3, AZW, AZW4, FB2, CBZ, CBR, CB7, HTMLZ, TXTZ · LIT, LRF, CHM, PDB, …⁴ | PDF, EPUB, KEPUB (Kobo), DOCX, TXT, HTML, HWPX · MOBI, AZW3⁴ |
-| **Vídeo**⁵: MP4, MOV, MKV, WEBM, AVI, WMV, FLV, MPEG, Video CD (DAT), TS, M2TS, 3GP, OGV, VOB, … | MP4 (H.264, HEVC, AV1), WEBM, MOV, MKV, AVI, GIF, APNG, MP3, M4A, 720p, subtítulos (SRT, ASS, WebVTT) |
+| **Texto**: TXT, LOG, código de scripts (PY, PAC, BAT, COMMAND; se leen, nunca se ejecutan), Markdown, HTML;<br>MHTML (páginas web guardadas) solo lectura<br>reStructuredText, LaTeX, Org, AsciiDoc, Typst, MediaWiki, DocBook, Jupyter, Textile, man, OPML³ | TXT en UTF-8, PDF, DOCX, HWPX, EPUB<br>entre sí, diapositivas PPTX³ |
+| **Libros electrónicos**: EPUB, KEPUB, MOBI, AZW3, AZW, AZW4, FB2, CBZ, CBR, CB7, HTMLZ, TXTZ<br>LIT, LRF, CHM, PDB, …⁴ | PDF, EPUB, KEPUB (Kobo), DOCX, TXT, HTML, HWPX<br>MOBI, AZW3⁴ |
+| **Vídeo**⁵: MP4, MOV, MKV, WEBM, AVI, WMV, FLV, MPEG, Video CD (DAT), TS, M2TS, 3GP, OGV, VOB, … | MP4 (H.264, HEVC, AV1), WEBM, MOV, MKV, AVI, GIF, APNG, MP3, M4A, 720p,<br>subtítulos (SRT, ASS, WebVTT) |
 | **Audio**⁵: MP3, M4A, AAC, WAV, FLAC, OGG, OPUS, WMA, AIFF, AMR, APE, WavPack, TTA, DSD (DSF, DFF), DTS, AC3, E-AC3, … | MP3, M4A (AAC, ALAC), WAV, FLAC, OGG, OPUS, AAC, WavPack, TTA, W64, AC3, E-AC3 |
 | **Subtítulos**: SRT, ASS/SSA, WebVTT, SAMI (SMI), LRC, TTML, MicroDVD, SCC | entre sí, en UTF-8 (los archivos coreanos en CP949 se leen correctamente) |
-| **Archivos comprimidos**: ZIP, ANSYS Workbench (WBPZ), 7Z, RAR, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, GZ, ISO, CAB, DMG, ALZ, EGG, … | extraer, ZIP, 7Z, TAR, TAR.GZ; cualquier conjunto de archivos → un ZIP |
+| **Archivos comprimidos**: ZIP, ANSYS Workbench (WBPZ), 7Z, RAR, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, GZ, ISO, CAB, DMG, ALZ, EGG, … | extraer, ZIP, 7Z, TAR, TAR.GZ;<br>cualquier conjunto de archivos → un ZIP |
 | **CAD**: DWG, DXF | PDF, SVG, PNG, DWG ↔ DXF |
-| **Tipografías**: TTF, OTF, WOFF, WOFF2, EOT | entre sí |
-| **Datos**: JSON, JSON Lines, YAML, TOML, XML · vCard | entre sí, CSV y XLSX (tablas); vCard ↔ CSV |
-| **Modelos 3D**: GLB, glTF, STL, OBJ (+ MTL), 3MF, PLY; FBX solo lectura | entre sí, vista previa en PNG |
-| **Datos geoespaciales vectoriales**: Shapefile, GeoJSON, KML, KMZ, GPX · CSV con coordenadas | entre sí y a CSV / XLSX / JSON; los datos proyectados (UTM, Web Mercator, Lambert, Albers) salen como longitud / latitud WGS 84 |
+| **Tipografías**: TTF, OTF, WOFF, WOFF2, EOT;<br>FON (fuentes de mapa de bits de Windows) solo lectura | conversión entre sí;<br>FON → un archivo por tamaño |
+| **Datos**: JSON, JSON Lines, YAML, TOML, XML<br>vCard, iCalendar | entre sí, CSV y XLSX (tablas);<br>vCard, iCalendar ↔ CSV |
+| **Modelos 3D**: GLB, glTF, STL, OBJ (+ MTL), 3MF, PLY;<br>FBX solo lectura | entre sí, vista previa en PNG |
+| **Datos geoespaciales vectoriales**: Shapefile, GeoJSON, KML, KMZ, GPX<br>CSV con coordenadas;<br>Garmin FIT solo lectura | entre sí y a CSV / XLSX / JSON;<br>los datos proyectados (UTM, Web Mercator, Lambert, Albers) salen como longitud / latitud WGS 84 |
 
 Los formatos sin marca funcionan nada más instalar, sin Office, Hancom Office ni LibreOffice.
-Los marcados necesitan un motor opcional, que solo se descarga cuando hace falta: ¹ Ghostscript, ² LibreOffice, ³ Pandoc,
-⁴ calibre, ⁵ FFmpeg ([detalles](docs/ENGINES.md)).
+Los marcados necesitan un motor opcional, que solo se descarga cuando hace falta: ¹ Ghostscript, ² LibreOffice, ³ Pandoc, ⁴ calibre, ⁵ FFmpeg ([detalles](docs/ENGINES.md)).
 
 ## Línea de comandos
 
@@ -143,27 +196,29 @@ dotnet run --project src/Filee.App
 dotnet test
 ```
 
-[Arquitectura](docs/ARCHITECTURE.md) · [Motores](docs/ENGINES.md) · [Añadir un conversor](docs/ADDING-A-CONVERTER.md) ·
-[Añadir un idioma](docs/ADDING-A-LANGUAGE.md) · [Cómo contribuir](CONTRIBUTING.md)
+[Arquitectura](docs/ARCHITECTURE.md) · [Motores](docs/ENGINES.md) · [Añadir un conversor](docs/ADDING-A-CONVERTER.md) · [Añadir un idioma](docs/ADDING-A-LANGUAGE.md) · [Cómo contribuir](CONTRIBUTING.md)
 
-Las pull requests son bienvenidas. Si Filee te ahorra unos cuantos clics, una ⭐ ayuda a que otras personas lo encuentren.
+Las pull requests son bienvenidas.
+Si Filee te ahorra unos cuantos clics, una ⭐ ayuda a que otras personas lo encuentren.
 
 ## Política de firma de código
 
 Filee lo desarrolla y publica **Myeonggu Kim** ([KnifeLemon](https://github.com/KnifeLemon)).
-Las versiones para Windows se firmarán con un certificado de firma de código para código abierto de [Certum](https://www.certum.eu/)
-emitido a nombre de Myeonggu Kim. El certificado está en trámite.
+
+- Las versiones para Windows se firman con un certificado de firma de código para código abierto de [Certum](https://www.certum.eu/) emitido a nombre de Myeonggu Kim.
+  - Las versiones hasta la 2.0.0 no están firmadas.
 
 La política completa y la política de privacidad están en el [README en inglés](README.md#code-signing-policy).
 Filee no sube tus archivos ni envía datos de uso.
 
 ## Patrocinar
 
-Filee es gratis y lo seguirá siendo. Si quieres apoyarlo, elige la forma que mejor te venga
-([Fairy](https://fairy.hada.io/@filee) acepta tarjetas coreanas y pagos rápidos).
+Filee es gratis y lo seguirá siendo.
+Si quieres apoyarlo, elige la forma que mejor te venga ([Fairy](https://fairy.hada.io/@filee) acepta tarjetas coreanas y pagos rápidos).
 
-**Tu nombre o tu logo aquí.** Quienes apoyan cada mes aparecen aquí con su nombre, y los patrocinadores tienen su logo aquí
-y en la página Acerca de de Filee. Si apoyas con un pago único, también puedes pedir que te incluyamos.
+**Tu nombre o tu logo aquí.**
+Quienes apoyan cada mes aparecen aquí con su nombre, y los patrocinadores tienen su logo aquí y en la página Acerca de de Filee.
+Si apoyas con un pago único, también puedes pedir que te incluyamos.
 
 <!-- sponsors: src/Filee.App/Assets/Sponsors/sponsors.json -->
 
@@ -177,7 +232,8 @@ y en la página Acerca de de Filee. Si apoyas con un pago único, también puede
 
 ## Licencia
 
-MIT, © 2026 Myeonggu Kim (KnifeLemon) y colaboradores de Filee. Los componentes de terceros incluidos mantienen sus propias licencias, recogidas en [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+MIT, © 2026 Myeonggu Kim (KnifeLemon) y colaboradores de Filee.
+Los componentes de terceros incluidos mantienen sus propias licencias, recogidas en [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 <p align="center">
   <a href="https://star-history.com/#KnifeLemon/Filee&Date"><img src="https://api.star-history.com/svg?repos=KnifeLemon/Filee&type=Date" alt="Star history" width="600"></a>

@@ -1,12 +1,17 @@
 // Small square pictures of converted files for the Home page's recent conversions. Skia decodes them off the UI
 // thread, at a fraction of the picture's size where the format allows it (JPEG, WebP), from a copy of the file read in
-// one go, so the file is held open only while it is read and others may still write, rename or delete it meanwhile. A
-// small cache keeps them while the files don't change: a search lists the same conversions again at once.
+// one go, so the file is held open only while it is read and others may still write, rename or delete it meanwhile.
+// Video formats (MP4, MKV, WebM, etc.) have a representative frame extracted and scaled via FFmpeg off the UI thread
+// without locking the file. A small cache keeps them while the files don't change: a search lists the same conversions
+// again at once.
 
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Filee.Core.Formats;
 using Filee.Core.Platform;
+using Filee.Engines.Media;
 using SkiaSharp;
 
 namespace Filee.App.Services;
@@ -16,7 +21,7 @@ internal static class HistoryThumbnails
     /// <summary>Width and height in pixels: the card shows it at 42, so this is sharp up to 200 % scaling.</summary>
     public const int Size = 96;
 
-    /// <summary>Larger files are not read: the card shows their format instead.</summary>
+    /// <summary>Larger image files are not read: the card shows their format instead.</summary>
     internal const long MaxFileBytes = 64L * 1024 * 1024;
 
     /// <summary>
@@ -38,8 +43,15 @@ internal static class HistoryThumbnails
     private static readonly Dictionary<string, Entry> Cache = new(FileSystemPaths.Comparer);
     private static readonly Lock CacheLock = new();
 
-    /// <summary>Whether <paramref name="path"/> is a picture a thumbnail can be made of (by its extension only).</summary>
-    public static bool CanShow(string path) => Readable.Contains(Path.GetExtension(path).TrimStart('.'));
+    /// <summary>Whether <paramref name="path"/> is a picture or video a thumbnail can be made of (by its extension only).</summary>
+    public static bool CanShow(string path)
+    {
+        var ext = Path.GetExtension(path).TrimStart('.');
+        return Readable.Contains(ext) || IsVideo(ext);
+    }
+
+    internal static bool IsVideo(string ext) =>
+        FormatRegistry.FindByExtension(ext)?.Category == FormatCategory.Video;
 
     /// <summary>The thumbnail made last time for <paramref name="path"/>, without looking at the file.</summary>
     public static Bitmap? Cached(string path)
@@ -50,7 +62,7 @@ internal static class HistoryThumbnails
 
     /// <summary>
     /// The thumbnail of <paramref name="path"/>, from the cache while the file is unchanged. Null when the file is gone,
-    /// too large or not a picture Skia reads. Reads the disk: never call it on the UI thread.
+    /// too large or not a picture/video Filee reads. Reads the disk: never call it on the UI thread.
     /// </summary>
     public static Bitmap? Load(string path)
     {
@@ -74,8 +86,14 @@ internal static class HistoryThumbnails
                 return hit.Bitmap;
         }
 
+        var ext = Path.GetExtension(path).TrimStart('.');
+        var isVideo = IsVideo(ext);
         // A file that can't be read is remembered too, so a search doesn't try it again on every key.
-        var bitmap = length <= MaxFileBytes ? Decode(path, MaxDecodedPixels) : null;
+        // Image files larger than MaxFileBytes are skipped to conserve memory; videos are seeked by FFmpeg directly.
+        var bitmap = isVideo
+            ? (length > 0 ? DecodeVideo(path, MaxDecodedPixels) : null)
+            : (length <= MaxFileBytes ? Decode(path, MaxDecodedPixels) : null);
+
         lock (CacheLock)
         {
             if (Cache.Count >= CacheSize)
@@ -83,6 +101,86 @@ internal static class HistoryThumbnails
             Cache[path] = new Entry(written, length, bitmap);
         }
         return bitmap;
+    }
+
+    /// <summary>
+    /// Extracts a representative frame of video <paramref name="path"/> using FFmpeg, scaled directly in the filtergraph,
+    /// and decodes it into a <see cref="Size"/> square. Null when FFmpeg is unavailable, video is broken, or frame decoding fails.
+    /// </summary>
+    internal static Bitmap? DecodeVideo(string path, long maxPixels)
+    {
+        var ffmpeg = FfmpegConverter.Locate()?.Ffmpeg;
+        if (ffmpeg is null || !File.Exists(ffmpeg))
+            return null;
+
+        var temp = Path.Combine(Path.GetTempPath(), $"filee-thumb-{Guid.NewGuid():N}.jpg");
+        try
+        {
+            // One seek to 1s (or nearest keyframe) with FFmpeg scaling to min(Size, Size) to avoid huge 8K frame buffers.
+            var arguments = new[]
+            {
+                "-hide_banner",
+                "-nostdin",
+                "-v", "error",
+                "-ss", "1",
+                "-i", Path.GetFullPath(path),
+                "-frames:v", "1",
+                "-vf", $"scale={Size}:{Size}:force_original_aspect_ratio=increase,crop={Size}:{Size}",
+                "-y",
+                temp
+            };
+
+            var result = FfmpegRunner.RunBriefly(ffmpeg, arguments, TimeSpan.FromSeconds(5));
+            if (result.ExitCode != 0 || !File.Exists(temp))
+            {
+                // Trying once more without -ss when no file came out covers videos shorter than 1 s.
+                var fallbackArguments = new[]
+                {
+                    "-hide_banner",
+                    "-nostdin",
+                    "-v", "error",
+                    "-i", Path.GetFullPath(path),
+                    "-frames:v", "1",
+                    "-vf", $"scale={Size}:{Size}:force_original_aspect_ratio=increase,crop={Size}:{Size}",
+                    "-y",
+                    temp
+                };
+                result = FfmpegRunner.RunBriefly(ffmpeg, fallbackArguments, TimeSpan.FromSeconds(5));
+                if (result.ExitCode != 0 || !File.Exists(temp))
+                    return null;
+            }
+
+            using var stream = new FileStream(temp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var data = SKData.Create(stream);
+            if (data is null)
+                return null;
+
+            using var codec = SKCodec.Create(data);
+            if (codec is null || codec.Info.Width <= 0 || codec.Info.Height <= 0)
+                return null;
+
+            var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+            using var decoded = new SKBitmap(info);
+            if (codec.GetPixels(info, decoded.GetPixels()) is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+                return null;
+
+            return Square(decoded, codec.EncodedOrigin);
+        }
+        catch (Exception e) when (e is TimeoutException or InvalidOperationException or Win32Exception or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temp))
+                    File.Delete(temp);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
     }
 
     /// <summary>

@@ -56,6 +56,21 @@ public sealed class FileResult
     /// nothing, so the PDF was copied as it is), if any.
     /// </summary>
     public string? NoticeKey { get; set; }
+
+    /// <summary>Why, after the notice in brackets: a localization key (why the original was kept), or null.</summary>
+    public string? NoticeReasonKey { get; set; }
+
+    /// <summary>The system's own words after <see cref="NoticeReasonKey"/> (not localized), or null.</summary>
+    public string? NoticeDetail { get; set; }
+
+    /// <summary>"Replace the original" sent the source to the Recycle Bin / Trash (its path may now hold the result).</summary>
+    public bool OriginalInTrash { get; set; }
+
+    /// <summary>
+    /// Referenced document font families that weren't installed before rendering. Conversion still completes with the
+    /// renderer's substitutions; the UI can offer trusted sources afterwards.
+    /// </summary>
+    public IReadOnlyList<string> MissingFonts { get; set; } = [];
 }
 
 /// <summary>A batch of files converted with one preset.</summary>
@@ -66,6 +81,8 @@ public sealed class ConversionJob
     /// <param name="fetcher">Saves sources that aren't files yet before they are converted (files from a browser).</param>
     public ConversionJob(IReadOnlyList<string> sources, Preset preset, string presetDisplayName, ISourceFetcher? fetcher = null)
     {
+        // A Shapefile's .dbf, .shx, .prj, ... dropped with its .shp are part of it, not files to convert on their own.
+        sources = Formats.CompanionFiles.WithoutCompanions(sources);
         Preset = preset.Clone(); // later edits of the preset must not affect a running job
         PresetDisplayName = presetDisplayName;
         Fetcher = fetcher;

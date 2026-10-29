@@ -41,6 +41,22 @@ public sealed class SystemIntegrationTests
     }
 
     [Fact]
+    public void A_startup_entry_that_did_not_stay_shows_under_the_switch_and_is_written_again_next_time()
+    {
+        // #450: security software removing the Run entry left the switch on with nothing said.
+        var platform = new RecordingPlatform { LoseStartupEntry = true };
+        var service = Create(platform);
+        var settings = new AppSettings { StartWithSystem = true };
+        service.Apply(settings);
+        Assert.Equal("general.integration_failed: general.startup_entry_missing", service.Error);
+
+        platform.LoseStartupEntry = false;
+        service.Apply(settings);
+        Assert.Null(service.Error);
+        Assert.Equal(2, platform.StartupCalls);
+    }
+
+    [Fact]
     public void Source_builds_do_not_register_os_integration()
     {
         var platform = new RecordingPlatform();
@@ -89,7 +105,13 @@ public sealed class SystemIntegrationTests
         public int StartupCalls { get; private set; }
         public int MenuCalls { get; private set; }
         public bool FailMenu { get; set; }
-        public void SetStartWithSystem(bool enabled, string executablePath) => StartupCalls++;
+        public bool LoseStartupEntry { get; set; }
+        public void SetStartWithSystem(bool enabled, string executablePath)
+        {
+            StartupCalls++;
+            if (LoseStartupEntry)
+                throw new StartupEntryNotKeptException("gone");
+        }
         public void SetContextMenu(bool enabled, string executablePath, string label)
         {
             MenuCalls++;

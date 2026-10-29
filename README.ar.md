@@ -10,6 +10,7 @@
 <p align="center" dir="rtl">
   <a href="https://filee.sh"><b>الموقع</b></a> ·
   <a href="https://github.com/KnifeLemon/Filee/releases/latest"><b>تنزيل</b></a> ·
+  <a href="https://www.linkedin.com/company/filee-sh/"><b>LinkedIn</b></a> ·
   <a href="#التثبيت">التثبيت</a> ·
   <a href="#سطر-الأوامر">سطر الأوامر</a> ·
   <a href="#التطوير">التطوير</a>
@@ -30,15 +31,42 @@
   <a href="https://trendshift.io/repositories/276987"><img src="https://trendshift.io/api/badge/trendshift/repositories/276987/daily?language=C%23&v=2" alt="Filee: #1 C# repository of the day on Trendshift" width="250" height="55"></a>
 </p>
 
-<p align="center" dir="ltr"><a href="README.md">English</a> · <a href="README.es.md">Español</a> · <a href="README.ja.md">日本語</a> · <a href="README.ko.md">한국어</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.pl.md">Polski</a> · <a href="README.hi.md">हिन्दी</a> · <a href="README.ru.md">Русский</a> · <b>العربية</b> · <a href="README.pt-BR.md">Português (Brasil)</a></p>
+<p align="center" dir="ltr">
+  <a href="README.md">English</a> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.zh-TW.md">繁體中文</a> ·
+  <a href="README.pl.md">Polski</a> ·
+  <a href="README.hi.md">हिन्दी</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <b>العربية</b> ·
+  <a href="README.pt-BR.md">Português (Brasil)</a> ·
+  <a href="README.pt-PT.md">Português (Portugal)</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.th.md">ไทย</a> ·
+  <a href="README.tr.md">Türkçe</a>
+</p>
 
 <div dir="rtl">
 
 <table>
   <tr>
-    <td width="33%" valign="top"><b>عند المؤشر مباشرةً</b><br>لا نافذة تطبيق عليك فتحها. تظهر الصيغ حيث أنت، ولا يظهر منها إلا ما يناسب الملفات التي تسحبها.</td>
-    <td width="33%" valign="top"><b>255 صيغة دون برامج أخرى</b><br>الصور وPDF وWord وExcel وPowerPoint وHWP والكتب الإلكترونية والأرشيفات والخطوط وCAD والنماذج ثلاثية الأبعاد والبيانات الجغرافية، كلها تعمل دون Office أو Hancom Office أو LibreOffice.</td>
-    <td width="33%" valign="top"><b>يبقى على جهازك</b><br>لا يُرفع أي شيء. يعمل Filee دون اتصال بالإنترنت ويحفظ النتيجة بجانب الملف الأصلي.</td>
+    <td width="33%" valign="top">
+      <b>عند المؤشر مباشرةً</b><br>
+      لا نافذة تطبيق عليك فتحها.
+      تظهر الصيغ حيث أنت، ولا يظهر منها إلا ما يناسب الملفات التي تسحبها.
+    </td>
+    <td width="33%" valign="top">
+      <b>268 صيغة دون برامج أخرى</b><br>
+      الصور وPDF وWord وExcel وPowerPoint وHWP والكتب الإلكترونية والأرشيفات والخطوط وCAD والنماذج ثلاثية الأبعاد والبيانات الجغرافية، كلها تعمل دون Office أو Hancom Office أو LibreOffice.
+    </td>
+    <td width="33%" valign="top">
+      <b>يبقى على جهازك</b><br>
+      لا يُرفع أي شيء.
+      يعمل Filee دون اتصال بالإنترنت ويحفظ النتيجة بجانب الملف الأصلي.
+    </td>
   </tr>
 </table>
 
@@ -53,33 +81,63 @@
 
 نزّله من صفحة [الإصدارات](https://github.com/KnifeLemon/Filee/releases/latest).
 
-- **Windows 10/11**: شغّل `Filee-<version>-win-Setup.exe`، أو فكّ ضغط `win-Portable.zip` وشغّل `Filee.exe`.
-  برنامج الإعداد خاص بـ Filee، ويعمل بلغات Filee، ولا يحتاج إلى أي شيء آخر على الكمبيوتر. يمكنه إضافة قائمة مستكشف
-  الملفات، والتشغيل عند تسجيل الدخول، والأمر `filee`، والمحركات الاختيارية؛ وتقبل عمليات التثبيت الصامت مفاتيح
-  Inno Setup نفسها (`/VERYSILENT /SUPPRESSMSGBOXES`).
-- **macOS 13 أو أحدث** (إصدار تجريبي): فكّ ضغط حزمة `osx-arm64` أو `osx-x64` وشغّل `./install.sh`.
-  لم تُوثّق Apple هذا الإصدار بعد (notarization)، لذا اسمح بالتشغيل الأول من إعدادات النظام ← الخصوصية والأمن ← **فتح على أي حال**.
-- **Linux x64/ARM64** (Ubuntu 22.04 أو أحدث): فكّ ضغط الحزمة وشغّل `./install.sh` (لا يحتاج إلى root، ويحتاج إلى Python 3).
-  تعمل إيماءات السحب على X11. أما على Wayland فاستخدم منطقة الإفلات وقائمة النقر بالزر الأيمن في مدير الملفات.
+<a href="https://apps.microsoft.com/detail/XPDCN05L89WS0C?referrer=appbadge&cid=github&mode=full"><img src="https://get.microsoft.com/images/ar%20dark.svg" alt="Microsoft Store" width="200"></a>
 
-يعرض Filee الإصدارات الجديدة في قائمته ويحدّث نفسه، مع الإبقاء على إعداداتك ومحركاتك. وبعد التحديث تعرض بضع
-شرائح ما الجديد فيه.
+- **Windows 10/11**: شغّل `Filee-<version>-win-Setup.exe`، أو فكّ ضغط `win-Portable.zip` وشغّل `Filee.exe`.
+  - برنامج الإعداد خاص بـ Filee، ويعمل بلغات Filee، ولا يحتاج إلى أي شيء آخر على الكمبيوتر.
+  - يمكنه إضافة قائمة مستكشف الملفات، والتشغيل عند تسجيل الدخول، والأمر `filee`، والمحركات الاختيارية.
+  - وتقبل عمليات التثبيت الصامت مفاتيح Inno Setup نفسها (`/VERYSILENT /SUPPRESSMSGBOXES`).
+- **macOS 13 أو أحدث** (إصدار تجريبي): فكّ ضغط حزمة `osx-arm64` أو `osx-x64` وشغّل `./install.sh`.
+  - أو افتح ملف `.dmg` واسحب Filee إلى مجلد التطبيقات (يضيف `install.sh` وحده الأمر `filee`).
+  - لم تُوثّق Apple هذا الإصدار بعد (notarization)، لذا اسمح بالتشغيل الأول من إعدادات النظام ← الخصوصية والأمن ← **فتح على أي حال**.
+- **Linux x64/ARM64** (Ubuntu 22.04 أو أحدث): فكّ ضغط الحزمة وشغّل `./install.sh` (لا يحتاج إلى root، ويحتاج إلى Python 3).
+  - تعمل إيماءات السحب على X11.
+    أما على Wayland فاستخدم منطقة الإفلات وقائمة النقر بالزر الأيمن في مدير الملفات.
+
+يعرض Filee الإصدارات الجديدة في قائمته ويحدّث نفسه، مع الإبقاء على إعداداتك ومحركاتك.
+وبعد التحديث تعرض بضع شرائح ما الجديد فيه.
+
+**لا يعمل Filee على Windows (لا نافذة ولا رسالة خطأ)؟**
+يحدث هذا على Windows 10 لم يُحدَّث منذ مدة طويلة، في جهاز يدعم معالجه حماية المكدس المفروضة بالأجهزة (CET).
+يشغّل Windows هذه الحماية لكنه يفتقد جزءًا يحتاجه ‎.NET، فيتوقف Filee وبرنامج الإعداد فورًا.
+
+- **المستحسن:** ثبّت تحديثات Windows المتاحة (أحدث تحديث تراكمي).
+- **إن تعذّر التحديث:** فإيقاف الحماية لـ Filee وحده يفي بالغرض عادةً.
+  شغّل ما يلي في PowerShell بصلاحيات المسؤول:
+
+</div>
+
+```powershell
+Set-ProcessMitigation -Name Filee.exe -Disable UserShadowStack
+Set-ProcessMitigation -Name filee-cli.exe -Disable UserShadowStack
+```
+
+<div dir="rtl">
+
+افعل الشيء نفسه مع اسم ملف برنامج الإعداد (مثل `Filee-<version>-win-Setup.exe`)، أو استخدم ملف ZIP المحمول الذي يكفيه هذان السطران.
+وللتراجع، احذف هذه الإدخالات من أمن Windows ← التحكم في التطبيقات والمستعرض ← إعدادات الحماية من الاستغلال ← إعدادات البرنامج.
 
 ## الميزات
 
-- **قائمة دائرية عند المؤشر**: اضغط باستمرار على مفتاح، واسحب الملفات وأفلتها على صيغة. لا تظهر إلا الصيغ التي تناسب الملفات.
+- **قائمة دائرية عند المؤشر**: اضغط باستمرار على مفتاح، واسحب الملفات وأفلتها على صيغة.
+  لا تظهر إلا الصيغ التي تناسب الملفات.
 - **مباشرةً من المتصفح**: اسحب بالطريقة نفسها صورة أو رابط ملف أو تنزيلًا من Chrome أو Edge أو Firefox أو Safari.
-  يحفظه Filee في مجلد التنزيلات (أو يحتفظ بالملف المحوّل وحده) ثم يحوّله. تُنزَّل الروابط دون استخدام تسجيل الدخول
-  في متصفحك.
-- **شريط أدوات دائري لكل نوع ملف**، ترتّبه بالسحب والإفلات، مع إعدادات مسبقة للجودة والحجم والدقة (DPI) وصفحات PDF
-  وضغطه، والفيديو والصوت، ومجلد الحفظ وأسماء الملفات.
+  - يحفظه Filee في مجلد التنزيلات (أو يحتفظ بالملف المحوّل وحده) ثم يحوّله.
+  - تُنزَّل الروابط دون استخدام تسجيل الدخول في متصفحك.
+- **شريط أدوات دائري لكل نوع ملف**، ترتّبه بالسحب والإفلات، مع إعدادات مسبقة لما يلي:
+  - الجودة والحجم والدقة (DPI)
+  - صفحات PDF وضغطه
+  - الفيديو والصوت
+  - مجلد الحفظ وأسماء الملفات
 - **وجهان لكل قائمة دائرية**: اضغط <kbd>Tab</kbd> أو أدر عجلة الماوس أثناء فتحها لتقلبها إلى الصيغ والأدوات الأقل استخدامًا.
-- **الاقتصاص قبل التحويل**: يفتح خيار «اقتصاص» الصور واحدةً تلو الأخرى. اسحب الإطار واختر نسبة الأبعاد، فلا يُحفظ إلا ذلك الجزء.
-- **ملفات كثيرة دفعةً واحدة**، بالتوازي. ويعثر Filee تلقائيًا على مسارات التحويل متعددة الخطوات (HWP → HWPX → DOCX).
+- **الاقتصاص قبل التحويل**: يفتح خيار «اقتصاص» الصور واحدةً تلو الأخرى.
+  اسحب الإطار واختر نسبة الأبعاد، فلا يُحفظ إلا ذلك الجزء.
+- **ملفات كثيرة دفعةً واحدة**، بالتوازي.
+  ويعثر Filee تلقائيًا على مسارات التحويل متعددة الخطوات (HWP → HWPX → DOCX).
 - **مراقبة المجلدات**: يُحوَّل كل ملف يصل إلى المجلد المراقَب.
 - **التحويلات الأخيرة** في الصفحة الرئيسية، لكل نتيجة صورة مصغّرة: افتح الملف، أو افتحه باستخدام تطبيق آخر.
 - **طرق أخرى**: قائمة النقر بالزر الأيمن، واختصار لوحة المفاتيح، ومنطقة الإفلات، و[الأمر `filee`](#سطر-الأوامر).
-- مظهر فاتح وداكن، باللون المميّز وشفافية الشريط الدائري اللذين تختارهما، وباللغات: English · Español · 日本語 · 한국어 · 简体中文 · Polski · हिन्दी · Русский · العربية (من اليمين إلى اليسار) · Português (Brasil).
+- مظهر فاتح وداكن، باللون المميّز وشفافية الشريط الدائري اللذين تختارهما، وباللغات: English · Español · 日本語 · 한국어 · 简体中文 · 繁體中文 · Polski · हिन्दी · Русский · العربية (من اليمين إلى اليسار) · Português (Brasil) · Français · नेपाली · ไทย · Türkçe · Português (Portugal) · Deutsch · Italiano.
 
 ## لقطات الشاشة
 
@@ -98,28 +156,27 @@
 
 | من | إلى |
 |---|---|
-| **الصور**: JPG, PNG, WEBP, AVIF, TIFF, BMP, GIF, APNG, ICO, ICNS, JPEG XL, JPEG 2000, PSD/PSB, TGA, PPM, HEIC, QOI, DDS, PCX, MNG, CUR وغيرها؛ وللقراءة: GIMP XCF، وصور RAW من الكاميرات (CR2, CR3, NEF, ARW, DNG وغيرها)، وDICOM وOpenEXR وHDR، وJPEG XR (على Windows)، وLive Photo من iPhone (LIVP) | أيٌّ منها (HEIC⁵)، PDF، SVG (بالتتبّع)، تغيير الحجم، تدرّج رمادي؛ صور Live/Motion Photo (iPhone وAndroid) إلى الفيديو الذي تحمله (MP4, MOV⁵)، ومن فيديو إلى Live Photo (iPhone) أو Motion Photo (Android)⁵، ميزة تجريبية |
-| **الرسومات المتجهية**: SVG, SVGZ, EMF, WMF, AI · EPS, PS¹ · CDR, VSD, CGM, ODG, FODG² | PDF (متجهي)، PNG وصور أخرى، SVG ↔ SVGZ، SVG → DXF/DWG، PDF → EPS/PS¹، SVG → EMF, WMF, ODG² |
-| **PDF** | DOCX, HWPX, TXT, PNG, JPG, TIFF, CBZ، PPTX (صورة لكل صفحة)، SVG²؛ الدمج (بترتيب تختاره أولًا)، التقسيم، نطاقات الصفحات، الضغط (ملفات PDF أصغر) |
-| **المستندات**: DOCX, DOCM, DOTX, EML, Outlook MSG؛ وOFD للقراءة (الفواتير الإلكترونية والمستندات الرسمية الصينية) · DOC, ODT, FODT, OTT, RTF, WPS, WPD, Pages, ClarisWorks, MacWrite, T602 وغيرها² | PDF, DOCX, HWPX, EPUB, TXT, HTML؛ MSG → EML · ODT, FODT, OTT² |
-| **جداول البيانات**: XLSX, XLSM, XLS, XLT, ODS, CSV, TSV · OTS, FODS, Numbers, ET² | PDF, XLSX, ODS, CSV, TSV, JSON, HWPX, HTML · XLT, OTS² |
-| **العروض التقديمية**: PPTX, PPTM, POTX, POTM, PPSX · PPT, ODP, OTP, FODP, Keynote² | PDF, PNG, JPG, DOCX, HWPX · OTP² |
+| **الصور**: JPG, PNG, WEBP, AVIF, TIFF, BMP, GIF, APNG, ICO, ICNS, JPEG XL, JPEG 2000, PSD/PSB, TGA, PPM, HEIC, QOI, DDS, PCX, MNG, CUR وغيرها؛<br>وللقراءة: GIMP XCF، وصور RAW من الكاميرات (CR2, CR3, NEF, ARW, DNG وغيرها)، وDICOM وOpenEXR وHDR وFITS (صور فلكية)، وJPEG XR (على Windows)، وLive Photo من iPhone (LIVP) | أيٌّ منها (HEIC⁵)، PDF، SVG (بالتتبّع)، تغيير الحجم، تدرّج رمادي؛<br>صور Live/Motion Photo (iPhone وAndroid) إلى الفيديو الذي تحمله (MP4, MOV⁵)، ومن فيديو إلى Live Photo (iPhone) أو Motion Photo (Android)⁵، ميزة تجريبية |
+| **الرسومات المتجهية**: SVG, SVGZ, EMF, WMF, AI<br>EPS, PS¹<br>CDR, VSD, CGM, ODG, FODG² | PDF (متجهي)، PNG وصور أخرى،<br>SVG ↔ SVGZ، SVG → DXF/DWG، PDF → EPS/PS¹، SVG → EMF, WMF, ODG² |
+| **PDF** | DOCX, HWPX, TXT, PNG, JPG, TIFF, CBZ، PPTX (صورة لكل صفحة)، SVG²؛<br>الدمج (بترتيب تختاره أولًا)، التقسيم، نطاقات الصفحات، الضغط (ملفات PDF أصغر) |
+| **المستندات**: DOCX, DOCM, DOTX, EML, Outlook MSG؛<br>وOFD للقراءة (الفواتير الإلكترونية والمستندات الرسمية الصينية)<br>DOC, ODT, FODT, OTT, RTF, WPS, WPD, Pages, ClarisWorks, MacWrite, T602 وغيرها² | PDF, DOCX, HWPX, EPUB, TXT, HTML؛<br>MSG → EML<br>ODT, FODT, OTT² |
+| **جداول البيانات**: XLSX, XLSM, XLS, XLT, ODS, CSV, TSV<br>OTS, FODS, Numbers, ET² | PDF, XLSX, ODS, CSV, TSV, JSON, HWPX, HTML<br>XLT, OTS² |
+| **العروض التقديمية**: PPTX, PPTM, POTX, POTM, PPSX<br>PPT, ODP, OTP, FODP, Keynote² | PDF, PNG, JPG, DOCX, HWPX<br>OTP² |
 | **HWP**: HWP, HWPX | PDF, PNG, DOCX, HWPX ↔ HWP, TXT, Markdown, HTML |
-| **النصوص**: TXT وLOG، والشيفرة المصدرية للسكربتات (PY, PAC, BAT, COMMAND؛ تُقرأ ولا تُشغَّل أبدًا)، وMarkdown وHTML؛ وMHTML للقراءة (صفحات الويب المحفوظة) · reStructuredText, LaTeX, Org, AsciiDoc, Typst, MediaWiki, DocBook, Jupyter, Textile, man, OPML³ | TXT بترميز UTF-8، PDF, DOCX, HWPX, EPUB · فيما بينها، شرائح PPTX³ |
-| **الكتب الإلكترونية**: EPUB, KEPUB, MOBI, AZW3, AZW, AZW4, FB2, CBZ, CBR, CB7, HTMLZ, TXTZ · LIT, LRF, CHM, PDB وغيرها⁴ | PDF, EPUB، KEPUB (Kobo)، DOCX, TXT, HTML, HWPX · MOBI, AZW3⁴ |
-| **الفيديو**⁵: MP4, MOV, MKV, WEBM, AVI, WMV, FLV, MPEG، وVideo CD (DAT)، وTS, M2TS, 3GP, OGV, VOB وغيرها | MP4 (H.264, HEVC, AV1)، WEBM, MOV, MKV, AVI, GIF, APNG, MP3, M4A، دقة 720p، الترجمة (SRT, ASS, WebVTT) |
+| **النصوص**: TXT وLOG، والشيفرة المصدرية للسكربتات (PY, PAC, BAT, COMMAND؛ تُقرأ ولا تُشغَّل أبدًا)، وMarkdown وHTML؛<br>وMHTML للقراءة (صفحات الويب المحفوظة)<br>reStructuredText, LaTeX, Org, AsciiDoc, Typst, MediaWiki, DocBook, Jupyter, Textile, man, OPML³ | TXT بترميز UTF-8، PDF, DOCX, HWPX, EPUB<br>فيما بينها، شرائح PPTX³ |
+| **الكتب الإلكترونية**: EPUB, KEPUB, MOBI, AZW3, AZW, AZW4, FB2, CBZ, CBR, CB7, HTMLZ, TXTZ<br>LIT, LRF, CHM, PDB وغيرها⁴ | PDF, EPUB، KEPUB (Kobo)، DOCX, TXT, HTML, HWPX<br>MOBI, AZW3⁴ |
+| **الفيديو**⁵: MP4, MOV, MKV, WEBM, AVI, WMV, FLV, MPEG، وVideo CD (DAT)، وTS, M2TS, 3GP, OGV, VOB وغيرها | MP4 (H.264, HEVC, AV1)، WEBM, MOV, MKV, AVI, GIF, APNG, MP3, M4A، دقة 720p،<br>الترجمة (SRT, ASS, WebVTT) |
 | **الصوت**⁵: MP3, M4A, AAC, WAV, FLAC, OGG, OPUS, WMA, AIFF, AMR, APE, WavPack, TTA، وDSD (DSF, DFF)، وDTS, AC3, E-AC3 وغيرها | MP3، M4A (AAC, ALAC)، WAV, FLAC, OGG, OPUS, AAC, WavPack, TTA, W64, AC3, E-AC3 |
 | **الترجمة**: SRT, ASS/SSA, WebVTT، SAMI (SMI)، LRC, TTML, MicroDVD, SCC | فيما بينها بترميز UTF-8 (تُقرأ ملفات CP949 الكورية بشكل صحيح) |
-| **الأرشيفات**: ZIP، وANSYS Workbench (WBPZ)، و7Z, RAR, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, GZ, ISO, CAB, DMG, ALZ, EGG وغيرها | الاستخراج، ZIP, 7Z, TAR, TAR.GZ؛ وجمع أي ملفات في ZIP واحد |
+| **الأرشيفات**: ZIP، وANSYS Workbench (WBPZ)، و7Z, RAR, TAR, TAR.GZ, TAR.BZ2, TAR.XZ, GZ, ISO, CAB, DMG, ALZ, EGG وغيرها | الاستخراج، ZIP, 7Z, TAR, TAR.GZ؛<br>وجمع أي ملفات في ZIP واحد |
 | **CAD**: DWG, DXF | PDF, SVG, PNG, DWG ↔ DXF |
-| **الخطوط**: TTF, OTF, WOFF, WOFF2, EOT | فيما بينها |
-| **البيانات**: JSON, JSON Lines, YAML, TOML, XML · vCard | فيما بينها، وإلى CSV وXLSX (للجداول)؛ vCard ↔ CSV |
-| **النماذج ثلاثية الأبعاد**: GLB, glTF, STL, OBJ (+ MTL), 3MF, PLY؛ وFBX للقراءة | فيما بينها، معاينة PNG |
-| **البيانات الجغرافية المتجهية**: Shapefile, GeoJSON, KML, KMZ, GPX · ملفات CSV فيها إحداثيات | فيما بينها، وإلى CSV / XLSX / JSON؛ وتُحوَّل البيانات المُسقَطة (UTM, Web Mercator, Lambert, Albers) إلى خطوط الطول والعرض في WGS 84 |
+| **الخطوط**: TTF, OTF, WOFF, WOFF2, EOT؛<br>FON (خطوط نقطية من Windows) للقراءة | تحويل فيما بينها؛<br>FON → ملف خط واحد لكل حجم |
+| **البيانات**: JSON, JSON Lines, YAML, TOML, XML<br>vCard, iCalendar | فيما بينها، وإلى CSV وXLSX (للجداول)؛<br>vCard, iCalendar ↔ CSV |
+| **النماذج ثلاثية الأبعاد**: GLB, glTF, STL, OBJ (+ MTL), 3MF, PLY؛<br>وFBX للقراءة | فيما بينها، معاينة PNG |
+| **البيانات الجغرافية المتجهية**: Shapefile, GeoJSON, KML, KMZ, GPX<br>ملفات CSV فيها إحداثيات؛<br>وGarmin FIT للقراءة | فيما بينها، وإلى CSV / XLSX / JSON؛<br>وتُحوَّل البيانات المُسقَطة (UTM, Web Mercator, Lambert, Albers) إلى خطوط الطول والعرض في WGS 84 |
 
 الصيغ غير المعلَّمة تعمل مباشرةً، دون Office أو Hancom Office أو LibreOffice.
-أما المعلَّمة فتحتاج إلى محرك اختياري لا يُنزَّل إلا عند الحاجة: ¹ Ghostscript، ² LibreOffice، ³ Pandoc،
-⁴ calibre، ⁵ FFmpeg ([التفاصيل](docs/ENGINES.md)).
+أما المعلَّمة فتحتاج إلى محرك اختياري لا يُنزَّل إلا عند الحاجة: ¹ Ghostscript، ² LibreOffice، ³ Pandoc، ⁴ calibre، ⁵ FFmpeg ([التفاصيل](docs/ENGINES.md)).
 
 ## سطر الأوامر
 
@@ -153,27 +210,29 @@ dotnet test
 
 <div dir="rtl">
 
-[البنية](docs/ARCHITECTURE.md) · [المحركات](docs/ENGINES.md) · [إضافة محوّل](docs/ADDING-A-CONVERTER.md) ·
-[إضافة لغة](docs/ADDING-A-LANGUAGE.md) · [المساهمة](CONTRIBUTING.md)
+[البنية](docs/ARCHITECTURE.md) · [المحركات](docs/ENGINES.md) · [إضافة محوّل](docs/ADDING-A-CONVERTER.md) · [إضافة لغة](docs/ADDING-A-LANGUAGE.md) · [المساهمة](CONTRIBUTING.md)
 
-طلبات الدمج (pull requests) مرحّب بها. وإذا وفّر عليك Filee بعض النقرات، فنجمة ⭐ تساعد الآخرين على العثور عليه.
+طلبات الدمج (pull requests) مرحّب بها.
+وإذا وفّر عليك Filee بعض النقرات، فنجمة ⭐ تساعد الآخرين على العثور عليه.
 
 ## سياسة توقيع الشيفرة
 
 يطوّر Filee وينشره **Myeonggu Kim** ([KnifeLemon](https://github.com/KnifeLemon)).
-ستُوقَّع إصدارات Windows بشهادة توقيع شيفرة للمشاريع مفتوحة المصدر من [Certum](https://www.certum.eu/) صادرة باسم
-Myeonggu Kim، والشهادة قيد الإصدار.
+
+- تُوقَّع إصدارات Windows بشهادة توقيع شيفرة للمشاريع مفتوحة المصدر من [Certum](https://www.certum.eu/) صادرة باسم Myeonggu Kim.
+  - الإصدارات حتى 2.0.0 غير موقَّعة.
 
 السياسة الكاملة وسياسة الخصوصية في [README الإنجليزي](README.md#code-signing-policy).
 لا يرفع Filee ملفاتك ولا يرسل أي بيانات استخدام.
 
 ## ادعم المشروع
 
-Filee مجاني وسيبقى مجانيًا. إذا أردت دعمه، فاختر الطريقة التي تناسبك
-([Fairy](https://fairy.hada.io/@filee) يقبل البطاقات الكورية وخدمات الدفع السريع).
+Filee مجاني وسيبقى مجانيًا.
+إذا أردت دعمه، فاختر الطريقة التي تناسبك ([Fairy](https://fairy.hada.io/@filee) يقبل البطاقات الكورية وخدمات الدفع السريع).
 
-**اسمك أو شعارك هنا.** يُدرَج الداعمون الشهريون هنا بأسمائهم، ويحصل الرعاة على شعارهم هنا وفي صفحة «حول التطبيق»
-في Filee. ويمكن لمن يدعم مرة واحدة أن يطلب إدراج اسمه أيضًا.
+**اسمك أو شعارك هنا.**
+يُدرَج الداعمون الشهريون هنا بأسمائهم، ويحصل الرعاة على شعارهم هنا وفي صفحة «حول التطبيق» في Filee.
+ويمكن لمن يدعم مرة واحدة أن يطلب إدراج اسمه أيضًا.
 
 </div>
 
@@ -191,7 +250,8 @@ Filee مجاني وسيبقى مجانيًا. إذا أردت دعمه، فاخ�
 
 ## الترخيص
 
-MIT، © 2026 Myeonggu Kim (KnifeLemon) والمساهمون في Filee. تحتفظ مكونات الجهات الخارجية المضمّنة بتراخيصها الخاصة، وهي مدرجة في [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+MIT، © 2026 Myeonggu Kim (KnifeLemon) والمساهمون في Filee.
+تحتفظ مكونات الجهات الخارجية المضمّنة بتراخيصها الخاصة، وهي مدرجة في [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 </div>
 

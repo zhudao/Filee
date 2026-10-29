@@ -482,7 +482,7 @@ internal static class OmmlReader
             if (child.Name == M + "t" || child.Name == W + "t")
                 text.Append(child.Value);
             else if (child.Name == W + "sym" && int.TryParse((string?)child.Attribute(W + "char"), System.Globalization.NumberStyles.HexNumber, null, out var code))
-                text.Append((char)code);
+                text.Append(SymbolFonts.Map((string?)child.Attribute(W + "font"), code) ?? ((char)code).ToString());
         }
         Text(text.ToString(), output, style);
     }

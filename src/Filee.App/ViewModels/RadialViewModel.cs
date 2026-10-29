@@ -29,7 +29,7 @@ public sealed partial class RadialViewModel(UserDataStore store, ILocalizer loc,
     [ObservableProperty] private bool _canFlip;
 
     /// <summary>
-    /// "Tab ↻ back" / "Tab ↻ front" in the hub (with the flip key of the settings) while <see cref="CanFlip"/> and a key
+    /// "⟳ Tab back" / "⟳ Tab front" (the arrow drawn, #554) in the hub (with the flip key of the settings) while <see cref="CanFlip"/> and a key
     /// or the wheel flips; else null.
     /// </summary>
     [ObservableProperty] private string? _flipHint;
@@ -151,8 +151,11 @@ public sealed partial class RadialViewModel(UserDataStore store, ILocalizer loc,
         HitBackground = "Transparent";
         ApplyAppearance();
 
-        var profile = ProfileSelector.Select(store.Profiles, files);
-        var formats = ProfileSelector.DetectFormats(files);
+        // A Shapefile selected with its .dbf, .shx, ... picks the donut of the .shp, not the one for unknown files, and
+        // counts as one file.
+        var counted = CompanionFiles.WithoutCompanions(files);
+        var profile = ProfileSelector.Select(store.Profiles, counted);
+        var formats = ProfileSelector.DetectFormats(counted);
         // Both faces follow the same rule: a slice that can't convert these files is greyed out and says why.
         _front = BuildFace(profile?.PresetIds ?? [], formats);
         (_back, _backIds, _formats) = (null, [.. profile?.BackPresetIds ?? []], formats);
@@ -174,13 +177,13 @@ public sealed partial class RadialViewModel(UserDataStore store, ILocalizer loc,
         }
 
         CenterTitle = formats.Count == 1
-            ? loc.Format("donut.files_same", files.Count, formats[0].DisplayName)
-            : loc.Format("donut.files_mixed", files.Count);
+            ? loc.Format("donut.files_same", counted.Count, formats[0].DisplayName)
+            : loc.Format("donut.files_mixed", counted.Count);
         CenterSubtitle = clickMode ? loc["donut.close_hint"] : null;
     }
 
     /// <summary>
-    /// Shows the other face (the donut is edge-on in its flip). Returns false, changing nothing, when it has no slice
+    /// Shows the other face (at the start of the donut's flip). Returns false, changing nothing, when it has no slice
     /// for these files (<see cref="CanFlip"/>).
     /// </summary>
     public bool ToggleFace()
@@ -238,7 +241,7 @@ public sealed partial class RadialViewModel(UserDataStore store, ILocalizer loc,
             {
                 Id = p.Id,
                 // On a group's ring the group's name gives the context: "Rotate" → Left / Right / 180°.
-                Label = caption ? loc.DisplayName(p) : loc.RingName(p),
+                Label = caption ? loc.DonutName(p) : loc.RingName(p),
                 Caption = !caption ? null
                     : p.TargetFormat == BuiltInData.SameAsSource
                         ? string.Join("/", formats.Select(f => f.DisplayName).Take(2))

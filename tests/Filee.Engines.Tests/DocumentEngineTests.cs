@@ -5,6 +5,7 @@ using System.IO.Compression;
 using Filee.Core.Conversion;
 using Filee.Core.Presets;
 using Filee.Engines.Hwp;
+using Filee.Engines.Hwp.Hwpx;
 using Filee.Engines.Office;
 
 namespace Filee.Engines.Tests;
@@ -141,6 +142,57 @@ public class DocumentEngineTests(EngineFixture fx) : IClassFixture<EngineFixture
         Assert.Equal(TimeSpan.FromMinutes(2), RhwpConverter.TimeLimit(0));
         Assert.Equal(TimeSpan.FromMinutes(32), RhwpConverter.TimeLimit(1024 * 1024));
         Assert.Equal(TimeSpan.FromMinutes(60), RhwpConverter.TimeLimit(100 * 1024 * 1024)); // a hung rhwp is still stopped
+    }
+
+    [Fact]
+    public async Task Rhwp_progress_follows_the_characters_it_draws()
+    {
+        // A table cell takes hundreds of bytes of XML for a few characters, and rhwp's time goes by characters: a
+        // 65-page workbook (12.8 MB of XML, 180 000 characters) was estimated at over three hours.
+        var dir = fx.NewFolder();
+        var csv = Path.Combine(dir, "명단.csv");
+        await File.WriteAllTextAsync(csv, "이름,금액\n홍길동,\"1,000\"\nKim Lee,  7 \n", TestContext.Current.CancellationToken);
+        var hwpx = Assert.Single((await fx.ConvertAsync([csv], new Preset { TargetFormat = "hwpx" })).Outputs);
+
+        Assert.Equal(2 + 2 + 3 + 5 + 6 + 1, RhwpConverter.Characters(hwpx)); // spaces aren't drawn
+        var hwp = Path.Combine(dir, "deflated.hwp");
+        await File.WriteAllBytesAsync(hwp, new byte[1000], TestContext.Current.CancellationToken);
+        Assert.Null(RhwpConverter.Characters(hwp));
+
+        Assert.Equal(TimeSpan.FromMinutes(10.5), RhwpConverter.Typical(180_000, 12 * 1048576, direct: false));
+        Assert.Equal(TimeSpan.FromSeconds(36), RhwpConverter.Typical(180_000, 12 * 1048576, direct: true));
+        Assert.Equal(TimeSpan.FromMinutes(15), RhwpConverter.Typical(null, 1048576, direct: false)); // an HWP: by its size
+        Assert.Equal(TimeSpan.FromSeconds(1.5), RhwpConverter.Typical(10, 1000, direct: false));
+    }
+
+    [Theory]
+    [InlineData("매출.xlsx", true)]
+    [InlineData("data.CSV", true)]
+    [InlineData("old.xls", true)]
+    [InlineData("calc.ods", true)]
+    [InlineData("report.docx", false)]
+    [InlineData("form.hwpx", false)]
+    [InlineData("form.hwp", false)]
+    public void Rhwp_draws_documents_written_from_spreadsheets_with_its_direct_backend(string source, bool direct)
+    {
+        Assert.Equal(direct, RhwpConverter.UsesDirectBackend(source));
+        Assert.All(SheetDocument.SourceFormats, f => Assert.Contains(f, DocumentReaders.BuiltInFormats));
+    }
+
+    [Fact]
+    public async Task Csv_to_pdf_with_rhwp()
+    {
+        SkipUnlessAvailable("rhwp");
+        var dir = fx.NewFolder();
+        var csv = Path.Combine(dir, "재고.csv");
+        await File.WriteAllLinesAsync(csv, ["품명,수량,단가", .. Enumerable.Range(1, 120).Select(i => $"부품 {i},{i},\"{i * 1000:N0}\"")], TestContext.Current.CancellationToken);
+        Assert.Equal(["hwpx-writer", "rhwp"], fx.Catalog.CreatePlanner(["rhwp"]).Plan("csv", "pdf")!.Steps.Select(s => s.Converter.Id));
+
+        var job = await fx.ConvertAsync([csv], new Preset { TargetFormat = "pdf" });
+
+        Assert.True(job.State == JobState.Completed, string.Join("; ", job.Files.Select(f => $"{f.ErrorKey} {f.ErrorDetail}")));
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+            Assert.True(PDFtoImage.Conversion.GetPageCount(await File.ReadAllBytesAsync(job.Outputs.Single(), TestContext.Current.CancellationToken)) >= 2);
     }
 
     [Fact]

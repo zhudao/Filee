@@ -18,8 +18,16 @@ public sealed record PayloadFile(string Path, long Size, string Sha256, int Segm
 /// <param name="MarkerFolders">Folders under %LocalAppData%\Filee\engines that are all marked when it is installed.</param>
 public sealed record EngineOffer(string Id, IReadOnlyList<string> MarkerFolders, long DownloadSize, long InstalledSize, bool Suggested);
 
+/// <summary>
+/// Where the Setup program's own Authenticode signature (its certificate table) sits: the last bytes of the program,
+/// in front of the payload. Setup.exe doesn't point to it (Setup.exe carries a signature of its own at the end); the
+/// uninstaller copied out of Setup.exe points to it again, so it is signed too.
+/// </summary>
+public sealed record ProgramSignature(long Offset, int Size);
+
 /// <param name="Segments">Compressed length of each LZMA stream, one after the other in the payload.</param>
 /// <param name="LzmaProperties">The 5 bytes of LZMA properties every stream was written with (base64).</param>
+/// <param name="Signature">The Setup program's signature, when it was signed before the payload was appended.</param>
 public sealed record PayloadManifest(
     string Version,
     IReadOnlyList<PayloadFile> Files,
@@ -27,7 +35,8 @@ public sealed record PayloadManifest(
     IReadOnlyList<EngineOffer> Engines,
     string EngineMarker,
     IReadOnlyList<long> Segments,
-    string LzmaProperties)
+    string LzmaProperties,
+    ProgramSignature? Signature = null)
 {
     /// <summary>Format of the payload; a Setup refuses a payload with another one.</summary>
     public const int CurrentFormat = 1;
@@ -46,6 +55,13 @@ public sealed record PayloadManifest(
             writer.WriteString("lzmaProperties", LzmaProperties);
             writer.WriteString("compressedSha256", CompressedSha256);
             writer.WriteString("engineMarker", EngineMarker);
+            if (Signature is not null)
+            {
+                writer.WriteStartObject("programSignature");
+                writer.WriteNumber("offset", Signature.Offset);
+                writer.WriteNumber("size", Signature.Size);
+                writer.WriteEndObject();
+            }
             writer.WriteStartArray("segments");
             foreach (var segment in Segments)
                 writer.WriteNumberValue(segment);
@@ -119,6 +135,13 @@ public sealed record PayloadManifest(
                     e.GetProperty("installedSize").GetInt64(),
                     e.GetProperty("suggested").GetBoolean())).ToList()
                 : [];
+            ProgramSignature? signature = null;
+            if (root.TryGetProperty("programSignature", out var signed))
+            {
+                signature = new ProgramSignature(signed.GetProperty("offset").GetInt64(), signed.GetProperty("size").GetInt32());
+                if (signature.Offset <= 0 || signature.Size <= 0)
+                    throw new InvalidDataException("Bad program signature in the payload.");
+            }
             return new PayloadManifest(
                 root.GetProperty("version").GetString()!,
                 files,
@@ -126,7 +149,8 @@ public sealed record PayloadManifest(
                 engines,
                 root.TryGetProperty("engineMarker", out var marker) ? marker.GetString() ?? "" : "",
                 segments,
-                properties);
+                properties,
+                signature);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or NullReferenceException or FormatException)
         {

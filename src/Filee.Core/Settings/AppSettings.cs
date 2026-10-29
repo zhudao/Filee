@@ -13,6 +13,12 @@ public enum ThemeMode
     Dark,
 }
 
+public enum ThemeStyle
+{
+    Soft,
+    MaterialYou,
+}
+
 /// <summary>What closing the main window does (Settings → General).</summary>
 public enum CloseAction
 {
@@ -29,10 +35,15 @@ public enum CloseAction
 /// <summary>Look and feel.</summary>
 public sealed class ThemeSettings
 {
+    public ThemeStyle Style { get; set; } = ThemeStyle.Soft;
+
     public ThemeMode Mode { get; set; } = ThemeMode.System;
 
     /// <summary>Accent colour as <c>#RRGGBB</c>.</summary>
     public string Accent { get; set; } = "#7F77DD";
+
+    /// <summary>Active curated preset key (e.g. "mint", "peach") when a coordinated light/dark pair is used; null for custom choices.</summary>
+    public string? PresetKey { get; set; }
 
     /// <summary>Base corner radius in pixels. Larger = "softer" UI.</summary>
     public double CornerRadius { get; set; } = 16;
@@ -112,7 +123,7 @@ public sealed class DonutSettings
 public sealed class AppSettings
 {
     /// <summary>Current schema version. Increase when the format changes and add a migration.</summary>
-    public const int CurrentSchemaVersion = 32;
+    public const int CurrentSchemaVersion = 54;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -196,6 +207,9 @@ public sealed class AppSettings
     /// <summary>Set once the "Is Filee helping you?" card (GitHub star / feedback) has been shown.</summary>
     public bool FeedbackPromptShown { get; set; }
 
+    /// <summary>macOS: set once Filee has shown the system's Accessibility alert, which it shows only once (#316).</summary>
+    public bool AccessibilityPromptShown { get; set; }
+
     /// <summary>Folders whose new files are converted automatically (Settings → Watch folders).</summary>
     public List<Watching.WatchRule> WatchFolders { get; set; } = [];
 
@@ -242,6 +256,18 @@ public sealed class AppSettings
     public bool ZipGeoResults { get; set; }
 
     /// <summary>
+    /// How large Filee's windows draw everything (Theme → Window size; Ctrl + mouse wheel, Ctrl + plus / minus, Ctrl + 0):
+    /// 1 as designed, 0.7 to 1.8. A missing value (settings from before it) reads as 1, so it needs no schema step.
+    /// </summary>
+    public double UiScale { get; set; } = 1;
+
+    /// <summary>
+    /// Where the main window was when it last closed, so the next start opens it there (#586). Null until it has closed
+    /// once. A Filee from before it skips the property, so it needs no schema step.
+    /// </summary>
+    public WindowBounds? MainWindow { get; set; }
+
+    /// <summary>
     /// Returns <paramref name="preset"/> itself, or a copy with the app-wide output settings applied: it saves to
     /// <see cref="DefaultOutput"/> when the preset's location is <see cref="OutputLocation.Default"/>, and keeps the
     /// original dates when <see cref="KeepFileDates"/> is on and is saved as a ZIP when <see cref="ZipGeoResults"/> is on and the
@@ -284,6 +310,19 @@ internal sealed class IconPreferenceJsonConverter : JsonConverter<bool>
 
     public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options) =>
         writer.WriteBooleanValue(value);
+}
+
+/// <summary>
+/// A window's place (<see cref="AppSettings.MainWindow"/>): its top-left corner in screen pixels and its size in
+/// device-independent pixels, as Avalonia gives them; a part not known is null. Maximized keeps the size it had before.
+/// </summary>
+public sealed class WindowBounds
+{
+    public int? X { get; set; }
+    public int? Y { get; set; }
+    public double? Width { get; set; }
+    public double? Height { get; set; }
+    public bool Maximized { get; set; }
 }
 
 /// <summary>The save location presets set to "Default" use. Starts as "next to the source file", as before 1.4.</summary>

@@ -274,26 +274,36 @@ internal static class Program
     /// <summary>Also used by the XAML previewer.</summary>
     public static AppBuilder BuildAvaloniaApp()
     {
-        var builder = AppBuilder.Configure<App>().UsePlatformDetect();
+        var builder = AppBuilder.Configure<App>();
+#if FILEE_NATIVE_WAYLAND
+        // The native backend is only compiled into Linux builds and only used when asked for (FILEE_USE_WAYLAND=1).
+        // UseWayland configures the Wayland windowing subsystem; UseSkia registers the rendering subsystem; UseHarfBuzz provides text shaping.
+        builder = Filee.Platform.Linux.WaylandSupport.NativeWaylandRequested ? builder.UseWayland().UseSkia().UseHarfBuzz() : builder.UsePlatformDetect();
+#else
+        builder = builder.UsePlatformDetect();
+#endif
+
         if (OperatingSystem.IsMacOS())
             builder = builder.With(new MacOSPlatformOptions { ShowInDock = PreloadedStore?.Settings.ShowInDock ?? true });
         if (OperatingSystem.IsWindows())
             builder = builder.With(WindowsRendering.Options(
                 WindowsRendering.Normalize(Environment.GetEnvironmentVariable(WindowsRendering.Variable)),
                 adapters => Log.LogInformation("Graphics adapters: {Adapters}", adapters)));
+
         builder = builder
             .ConfigureFonts(fonts => fonts.AddFontCollection(new FileeFontCollection()))
 #if DEBUG
             .WithDeveloperTools()
 #endif
             .LogToTrace();
+
         AvaloniaLogForwarder.Install(Log);
         return builder;
     }
 }
 
 /// <summary>Embedded Noto fonts: <c>fonts:Filee#Noto Sans</c>, <c>#Noto Sans JP</c>, <c>#Noto Sans KR</c>,
-/// <c>#Noto Sans SC</c>, <c>#Noto Sans Devanagari</c>, <c>#Noto Sans Arabic</c>.</summary>
+/// <c>#Noto Sans SC</c>, <c>#Noto Sans Devanagari</c>, <c>#Noto Sans Arabic</c>, <c>#Noto Sans Thai</c>.</summary>
 internal sealed class FileeFontCollection() : Avalonia.Media.Fonts.EmbeddedFontCollection(
     new Uri("fonts:Filee", UriKind.Absolute),
     new Uri("avares://Filee/Assets/Fonts", UriKind.Absolute));

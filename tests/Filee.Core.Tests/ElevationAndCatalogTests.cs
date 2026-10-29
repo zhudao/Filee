@@ -45,6 +45,7 @@ public class ElevationStateTests
     }
 }
 
+// The waits are generous: on a busy CI runner the background check can take seconds just to start.
 public class CatalogBackgroundCheckTests
 {
     /// <summary>An engine whose check waits for the test, like FFmpeg answering <c>-version</c> slowly.</summary>
@@ -79,15 +80,15 @@ public class CatalogBackgroundCheckTests
         var engine = new SlowEngine { Available = true };
         var catalog = new ConverterCatalog([engine]);
         var background = catalog.CheckInBackgroundAsync();
-        Assert.True(engine.Started.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        Assert.True(engine.Started.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
 
         var asked = Task.Run(() => catalog.StatusOf(engine), TestContext.Current.CancellationToken);
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(asked.IsCompleted);
         engine.Gate.Set();
 
-        Assert.True((await asked.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)).IsAvailable);
-        await background.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.True((await asked.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken)).IsAvailable);
+        await background.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
         Assert.Equal(1, engine.Checks);
     }
 
@@ -97,13 +98,13 @@ public class CatalogBackgroundCheckTests
         var engine = new SlowEngine { Available = false };
         var catalog = new ConverterCatalog([engine]);
         var background = catalog.CheckInBackgroundAsync();
-        Assert.True(engine.Started.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        Assert.True(engine.Started.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
 
         // The user installed the engine while the first check was still running.
         engine.Available = true;
         catalog.Refresh();
         engine.Gate.Set();
-        await background.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await background.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
 
         Assert.True(catalog.StatusOf(engine).IsAvailable);
         Assert.Equal(2, engine.Checks);

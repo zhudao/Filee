@@ -450,7 +450,7 @@ internal sealed partial class DocxReader
         {
             var bullet = level.Format == "bullet";
             numbering.Levels.Add(bullet
-                ? new HNumberingLevel("DIGIT", BulletText(level.Text), level.Start, Bullet: true)
+                ? new HNumberingLevel("DIGIT", BulletText(level.Text, LevelFont(level.RPr)), level.Start, Bullet: true)
                 : new HNumberingLevel(NumberFormat(level.Format), NumberText(level.Text, level.Format), level.Start, Bullet: false));
         }
         _numberings[numId] = numbering;
@@ -485,8 +485,15 @@ internal sealed partial class DocxReader
         return new string(chars);
     }
 
-    /// <summary>Word bullets often use Symbol/Wingdings private-use code points; map them to Unicode.</summary>
-    private static string BulletText(string text) => text switch
+    /// <summary>The font of a list level's marker (w:lvl/w:rPr/w:rFonts), e.g. Wingdings for ▪ and ☐ bullets.</summary>
+    private static string? LevelFont(XElement? rPr) =>
+        rPr?.Element(W + "rFonts") is { } fonts ? Attr(fonts, "ascii") ?? Attr(fonts, "hAnsi") : null;
+
+    /// <summary>
+    /// Word bullets often use Symbol/Wingdings private-use code points; map them to Unicode, by the bullet's font
+    /// when it is a symbol font (SymbolFonts), else by the usual bullets of those fonts.
+    /// </summary>
+    private static string BulletText(string text, string? font = null) => SymbolFonts.Map(font, text) ?? text switch
     {
         "" => "●",
         "\uF0B7" or "\uF09F" => "•",

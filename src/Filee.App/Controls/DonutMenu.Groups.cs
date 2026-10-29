@@ -212,7 +212,8 @@ public sealed partial class DonutMenu
             string.Equals(KeyNames.ToHookName(key), flipKey, StringComparison.OrdinalIgnoreCase))
         {
             // Also when there is nothing to flip to: the key never does something else (Tab: move the focus).
-            Flip();
+            if (!FlipKeyFromHook)
+                Flip();
             return true;
         }
         if (!HandleKeyCore(key))
@@ -278,6 +279,7 @@ public sealed partial class DonutMenu
             return false;
         CollapseGroup();
         SetHover(current < 0 ? (step > 0 ? 0 : Count - 1) : (current + step + Count) % Count);
+        PointAtSelection();
         return true;
     }
 
@@ -325,7 +327,12 @@ public sealed partial class DonutMenu
     public void SetExternalHit(DonutHit hit, Point? at = null)
     {
         if (at is not null)
+        {
             _lastExternalAt = at; // a flip lights up what the drag rests on, on the other face
+            if (IsFlipping)
+                PointAtAngle(DonutGeometry.AngleOf(Center, at.Value),
+                    hit.Kind is DonutHitKind.Segment or DonutHitKind.SubSegment);
+        }
         TrackGroups(hit, at);
         SetExternalHighlight(hit.Kind is DonutHitKind.Segment or DonutHitKind.SubSegment ? hit.Index : -1,
             hit.Kind == DonutHitKind.Center);
@@ -386,16 +393,31 @@ public sealed partial class DonutMenu
     {
         var group = _shownExpanded;
         var children = Items![group].Children!;
-        var parentMid = DonutGeometry.MidAngle(group, Count);
-        var subSpan = SubSpanOf(children.Count);
+        DrawGroupRing(context, center, bold, regular, group, children, DonutGeometry.MidAngle(group, Count),
+            SubSpanOf(children.Count), _expand.Value, _subHover, group == _expanded,
+            _open.Length == 0 ? 1 : Math.Clamp(_open.Average(), 0, 1), false);
+    }
+
+    private void DrawOldSubRing(DrawingContext context, Point center, Typeface bold, Typeface regular)
+    {
+        var ring = _oldGroup!;
+        if (SliceFlipWidth(true, ring.Index) == 0)
+            return;
+        DrawGroupRing(context, center, bold, regular, ring.Index, ring.Children, _oldFace![ring.Index].Mid,
+            ring.Span, ring.Expansion, ring.SubHover, ring.Expanded, ring.Opening, true);
+    }
+
+    private void DrawGroupRing(DrawingContext context, Point center, Typeface bold, Typeface regular,
+        int group, IReadOnlyList<DonutItem> children, double parentMid, double subSpan, double expansion,
+        int subHover, bool expanded, double opening, bool oldFace)
+    {
         var (inner, outer) = SubRadii;
-        var t = Math.Max(0, _expand.Value);
-        var opening = _open.Length == 0 ? 1 : Math.Clamp(_open.Average(), 0, 1);
+        var t = Math.Max(0, expansion);
         // Grows outward from the group's slice: scaled about the point where it meets the donut.
         var anchor = DonutGeometry.PointAt(center, inner, parentMid);
         var scale = 0.8 + 0.2 * t;
         var transform = Matrix.CreateTranslation(-anchor.X, -anchor.Y) * Matrix.CreateScale(scale, scale) *
-                        Matrix.CreateTranslation(anchor.X, anchor.Y);
+                        Matrix.CreateTranslation(anchor.X, anchor.Y) * SliceFlipTransform(oldFace, group);
 
         using (context.PushTransform(transform))
         using (context.PushOpacity(Math.Clamp(t, 0, 1) * opening))
@@ -406,7 +428,7 @@ public sealed partial class DonutMenu
                 var mid = DonutGeometry.SubMidAngle(parentMid, k, children.Count, subSpan);
                 var wedge = CreateWedge(center, inner, outer, mid, subSpan);
                 context.DrawGeometry(WithOpacity(SliceBrush, SliceOpacity * (item.IsEnabled ? 1 : 0.55)), BorderPen(), wedge);
-                var hot = k == _subHover && group == _expanded && item.IsEnabled;
+                var hot = k == subHover && expanded && item.IsEnabled;
                 if (hot)
                     context.DrawGeometry(WithOpacity(AccentBrush, 0.82), null, wedge);
                 DrawLabel(context, item, center, (inner + outer) / 2, mid, subSpan * (inner + outer) / 2 - 8,

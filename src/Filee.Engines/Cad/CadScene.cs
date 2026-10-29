@@ -39,6 +39,12 @@ internal sealed class FillPrimitive : ScenePrimitive
     public SKColor? GradientColor { get; init; }
 
     public double GradientAngle { get; init; }
+
+    /// <summary>
+    /// A filled hatch (solid, gradient, or the tint of a pattern too dense to draw): an area, not ink like an
+    /// arrowhead or a wide polyline. Black-and-white and grayscale output shade it instead of filling it black.
+    /// </summary>
+    public bool IsArea { get; init; }
 }
 
 /// <summary>Pattern hatch lines, clipped by the hatch boundary when drawn.</summary>
@@ -96,3 +102,28 @@ internal sealed class CadScene
     /// <summary>Which space was drawn: "model" or the layout name.</summary>
     public string Space { get; set; } = "model";
 }
+
+/// <summary>A paper-space layout to print as one page: its own drawing and its viewports onto model space.</summary>
+internal sealed record LayoutSheet(string Name, CadScene Paper, IReadOnlyList<ViewportView> Viewports)
+{
+    /// <summary>What the page has to show: the layout's own drawing and every viewport's frame.</summary>
+    public Box2 Extents
+    {
+        get
+        {
+            var box = Paper.Extents;
+            foreach (var view in Viewports)
+            {
+                box.Add(new Vec2(view.Frame.MinX, view.Frame.MinY));
+                box.Add(new Vec2(view.Frame.MaxX, view.Frame.MaxY));
+            }
+            return box;
+        }
+    }
+}
+
+/// <summary>
+/// A viewport on a layout: its frame in paper units, the model-space point at its centre and how many paper units one
+/// model unit takes (the viewport's scale).
+/// </summary>
+internal readonly record struct ViewportView(Box2 Frame, Vec2 ViewCenter, double Scale);

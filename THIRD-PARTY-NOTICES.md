@@ -8,6 +8,7 @@ Each component remains under its own license.
 | Component | License | Project |
 |---|---|---|
 | Avalonia UI | MIT | https://github.com/AvaloniaUI/Avalonia |
+| NWayland (used by Avalonia.Wayland) | MIT | https://github.com/kekekeks/NWayland |
 | CommunityToolkit.Mvvm | MIT | https://github.com/CommunityToolkit/dotnet |
 | SharpHook (libuiohook) | MIT (libuiohook: GPL-3.0 with linking exception / LGPL-3.0) | https://github.com/TolikPylypchuk/SharpHook |
 | Magick.NET / ImageMagick | Apache-2.0 / ImageMagick License | https://github.com/dlemstra/Magick.NET |
@@ -78,6 +79,8 @@ Downloaded from their official release pages when the user chooses to install th
 | Microsoft Visual C++ Redistributable (for Ghostscript, conda-forge `vc14_runtime`) | Microsoft Visual C++ Redistributable license | https://github.com/conda-forge/vc-feedstock |
 | FFmpeg 9.0.2 (gyan.dev "full_build-shared" Windows build; ffmpeg.exe, ffprobe.exe and their libraries, incl. x264, x265, libvpx, LAME, Opus, Vorbis, Theora, OpenCORE AMR) | GPL-3.0-or-later (the build is configured with `--enable-gpl --enable-version3`); FFmpeg itself LGPL-2.1-or-later | https://ffmpeg.org, build: https://www.gyan.dev/ffmpeg/builds/ (source: https://github.com/GyanD/codexffmpeg) |
 | calibre (ebook-convert) | GPL-3.0 | https://calibre-ebook.com |
+| Tesseract OCR 5.4 (UB Mannheim Windows build, with Leptonica and the MinGW libraries it ships; their notices are in its `doc` folder) | Apache-2.0 (Tesseract); Leptonica BSD-2-Clause; others as listed in the build | https://github.com/tesseract-ocr/tesseract, build: https://github.com/UB-Mannheim/tesseract |
+| Tesseract language data (tessdata_fast 4.1.0), downloaded per language when used | Apache-2.0 | https://github.com/tesseract-ocr/tessdata_fast |
 
 These programs run as separate processes. Their source code is available from the linked projects.
 
@@ -102,10 +105,16 @@ app as its payload. Filee 1.x's installer was built with Inno Setup, which is no
 
 | Component | License | Project |
 |---|---|---|
-| Noto Sans, Noto Sans Arabic, Noto Sans JP, Noto Sans KR, Noto Sans SC, Noto Sans Devanagari | SIL Open Font License 1.1 | https://github.com/notofonts |
+| Noto Sans, Noto Sans Arabic, Noto Sans JP, Noto Sans KR, Noto Sans SC, Noto Sans Devanagari, Noto Sans Thai | SIL Open Font License 1.1 | https://github.com/notofonts |
 | Test fonts in `tests/Filee.Engines.Tests/Fonts` (subsets of Noto Sans and Noto Sans KR; not shipped) | SIL Open Font License 1.1 | see `OFL.txt` in that folder |
 | Material Design Icons (Pictogrammers) | Apache-2.0 | https://pictogrammers.com |
 | Simple Icons 16.35.0 (GitHub Sponsors, Patreon, Ko-fi and PayPal logos in the Sponsor window) | CC0-1.0 | https://simpleicons.org |
 
 The GitHub Sponsors, Patreon, Ko-fi and PayPal names and logos are trademarks of their owners and are used only to link
 to each service.
+
+## Documentation theme examples
+
+The optional JSON recipes in `docs/themes/` adapt palette data from Catppuccin, Nord, Dracula and VS Code's classic
+Monokai theme. Their source links, colour adjustments and copyright/license notices are in
+[docs/themes/NOTICE.md](docs/themes/NOTICE.md). These are documentation examples, not runtime dependencies.

@@ -5,7 +5,9 @@
 // writer). Container and codec choices live in MediaEncoding, the process handling in FfmpegRunner, hardware encoders
 // in HardwareVideo (options) and HardwareProbe (which one works here).
 // Live / Motion Photos (Android, iPhone) give their video when a preset asks for it (LivePhotoSource, MotionPhoto), and
-// a clip of a video becomes one (LivePhotoWriter).
+// a clip of a video becomes one (LivePhotoWriter). Clips and pictures are joined into one file by IMediaJoiner
+// (MediaJoining), and "Remove metadata" copies a file's streams without its tags. "Cut a clip" copies or encodes a part
+// of a video (CutClipAsync).
 
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
@@ -22,7 +24,7 @@ namespace Filee.Engines.Media;
 
 /// <summary>Converts video and audio files with Filee's own copy of FFmpeg.</summary>
 /// <param name="logger">Receives which hardware encoders work and why a hardware encode was redone in software.</param>
-public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter, IImageTransformer
+public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter, IImageTransformer, IMediaJoiner
 {
     private static readonly ConcurrentDictionary<string, string> Versions = new();
 
@@ -132,6 +134,8 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
 
         if (step.FrameSequence)
             return await FrameSequenceWriter.ConvertAsync(ffmpeg, step, input, info, progress, cancellationToken);
+        if (step.Preset.CutsClipOf(step.From) && MediaEncoding.VideoTargets.ContainsKey(step.To))
+            return await CutClipAsync(ffmpeg, step, input, info, progress, cancellationToken);
 
         var output = step.Output.Allocate(FormatRegistry.Get(step.To).PrimaryExtension);
         if (output is null)
@@ -146,6 +150,35 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
             : null;
 
         var media = step.Preset.Media;
+        // "Remove metadata": the streams as they are, in the same format, without tags.
+        if (media.RemoveMetadata && step.From == step.To && !still
+            && (MediaEncoding.VideoTargets.ContainsKey(step.To) || MediaEncoding.AudioTargets.ContainsKey(step.To)))
+        {
+            try
+            {
+                await RunPassesAsync(ffmpeg, [new FfmpegPass(MediaEncoding.WithoutMetadata(input, output, step.To, info), 1)], output,
+                    info.Duration, progress, cancellationToken);
+            }
+            catch
+            {
+                TryDelete(output);
+                throw;
+            }
+            progress?.Report(1);
+            return [output];
+        }
+
+        // The size limit (#553): refused before anything is encoded when not even a low bitrate fits, else one encode with
+        // the bitrate capped at what fits (MediaEncoding.ForSizeLimit), and another at that bitrate only if it missed.
+        var limit = !still && media.MaxSizeMb > 0 && MediaEncoding.VideoTargets.ContainsKey(step.To) ? SizeLimit.Bytes(media.MaxSizeMb) : 0;
+        var kbps = 0;
+        if (limit > 0)
+        {
+            (media, kbps) = MediaEncoding.ForSizeLimit(media, info, limit);
+            if (kbps == 0 && info.Duration is { TotalSeconds: > 0 })
+                throw new ConversionRefusedException("error.over_size_limit", $"{info.Duration.Value.TotalSeconds:0} s in {media.MaxSizeMb:0.##} MB");
+        }
+
         var encoders = still ? null : EncodersOf(ffmpeg);
         // Hardware encoding (preset option): the first GPU encoder that passes its test encode, if any.
         HardwareEncoder? hardware = null;
@@ -163,13 +196,17 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
             ? MediaEncoding.PlanStill(input, output, step.To, media, info)
             : MediaEncoding.Plan(input, output, step.To, media, info, step.WorkDirectory, cover, encoders, encoder, speed);
         // Throws for a missing stream before anything is written (an existing file of that name stays untouched).
-        var passes = Plan(hardware);
+        var passes = kbps > 0 ? MediaEncoding.WithMaxRate(Plan(hardware), kbps) : Plan(hardware);
         // FFmpeg reports the position in the output, which a speed change makes longer or shorter.
         var duration = still ? MediaEncoding.StillDuration : info.Duration / speed;
+        // With a size limit the first encode takes most of the bar, a second one (if needed) the rest.
+        var encoding = limit > 0 && progress is not null ? new Progress<double>(p => progress.Report(p * 0.9)) : progress;
         try
         {
             await RunWithFallbackAsync(passes, hardware, Plan,
-                planned => RunPassesAsync(ffmpeg, planned, output, duration, progress, cancellationToken), output, _logger, cancellationToken);
+                planned => RunPassesAsync(ffmpeg, planned, output, duration, encoding, cancellationToken), output, _logger, cancellationToken);
+            if (limit > 0)
+                await FitAgainAsync(ffmpeg, step, input, output, media, info, encoders, cover, limit, kbps, progress, cancellationToken);
         }
         catch
         {
@@ -178,6 +215,200 @@ public sealed partial class FfmpegConverter(ILogger? logger = null) : IConverter
             throw;
         }
 
+        progress?.Report(1);
+        return [output];
+    }
+
+    /// <summary>
+    /// The size limit (#553), after the capped encode: usually it fits. A bitrate is an average, so when it missed, the
+    /// video is encoded once more at a bitrate as much lower as it missed by, on the rest of the progress bar. Refuses
+    /// when that still doesn't fit (or the length is unknown), rather than hand over a file too large.
+    /// </summary>
+    private static async Task FitAgainAsync(string ffmpeg, ConversionStep step, string input, string output, MediaOptions fitting,
+        MediaInfo info, IReadOnlySet<string>? encoders, CoverExtras? cover, long limit, int kbps, IProgress<double>? progress,
+        CancellationToken cancellationToken)
+    {
+        var size = new FileInfo(output).Length;
+        if (size > limit && kbps > 0)
+        {
+            kbps = (int)(kbps * (double)limit / size * 0.95);
+            var again = progress is null ? null : new Progress<double>(p => progress.Report(0.9 + p * 0.1));
+            var passes = MediaEncoding.AtBitrate(MediaEncoding.Plan(input, output, step.To, fitting, info, step.WorkDirectory, cover, encoders, null, 1), kbps);
+            await RunPassesAsync(ffmpeg, passes, output, info.Duration, again, cancellationToken);
+            size = new FileInfo(output).Length;
+        }
+        if (size > limit)
+            throw new ConversionRefusedException("error.over_size_limit", SizeLimit.Describe(size, limit));
+    }
+
+    /// <remarks>
+    /// Everything that can fail before FFmpeg writes (probing, the picture limit, preparing the slides) happens first, and
+    /// nothing here deletes <paramref name="outputPath"/>: with "Overwrite" it may be the user's own file. A join that
+    /// fails or is cancelled is undone by the queue, which deletes only paths that were the job's own.
+    /// </remarks>
+    public async Task JoinAsync(IReadOnlyList<string> inputPaths, string outputPath, string format, Preset preset,
+        string workDirectory, IProgress<double>? progress, CancellationToken cancellationToken)
+    {
+        var (ffmpeg, ffprobe) = _tools ?? Locate() ?? throw new InvalidOperationException("FFmpeg was not found.");
+        var scratch = Path.Combine(workDirectory, "join-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(scratch);
+        var media = preset.Media;
+
+        List<string> args;
+        TimeSpan duration;
+        double start;
+        if (media.Slideshow)
+        {
+            var slides = await PrepareSlidesAsync(ffmpeg, inputPaths, scratch, progress, cancellationToken);
+            var encoder = MediaEncoding.VideoEncoder("mp4", "libx264", media.VideoCodec, EncodersOf(ffmpeg));
+            args = MediaJoining.Slideshow(slides, outputPath, media, encoder, scratch);
+            duration = MediaJoining.SlideshowDuration(slides.Count, media);
+            start = 0.2;
+        }
+        else
+        {
+            // Probing takes the first few percent.
+            var clips = new List<(string Path, MediaInfo Info)>();
+            for (var i = 0; i < inputPaths.Count; i++)
+            {
+                var path = Path.GetFullPath(inputPaths[i]);
+                clips.Add((path, await MediaInfo.ProbeAsync(ffprobe, path, cancellationToken)));
+                progress?.Report(0.05 * (i + 1) / inputPaths.Count);
+            }
+            duration = TimeSpan.FromSeconds(clips.Sum(c => c.Info.Duration?.TotalSeconds ?? 0));
+            start = 0.05;
+            if (format == "m4a")
+            {
+                if (clips.FirstOrDefault(c => c.Info.Audio is null && c.Info.Video is null) is { Path: { } silent })
+                    throw new InvalidOperationException($"{Path.GetFileName(silent)} has no sound.");
+                args = MediaJoining.EncodeAudio(clips, outputPath, media, scratch);
+            }
+            else if (MediaJoining.CanCopyVideos([.. clips.Select(c => c.Info)], media))
+            {
+                var list = Path.Combine(scratch, "clips.txt");
+                await File.WriteAllTextAsync(list, MediaJoining.ConcatList(clips.Select(c => c.Path)), cancellationToken);
+                args = MediaJoining.CopyVideos(list, outputPath, clips[0].Info);
+            }
+            else
+            {
+                var encoder = MediaEncoding.VideoEncoder("mp4", "libx264", media.VideoCodec, EncodersOf(ffmpeg));
+                args = MediaJoining.EncodeVideos(clips, outputPath, media, encoder, scratch);
+            }
+        }
+
+        await RunJoinPassAsync(ffmpeg, args, duration, progress, start, 1, cancellationToken);
+        if (!File.Exists(outputPath) || new FileInfo(outputPath).Length == 0)
+            throw new InvalidOperationException("FFmpeg did not write any output.");
+        progress?.Report(1);
+    }
+
+    /// <summary>Every picture fitted into the slideshow frame as a small JPEG in the work folder (a fifth of the progress).</summary>
+    private static async Task<List<string>> PrepareSlidesAsync(string ffmpeg, IReadOnlyList<string> pictures, string scratch,
+        IProgress<double>? progress, CancellationToken cancellationToken)
+    {
+        // The queue checks the number of files; a multi-page picture can still give more slides than that.
+        if (pictures.Count > MediaOptions.MaxSlides)
+            throw new ConversionRefusedException("error.too_many_pictures", $"{pictures.Count} > {MediaOptions.MaxSlides}");
+        var slides = new List<string>();
+        for (var i = 0; i < pictures.Count; i++)
+        {
+            var slide = Path.Combine(scratch, $"slide-{i + 1:D4}.jpg");
+            await RunJoinPassAsync(ffmpeg, MediaJoining.PrepareSlide(Path.GetFullPath(pictures[i]), slide,
+                MediaJoining.SlideshowWidth, MediaJoining.SlideshowHeight), null, null, 0, 0, cancellationToken);
+            slides.Add(slide);
+            progress?.Report(0.2 * (i + 1) / pictures.Count);
+        }
+        return slides;
+    }
+
+    /// <summary>Runs one join pass, mapping FFmpeg's position onto <paramref name="from"/> … <paramref name="to"/> of the progress.</summary>
+    private static async Task RunJoinPassAsync(string ffmpeg, IReadOnlyList<string> arguments, TimeSpan? duration, IProgress<double>? progress,
+        double from, double to, CancellationToken cancellationToken)
+    {
+        var total = duration?.TotalSeconds ?? 0;
+        Action<double>? onPosition = progress is null || total <= 0
+            ? null
+            : seconds => progress.Report(from + (to - from) * Math.Clamp(seconds / total, 0, 1));
+        var result = await FfmpegRunner.RunAsync(ffmpeg, arguments, onPosition, cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            var reason = FfmpegRunner.Summarize(result.StandardError);
+            throw new InvalidOperationException($"FFmpeg failed (exit code {result.ExitCode}){(reason.Length > 0 ? ": " + reason : ".")}");
+        }
+    }
+
+    /// <summary>
+    /// "Cut a clip": the clip the window made (<see cref="MediaOptions.Clip"/>, kept inside the video). One stretch as
+    /// recorded is copied as it is unless the preset asks for an exact cut (<see cref="MediaOptions.ExactCut"/>); a copy
+    /// the target can't take (a codec its container doesn't hold) is encoded exactly instead, like the preset's other
+    /// videos. Several parts, speeds, volumes, pauses or fades are encoded through one filter graph.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> CutClipAsync(string ffmpeg, ConversionStep step, string input, MediaInfo info,
+        IProgress<double>? progress, CancellationToken cancellationToken)
+    {
+        if (info.Video is null)
+            throw new InvalidOperationException("The file has no video stream.");
+        var media = step.Preset.Media;
+        var edit = media.Clip!.Clamped(info.Duration?.TotalSeconds);
+        var output = step.Output.Allocate(FormatRegistry.Get(step.To).PrimaryExtension);
+        if (output is null)
+            return [];
+        var duration = TimeSpan.FromSeconds(edit.Length);
+        if (!edit.IsPlainCut)
+        {
+            // Parts, speeds, volumes, pauses or fades: one filter graph, always encoded.
+            try
+            {
+                var pass = new FfmpegPass(MediaEncoding.ClipEditArguments(input, output, step.To, edit, media, info, EncodersOf(ffmpeg)), 1);
+                await RunPassesAsync(ffmpeg, [pass], output, duration, progress, cancellationToken);
+            }
+            catch
+            {
+                TryDelete(output);
+                throw;
+            }
+            progress?.Report(1);
+            return [output];
+        }
+
+        var clip = new ClipRange(edit.Parts[0].Start, edit.Parts[0].End);
+        try
+        {
+            if (!media.ExactCut)
+            {
+                try
+                {
+                    var copy = new FfmpegPass(MediaEncoding.ClipCopy(input, output, step.To, clip, media, info), 1);
+                    await RunPassesAsync(ffmpeg, [copy], output, duration, progress, cancellationToken);
+                    progress?.Report(1);
+                    return [output];
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException && !cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogWarning("{File}: copying the clip failed ({Reason}); encoding it instead", input, ex.Message);
+                    TryDelete(output);
+                }
+            }
+
+            var encoders = EncodersOf(ffmpeg);
+            HardwareEncoder? hardware = null;
+            if (MediaEncoding.HardwareCodec(step.To, media, info, encode: true) is { } codec)
+            {
+                var tenBit = HardwareVideo.TenBit(codec, info.Video);
+                hardware = SelectHardware is { } select
+                    ? await select(ffmpeg, codec, tenBit, encoders, cancellationToken)
+                    : await HardwareProbe.SelectAsync(ffmpeg, codec, tenBit, encoders, _logger, cancellationToken);
+            }
+            IReadOnlyList<FfmpegPass> Plan(HardwareEncoder? encoder) =>
+                MediaEncoding.Plan(input, output, step.To, media, info, step.WorkDirectory, encoders: encoders, hardware: encoder, clip: clip);
+            await RunWithFallbackAsync(Plan(hardware), hardware, Plan,
+                planned => RunPassesAsync(ffmpeg, planned, output, duration, progress, cancellationToken), output, _logger, cancellationToken);
+        }
+        catch
+        {
+            TryDelete(output);
+            throw;
+        }
         progress?.Report(1);
         return [output];
     }

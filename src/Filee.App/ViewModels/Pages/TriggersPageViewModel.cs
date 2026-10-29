@@ -267,13 +267,24 @@ public sealed partial class TriggersPageViewModel : ObservableObject, IDisposabl
     public string? PlatformNotice => _platform switch
     {
         MacOSPlatformServices => _loc["triggers.macos_permissions"],
+        // FILEE_WAYLAND_GESTURES=0 turns the GNOME bridge off; the plain Wayland notice applies then.
+        LinuxPlatformServices when OperatingSystem.IsLinux() && LinuxPlatformServices.UsesGnomePointerBridge =>
+            _loc["triggers.linux_gnome_wayland"],
         LinuxPlatformServices linux when OperatingSystem.IsLinux() && LinuxPlatformServices.IsWaylandSession =>
             _loc[linux.SupportsGlobalPointerGestures ? "triggers.linux_wayland_experimental" : "triggers.linux_wayland"],
         LinuxPlatformServices => _loc["triggers.linux_x11"],
         _ => null,
     };
     public string? HookStatus => _triggers?.Error is { } error ? HookFailure(_loc, error, _triggers.LinuxBackendMissing)
+        : _triggers?.GnomeExtensionStatus is { } gnome ? _loc[GnomeStatusKey(gnome)]
         : _triggers is null ? null : _loc[_triggers.IsRunning ? "triggers.hook_running" : "triggers.hook_stopped"];
+
+    internal static string GnomeStatusKey(GnomeBridgeStatus status) => status switch
+    {
+        GnomeBridgeStatus.Connected => "triggers.hook_running",
+        GnomeBridgeStatus.VersionMismatch => "triggers.gnome_version_mismatch",
+        _ => "triggers.gnome_waiting",
+    };
 
     /// <summary>
     /// A Linux back end that doesn't load is explained (X11 session, X libraries) instead of showing libuiohook's

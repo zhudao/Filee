@@ -103,6 +103,9 @@ public sealed class CropCanvas : Control
     private CropHandle _hoverHandle = CropHandle.None;
     private Point _dragStartPoint;
     private Rect _dragStartCrop;
+
+    // The frame being moved sits on the picture's vertical / horizontal centre line: its guide is drawn.
+    private bool _snappedX, _snappedY;
     private const double MinSizePx = 24.0;
 
     // ───── Motion: tweens evaluated against the clock at each render, so a lost frame never leaves one half done ─────
@@ -137,13 +140,13 @@ public sealed class CropCanvas : Control
     private static readonly Cursor TopRightCursor = new(StandardCursorType.TopRightCorner);
     private static readonly Cursor CrossCursor = new(StandardCursorType.Cross);
 
-    private static readonly IPen FrameShadowPen = new Pen(new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)), 4);
+    internal static readonly IPen FrameShadowPen = new Pen(new SolidColorBrush(Color.FromArgb(70, 0, 0, 0)), 4);
     private static readonly IPen GridPen = new Pen(new SolidColorBrush(Color.FromArgb(170, 255, 255, 255)), 1);
     private static readonly IPen GridShadowPen = new Pen(new SolidColorBrush(Color.FromArgb(60, 0, 0, 0)), 1);
     private static readonly IPen HandleRingPen = new Pen(Brushes.White, 2.5);
     private static readonly IBrush HandleShadowBrush = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
-    private static readonly BoxShadows PictureShadow = BoxShadows.Parse("0 10 30 0 #38000000");
-    private static readonly BoxShadows ChipShadow = BoxShadows.Parse("0 2 8 0 #26000000");
+    internal static readonly BoxShadows PictureShadow = BoxShadows.Parse("0 10 30 0 #38000000");
+    internal static readonly BoxShadows ChipShadow = BoxShadows.Parse("0 2 8 0 #26000000");
 
     private static double SafeClamp(double val, double min, double max) =>
         min > max ? Math.Clamp(val, max, min) : Math.Clamp(val, min, max);
@@ -158,9 +161,10 @@ public sealed class CropCanvas : Control
     // The picture is never mirrored, also in a right-to-left UI.
     public CropCanvas() => FlowDirection = FlowDirection.LeftToRight;
 
-    public void ResetCrop()
+    /// <summary>Starts the frame over: the whole picture, or <paramref name="frame"/> (a ratio carried from the last picture).</summary>
+    public void ResetCrop(Rect? frame = null)
     {
-        SetRect(new Rect(0, 0, 1, 1), animate: true);
+        SetRect(frame ?? new Rect(0, 0, 1, 1), animate: true);
     }
 
     public void SetAspectRatio(double ratio)
@@ -409,22 +413,25 @@ public sealed class CropCanvas : Control
             context.DrawImage(SourceImage, source, imgBounds);
 
         DrawGrid(context, crop, _grid.Value(now));
+        DrawCentreGuides(context, imgBounds);
         DrawFrame(context, crop, now);
         DrawSizeChip(context, crop, imgBounds, bounds);
     }
 
     private bool IsDark => ActualThemeVariant == ThemeVariant.Dark;
 
-    /// <summary>The backdrop: the page colour dimmed, with two soft glows of the accent colour.</summary>
-    private void DrawStage(DrawingContext context, Rect bounds)
-    {
-        if (StageBrush is { } stage)
-            context.FillRectangle(stage, bounds);
-        context.FillRectangle(new SolidColorBrush(Colors.Black, IsDark ? 0.28 : 0.06), bounds);
+    private void DrawStage(DrawingContext context, Rect bounds) => DrawStage(context, bounds, StageBrush, AccentBrush, IsDark);
 
-        if (AccentBrush is ISolidColorBrush { Color: var accent })
+    /// <summary>The backdrop: the page colour dimmed, with two soft glows of the accent colour (also the hide window's).</summary>
+    internal static void DrawStage(DrawingContext context, Rect bounds, IBrush? stageBrush, IBrush? accentBrush, bool dark)
+    {
+        if (stageBrush is { } stage)
+            context.FillRectangle(stage, bounds);
+        context.FillRectangle(new SolidColorBrush(Colors.Black, dark ? 0.28 : 0.06), bounds);
+
+        if (accentBrush is ISolidColorBrush { Color: var accent })
         {
-            var strength = IsDark ? 0.16 : 0.22;
+            var strength = dark ? 0.16 : 0.22;
             Glow(context, accent, new Point(bounds.Width * 0.12, bounds.Height * 0.10), bounds.Width * 0.45, strength);
             Glow(context, accent, new Point(bounds.Width * 0.92, bounds.Height * 0.95), bounds.Width * 0.38, strength * 0.7);
         }
@@ -460,6 +467,20 @@ public sealed class CropCanvas : Control
         }
     }
 
+    /// <summary>The picture's centre line the moved frame snapped to, across the whole picture.</summary>
+    private void DrawCentreGuides(DrawingContext context, Rect picture)
+    {
+        if (_activeHandle != CropHandle.Body || !(_snappedX || _snappedY))
+            return;
+        var pen = new Pen(AccentBrush ?? Brushes.MediumPurple, 1, DashStyle.Dash);
+        var x = Math.Round(picture.Center.X) + 0.5;
+        var y = Math.Round(picture.Center.Y) + 0.5;
+        if (_snappedX)
+            context.DrawLine(pen, new Point(x, picture.Top), new Point(x, picture.Bottom));
+        if (_snappedY)
+            context.DrawLine(pen, new Point(picture.Left, y), new Point(picture.Right, y));
+    }
+
     private void DrawFrame(DrawingContext context, Rect crop, long now)
     {
         var accent = AccentBrush ?? Brushes.MediumPurple;
@@ -480,18 +501,23 @@ public sealed class CropCanvas : Control
             if ((horizontal ? crop.Width : crop.Height) < 90)
                 continue;
             var grow = handle == _poppedHandle ? pop : 0;
-            var length = 22 + 8 * grow;
-            const double thickness = 7;
-            var c = HandlePoint(crop, handle);
-            var rect = horizontal
-                ? new Rect(c.X - length / 2, c.Y - thickness / 2, length, thickness)
-                : new Rect(c.X - thickness / 2, c.Y - length / 2, thickness, length);
-            context.DrawRectangle(HandleShadowBrush, null, new RoundedRect(rect.Translate(new Vector(0, 1)).Inflate(1.5), thickness));
-            context.DrawRectangle(accent, HandleRingPen, new RoundedRect(rect, thickness / 2));
+            DrawPill(context, accent, HandlePoint(crop, handle), horizontal, 22 + 8 * grow);
         }
     }
 
-    private static void DrawDot(DrawingContext context, IBrush accent, Point center, double radius)
+    /// <summary>A handle on the middle of an edge: a pill in the accent colour with a white ring.</summary>
+    internal static void DrawPill(DrawingContext context, IBrush accent, Point c, bool horizontal, double length)
+    {
+        const double thickness = 7;
+        var rect = horizontal
+            ? new Rect(c.X - length / 2, c.Y - thickness / 2, length, thickness)
+            : new Rect(c.X - thickness / 2, c.Y - length / 2, thickness, length);
+        context.DrawRectangle(HandleShadowBrush, null, new RoundedRect(rect.Translate(new Vector(0, 1)).Inflate(1.5), thickness));
+        context.DrawRectangle(accent, HandleRingPen, new RoundedRect(rect, thickness / 2));
+    }
+
+    /// <summary>A corner handle: a dot in the accent colour with a white ring.</summary>
+    internal static void DrawDot(DrawingContext context, IBrush accent, Point center, double radius)
     {
         context.DrawEllipse(HandleShadowBrush, null, center + new Vector(0, 1), radius + 2, radius + 2);
         context.DrawEllipse(accent, HandleRingPen, center, radius, radius);
@@ -543,12 +569,12 @@ public sealed class CropCanvas : Control
     /// </summary>
     internal static Func<long> Clock { get; set; } = Stopwatch.GetTimestamp;
 
-    private static long Now() => Clock();
+    internal static long Now() => Clock();
 
-    private static double EaseOutCubic(double t) => 1 - Math.Pow(1 - Math.Clamp(t, 0, 1), 3);
+    internal static double EaseOutCubic(double t) => 1 - Math.Pow(1 - Math.Clamp(t, 0, 1), 3);
 
     /// <summary>Overshoots a little before settling: the "squishy" grow of a handle.</summary>
-    private static double EaseOutBack(double t)
+    internal static double EaseOutBack(double t)
     {
         t = Math.Clamp(t, 0, 1);
         const double s = 1.9;
@@ -605,7 +631,7 @@ public sealed class CropCanvas : Control
     }
 
     /// <summary>A value easing from <see cref="From"/> to <see cref="To"/> over a time, read against the clock.</summary>
-    private readonly record struct Tween(double From, double To, long Start, double Seconds)
+    internal readonly record struct Tween(double From, double To, long Start, double Seconds)
     {
         public static Tween Done(double value) => new(value, value, 0, 0);
 
@@ -738,6 +764,8 @@ public sealed class CropCanvas : Control
 
             var newX = SafeClamp(_dragStartCrop.X + deltaX, imgBounds.Left, Math.Max(imgBounds.Left, imgBounds.Right - _dragStartCrop.Width));
             var newY = SafeClamp(_dragStartCrop.Y + deltaY, imgBounds.Top, Math.Max(imgBounds.Top, imgBounds.Bottom - _dragStartCrop.Height));
+            (newX, _snappedX) = CropMath.SnapToCentre(newX, _dragStartCrop.Width, imgBounds.Left, imgBounds.Right);
+            (newY, _snappedY) = CropMath.SnapToCentre(newY, _dragStartCrop.Height, imgBounds.Top, imgBounds.Bottom);
 
             SetCropFromScreen(new Rect(newX, newY, _dragStartCrop.Width, _dragStartCrop.Height), imgBounds);
             return;
@@ -897,6 +925,7 @@ public sealed class CropCanvas : Control
         {
             _dragStartPoint = pt;
             _dragStartCrop = crop;
+            _snappedX = _snappedY = false;
             e.Pointer.Capture(this);
             e.Handled = true;
             PopHandle(_activeHandle);

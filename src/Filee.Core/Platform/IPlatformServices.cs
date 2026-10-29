@@ -21,8 +21,20 @@ public interface IPlatformServices
     /// <summary>True if the window at the screen point belongs to the file manager or desktop. Coordinates are pixels on Windows/Linux and desktop points on macOS.</summary>
     bool IsFileManagerAt(int x, int y);
 
+    /// <summary>
+    /// Moves a file to the Recycle Bin / Trash, where the user can restore it (<see cref="Presets.OutputRule.ReplaceOriginal"/>),
+    /// and never deletes it for good. Null when it worked; otherwise why not, and the file is left where it is.
+    /// </summary>
+    TrashRefusal? MoveToTrash(string path) => new TrashRefusal("trash.no_recycle_bin");
+
     /// <summary>Process name (without extension) owning the window under the point, or <c>null</c>.</summary>
     string? ProcessNameAt(int x, int y);
+
+    /// <summary>
+    /// The window in front, the one keys go to: a keyboard shortcut's scope goes by it, not by what the pointer is over.
+    /// Null where the platform can't tell, and the pointer decides.
+    /// </summary>
+    ForegroundWindowInfo? GetForegroundWindow() => null;
 
     /// <summary>
     /// Names of the apps that have a window open now, as <see cref="ProcessNameAt"/> reports them, sorted, without
@@ -41,9 +53,9 @@ public interface IPlatformServices
     }
 
     /// <summary>
-    /// The existing file or folder the shortcut at <paramref name="path"/> points to (a .lnk on Windows); null for
-    /// anything else, a broken shortcut, or a platform whose shortcuts Filee doesn't follow (macOS aliases and Linux
-    /// .desktop links aren't followed yet).
+    /// The existing file or folder the shortcut at <paramref name="path"/> points to (a .lnk on Windows, a Finder
+    /// alias on macOS); null for anything else, a broken shortcut, or a platform whose shortcuts Filee doesn't follow
+    /// (Linux .desktop links aren't followed yet).
     /// </summary>
     string? ShortcutTarget(string path) => null;
 
@@ -84,7 +96,10 @@ public interface IPlatformServices
     /// <summary>True if the user asked the OS to reduce animations.</summary>
     bool PrefersReducedMotion { get; }
 
-    /// <summary>Adds or removes "start with the system".</summary>
+    /// <summary>
+    /// Adds or removes "start with the system". Throws <see cref="StartupEntryNotKeptException"/> where the platform can
+    /// tell that the entry it added didn't stay.
+    /// </summary>
     void SetStartWithSystem(bool enabled, string executablePath);
 
     /// <summary>Adds or removes the file manager context-menu entry ("Convert with Filee") and Send To shortcut.</summary>
@@ -120,6 +135,15 @@ public interface IPlatformServices
     /// </summary>
     void RaiseTopmost(nint windowHandle);
 }
+
+/// <summary>
+/// The "start with the system" entry read back after writing it was gone or different: something (security software,
+/// usually) took it away. The message is English, for the log; the UI says it in the user's language.
+/// </summary>
+public sealed class StartupEntryNotKeptException(string message) : IOException(message);
+
+/// <summary>The window in front: its process name as <see cref="IPlatformServices.ProcessNameAt"/> reports it, and whether it belongs to the file manager or desktop.</summary>
+public sealed record ForegroundWindowInfo(string? ProcessName, bool IsFileManager);
 
 /// <summary>Whether "Convert with Filee" is in the top-level Windows 11 File Explorer menu (not just "Show more options").</summary>
 public enum ModernContextMenuState
@@ -180,3 +204,9 @@ public sealed class NullPlatformServices : IPlatformServices
         System.Diagnostics.Process.Start(start)?.Dispose();
     }
 }
+
+/// <summary>
+/// Why a file wasn't moved to the Recycle Bin / Trash: a localization key (<c>trash.*</c>) and, when the system said
+/// more, its own words.
+/// </summary>
+public sealed record TrashRefusal(string ReasonKey, string? Detail = null);

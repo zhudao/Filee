@@ -13,12 +13,21 @@ on:
         type: string
         default: ''
         required: false
+      # False leaves out the macOS packages (CI pull requests that don't touch macOS, see ci.yml).
+      macos:
+        type: boolean
+        default: true
+        required: false
   workflow_dispatch:
     inputs:
       version:
         description: 'Package version (empty uses Directory.Build.props)'
         type: string
         required: false
+      macos:
+        description: 'Build and test the macOS packages too'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -100,18 +109,13 @@ jobs:
     if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
+      # The Linux packages, plus the macOS ones unless the caller leaves them out.
       matrix:
-        include:
-          - runner: ubuntu-24.04
-            rid: linux-x64
-          - runner: ubuntu-24.04-arm
-            rid: linux-arm64
-          - runner: macos-15
-            rid: osx-arm64
-          - runner: macos-15-intel
-            rid: osx-x64
+        include: ${{ fromJSON(inputs.macos == false && '[{"runner":"ubuntu-24.04","rid":"linux-x64"},{"runner":"ubuntu-24.04-arm","rid":"linux-arm64"}]' || '[{"runner":"ubuntu-24.04","rid":"linux-x64"},{"runner":"ubuntu-24.04-arm","rid":"linux-arm64"},{"runner":"macos-15","rid":"osx-arm64"},{"runner":"macos-15-intel","rid":"osx-x64"}]') }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    # macOS Intel runners take 50 minutes and more for the App tests alone (the render tests in every language), and
+    # slow ones near two hours (#540).
+    timeout-minutes: 180
     defaults:
       run:
         shell: pwsh
@@ -155,6 +159,10 @@ jobs:
           foreach ($project in $projects) {
             $testArguments = @('test', "tests/$project/$project.csproj", '--no-build', '-c', 'Release', '--logger', 'trx', '--results-directory', "TestResults/${{ matrix.rid }}",
               '--filter', 'FullyQualifiedName!=Filee.App.Tests.ExplorerMenuTests.Every_native_import_exists_in_the_dll_it_names&FullyQualifiedName!=Filee.App.Tests.ExplorerMenuTests.Reading_the_registered_package_never_throws')
+            # As on Windows, capture the running UI test and a dump if it stalls. A job timeout alone loses both.
+            if ($project -eq 'Filee.App.Tests') {
+              $testArguments += @('--blame-crash', '--blame-hang-timeout', '5m', '--logger', 'console;verbosity=normal')
+            }
             if ($IsLinux) {
               xvfb-run -a env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 dotnet @testArguments
             } else {
@@ -201,6 +209,7 @@ jobs:
           name: portable-${{ matrix.rid }}
           path: |
             Releases/*-${{ matrix.rid }}.tar.gz
+            Releases/*-${{ matrix.rid }}.dmg
             Releases/*-${{ matrix.rid }}-SHA256SUMS.txt
           if-no-files-found: error
 

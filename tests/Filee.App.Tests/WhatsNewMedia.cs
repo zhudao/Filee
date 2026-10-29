@@ -5,11 +5,13 @@
 //
 //   dotnet build tests/Filee.App.Tests
 //   tests/Filee.App.Tests/bin/Debug/net10.0/Filee.App.Tests.exe -method "Filee.App.Tests.WhatsNewMedia.*" -explicit only
+// Set FILEE_WHATSNEW_LANGUAGE=pt-PT (or pt-BR) for localized recordings; shared English recordings stay unchanged.
 //
 // Each clip is drawn on a 768 × 432 canvas (16:9, shown at 496 × 279 in the window, sharp up to 150 % scaling) in the
 // light theme. The first frame of each clip is what reduced motion shows, so every clip starts on a meaningful picture;
 // a clip that marks a better one writes it into slides.json as the slide's "poster".
 
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -60,19 +62,21 @@ public class WhatsNewMedia
     [AvaloniaFact(Explicit = true)]
     public void Generate_2_0_0()
     {
-        TestServices.EnsureInitialized("en");
-        var folder = Folder("2.0.0");
+        var language = Environment.GetEnvironmentVariable("FILEE_WHATSNEW_LANGUAGE") ?? "en";
+        Assert.Contains(language, AppLanguages.All.Select(l => l.Code));
+        TestServices.EnsureInitialized(language);
+        var folder = language == "en" ? Folder("2.0.0") : Path.Combine(Folder("2.0.0"), language);
         Directory.CreateDirectory(folder);
         var theme = AppHost.Get<ThemeService>();
         // Animations on whatever this machine prefers: every theme applied here says ReduceMotion = false, since
         // ThemeService.Apply reads the setting again.
         Motion.Set(true);
-        // Times in the history as an English reader expects them, whatever the machine's region.
+        // The recording's region, independently of the machine that generates it.
         var culture = System.Globalization.CultureInfo.CurrentCulture;
-        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("en-US");
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo(language == "en" ? "en-US" : language);
         try
         {
-            theme.Apply(new ThemeSettings { ReduceMotion = false, Mode = ThemeMode.Light }, "en");
+            theme.Apply(new ThemeSettings { ReduceMotion = false, Mode = ThemeMode.Light }, language);
             // browser.webp and flip.webp come from the demo-video generator (branch media/demo-videos: a scripted desktop
             // with a browser and a file manager). These headless versions are written only when asked for by name
             // (FILEE_WHATSNEW_ONLY=browser,flip).
@@ -81,7 +85,9 @@ public class WhatsNewMedia
             Write(folder, "formats.webp", FormatDonuts);
             Write(folder, "crop.webp", Crop);
             Write(folder, "theme.webp", () => Theme("2.0.0"));
-            Write(folder, "languages.webp", () => Languages("2.0.0"));
+            // This slide intentionally demonstrates several languages, rather than the reader's UI language.
+            if (language == "en")
+                Write(folder, "languages.webp", () => Languages("2.0.0"));
             Write(folder, "more.webp", () => More("2.0.0"));
         }
         finally
@@ -151,7 +157,7 @@ public class WhatsNewMedia
     }
 
     /// <summary>
-    /// The donut's back face (#262): the images donut with "Tab ↻ back" in the hub turns over to its back face and,
+    /// The donut's back face (#262): the images donut with "⟳ Tab back" in the hub turns over to its back face and,
     /// after a moment, to the front again.
     /// </summary>
     private static Clip DonutFlip()
@@ -165,7 +171,7 @@ public class WhatsNewMedia
             Pump(); // the back face is checked once the front is on screen
             Assert.True(vm.CanFlip);
             Settle(donut);
-            // Frame 0: the front with its "Tab ↻ back" hint.
+            // Frame 0: the front with its "⟳ Tab back" hint.
             clip.Add(Capture(window), 1600);
             for (var turn = 0; turn < 2; turn++)
             {
@@ -432,13 +438,13 @@ public class WhatsNewMedia
     private static Clip Theme(string version)
     {
         // 15 frames a second at a lower quality: every change of colour redraws the whole window.
-        var clip = new Clip { Quality = 72 };
+        var clip = new Clip { Quality = AppHost.Get<ILocalizer>().Language == "en" ? 72U : 70U };
         var store = AppHost.Get<UserDataStore>();
         var theme = AppHost.Get<ThemeService>();
         var (themeBefore, opacityBefore) = (store.Settings.Theme, store.Settings.Donut.Opacity);
         store.Settings.Theme = new ThemeSettings { ReduceMotion = false, Mode = ThemeMode.Light };
         store.Settings.Donut.Opacity = 1;
-        theme.Apply(store.Settings.Theme, "en");
+        theme.Apply(store.Settings.Theme, AppHost.Get<ILocalizer>().Language);
         var vm = new MainWindowViewModel(AppHost.Services, AppHost.Get<ILocalizer>(), AppHost.Get<UpdateService>());
         var window = new MainWindow { DataContext = vm, Width = 1080, Height = 608 };
         try
@@ -469,7 +475,7 @@ public class WhatsNewMedia
                 if (now != applied)
                 {
                     applied = now;
-                    theme.Apply(store.Settings.Theme, "en");
+                    theme.Apply(store.Settings.Theme, AppHost.Get<ILocalizer>().Language);
                 }
             });
             Avalonia.Point Middle(Control control) =>
@@ -524,7 +530,7 @@ public class WhatsNewMedia
             window.Close();
             vm.Dispose();
             (store.Settings.Theme, store.Settings.Donut.Opacity) = (themeBefore, opacityBefore);
-            theme.Apply(new ThemeSettings { ReduceMotion = false, Mode = ThemeMode.Light }, "en");
+            theme.Apply(new ThemeSettings { ReduceMotion = false, Mode = ThemeMode.Light }, AppHost.Get<ILocalizer>().Language);
         }
         return clip;
 
@@ -543,7 +549,7 @@ public class WhatsNewMedia
     private static Clip Languages(string version)
     {
         var clip = new Clip();
-        foreach (var language in new[] { "es", "hi", "ja", "ru", "ar", "pt-BR", "en", "ko", "zh-CN", "pl" })
+        foreach (var language in AppLanguages.All.Select(l => l.Code))
         {
             TestServices.EnsureInitialized(language);
             AppHost.Get<ThemeService>().Apply(new ThemeSettings { ReduceMotion = false, Mode = ThemeMode.Light }, language);
@@ -569,13 +575,16 @@ public class WhatsNewMedia
         var clip = new Clip();
         var store = AppHost.Get<UserDataStore>();
         var loc = AppHost.Get<ILocalizer>();
+        var report = loc.Language.StartsWith("pt-", StringComparison.Ordinal) ? "relatório" : "report";
+        var work = OperatingSystem.IsWindows() ? @"C:\Work" : OperatingSystem.IsMacOS() ? "/Users/demo/Documents" : "/home/demo/Documents";
+        var photos = OperatingSystem.IsWindows() ? @"C:\Photos" : OperatingSystem.IsMacOS() ? "/Users/demo/Pictures" : "/home/demo/Pictures";
         store.ClearHistory();
         store.History.AddRange(Enumerable.Range(0, store.Settings.EffectiveHistoryLimit).Select(i => new Filee.Core.History.HistoryEntry
         {
             FinishedAt = DateTime.Now.AddMinutes(-7 * i - 3),
             PresetName = i == 150 ? "PDF" : i % 3 == 0 ? "JPG" : "PNG",
             State = Filee.Core.Conversion.JobState.Completed,
-            Sources = i == 150 ? [@"C:\Work\Annual report.docx"] : [$@"C:\Photos\IMG_{4000 + i:0000}.heic"],
+            Sources = i == 150 ? [Path.Combine(work, $"{report}.docx")] : [Path.Combine(photos, $"IMG_{4000 + i:0000}.heic")],
         }));
         var profiles = store.Profiles.Select(p => p.Clone()).ToList();
         try
@@ -587,15 +596,15 @@ public class WhatsNewMedia
             Pump();
             var home = (HomePageViewModel)vm.CurrentPage!;
             // Frame 0: the old report found.
-            home.Search = "report";
+            home.Search = report;
             Pump();
             clip.Add(Capture(window, version), 1400);
             home.Search = "";
             Pump();
             clip.Add(Capture(window, version), 700);
-            foreach (var typed in new[] { "r", "re", "rep", "repo", "repor", "report" })
+            for (var length = 1; length <= report.Length; length++)
             {
-                home.Search = typed;
+                home.Search = report[..length];
                 Pump();
                 clip.Add(Capture(window, version), 160);
             }
@@ -1003,21 +1012,34 @@ public class WhatsNewMedia
                     && only.Split(',', StringSplitOptions.TrimEntries).Contains(Path.GetFileNameWithoutExtension(name), StringComparer.OrdinalIgnoreCase);
         if (onRequestOnly ? !named : !string.IsNullOrWhiteSpace(only) && !named)
             return;
+        var language = AppHost.Get<ILocalizer>().Language;
+        Console.WriteLine($"Rendering {language}: {name}");
         using (var clip = render())
         {
             var path = Path.Combine(folder, name);
             clip.WriteWebP(path);
             // The first frame next to the screenshots, for review.
-            clip.SaveFirstFrame(Path.Combine(TestServices.ScreenshotDirectory, "whatsnew-" + Path.ChangeExtension(name, ".png")));
+            clip.SaveFirstFrame(Path.Combine(TestServices.ScreenshotDirectory, $"whatsnew-{language}-" + Path.ChangeExtension(name, ".png")));
             Assert.InRange(new FileInfo(path).Length, 1, 400 * 1024);
-            if (clip.Poster is { } poster)
-                SetPoster(folder, name, poster);
+            if (language != "en" || clip.Poster is not null)
+                SetPoster(folder, name, clip.Poster ?? 0);
         }
     }
 
     /// <summary>Writes the frame a clip marked as its <c>poster</c> into the slide of slides.json that shows it.</summary>
     private static void SetPoster(string folder, string media, int frame)
     {
+        var language = AppHost.Get<ILocalizer>().Language;
+        if (language != "en")
+        {
+            var manifest = Path.Combine(Path.GetDirectoryName(folder)!, "slides.json");
+            var root = JsonNode.Parse(File.ReadAllText(manifest))!;
+            var item = root["slides"]!.AsArray().Single(s => s!["media"]!.GetValue<string>() == media)!;
+            item["localizedMedia"] ??= new JsonObject();
+            item["localizedMedia"]![language] = new JsonObject { ["media"] = $"{language}/{media}", ["poster"] = frame };
+            File.WriteAllText(manifest, root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }) + "\n");
+            return;
+        }
         var path = Path.Combine(folder, "slides.json");
         var text = File.ReadAllText(path);
         var slide = Regex.Match(text, $$"""\{[^{}]*"media": "{{Regex.Escape(media)}}"[^{}]*\}""");

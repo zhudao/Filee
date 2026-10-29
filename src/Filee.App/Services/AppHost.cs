@@ -56,7 +56,9 @@ public static class AppHost
             EngineRegistry.FindPdfMerger(sp.GetRequiredService<IReadOnlyList<IConverter>>()),
             sp.GetRequiredService<ILogger<JobQueue>>(),
             EngineRegistry.FindFileCombiner(sp.GetRequiredService<IReadOnlyList<IConverter>>()),
-            EngineRegistry.FindTiffMerger(sp.GetRequiredService<IReadOnlyList<IConverter>>())));
+            EngineRegistry.FindTiffMerger(sp.GetRequiredService<IReadOnlyList<IConverter>>()),
+            EngineRegistry.FindMediaJoiner(sp.GetRequiredService<IReadOnlyList<IConverter>>()),
+            sp.GetRequiredService<IPlatformServices>().MoveToTrash));
 
         // Files dragged from a browser with only an address are downloaded without the browser's cookies.
         services.AddSingleton(_ => new WebDownloader(userAgent: $"Filee/{typeof(AppHost).Assembly.GetName().Version?.ToString(3)}"));
@@ -64,6 +66,7 @@ public static class AppHost
         services.AddSingleton<PresetAvailability>();
         services.AddSingleton<RadialViewModel>();
         services.AddSingleton<ConversionService>();
+        services.AddSingleton<SpreadsheetPrintService>();
         services.AddSingleton<WatchFolderService>();
         services.AddSingleton<TriggerService>();
         services.AddSingleton<RadialController>();

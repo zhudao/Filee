@@ -14,6 +14,646 @@ change, a language may repeat; a language without lines shows the English ones):
 - `recommended`: bug fixes. The card shows once per version.
 - `optional`: new features only. No card, the sidebar button only.
 
+## 2.2.0
+
+<!-- update
+level: recommended
+ko: 이미지 편집: 크기·형식·회전을 그때그때 창에서 골라 변환해요
+ko: 모자이크·흐림: 사진을 공유하기 전에 이름, 얼굴, 전화번호를 가릴 수 있어요
+ko: 이미지 합치기: 신분증 앞뒷면처럼 여러 장을 위아래나 옆으로 이어 한 장으로 만들어요
+ko: 4:5나 직접 입력한 비율로 자를 수 있고, 고른 비율은 여러 장을 자르는 동안 그대로 유지돼요
+ko: 너비와 높이를 정확히 맞추거나, 짧은 변이 정한 길이가 될 때까지 키울 수 있어요
+ko: 결과 크기 제한(MB)을 정하고, 이메일·디스코드·왓츠앱·인스타그램용 프리셋을 바로 추가할 수 있어요
+ko: 홈에서 변환을 되돌리고 저장할 곳을 매번 고를 수 있으며, 창 크기와 위치를 기억해요
+ko: 분할 압축 파일(.001), .dav·.m4s 동영상, .fon 글꼴, 가민 FIT, .ini·.sql 파일까지 모두 268가지 형식을 지원해요
+ko: DWG·DXF를 흑백이나 회색조로 바꿀 수 있고, 독일어를 지원해요
+ko: calibre 변환이 10분 만에 멈추던 문제, 변환 중 마우스가 끊기던 문제, OCR한 중국어 글자 사이에 공백이 생기던 문제를 고쳤어요
+ko: AppData를 다른 드라이브로 옮기면 엔진이 설치되지 않던 문제, macOS 전체 화면 앱 위에 원형 툴바가 뜨지 않던 문제 등을 고쳤어요
+en: Edit pictures: choose the size, format and rotation in a window each time
+en: Pixelate / blur: hide names, faces and phone numbers in a picture before you share it
+en: Merge images: pictures one under another or side by side, like both sides of an ID card
+en: Crop at 4:5 or a ratio you type, kept for the whole batch
+en: Resize to an exact width and height, or enlarge pictures to a minimum short edge
+en: A size limit in MB, and ready-made presets for email, Discord, WhatsApp and Instagram
+en: Undo a conversion on Home, choose where to save each time, and the window remembers its size and place
+en: Split archives (.001), .dav and .m4s videos, .fon fonts, Garmin FIT, .ini and .sql files: 268 formats in all
+en: DWG and DXF in black and white or grayscale, and Filee in German
+en: Fixed long calibre conversions stopping after 10 minutes, a stuttering mouse while converting, and spaces in Chinese OCR text
+en: Fixed engines not installing when AppData is on another drive, the donut missing over full-screen apps on macOS, and more
+zh: 编辑图片：每次在窗口中选择尺寸、格式和旋转方向
+zh: 马赛克/模糊：分享前遮住图片中的姓名、面孔和电话号码
+zh: 合并图片：把多张图片上下或左右拼成一张，比如身份证的正反面
+zh: 可按 4:5 或自己输入的比例裁剪，整批图片沿用同一比例
+zh: 可以缩放到指定的宽度和高度，或把图片放大到短边达到设定的最小值
+zh: 可设置大小上限（MB），并提供适用于电子邮件、Discord、WhatsApp 和 Instagram 的现成预设
+zh: 可在首页撤销转换、每次选择保存位置，窗口也会记住大小和位置
+zh: 支持分卷压缩包（.001）、.dav 和 .m4s 视频、.fon 字体、Garmin FIT、.ini 和 .sql 文件，共 268 种格式
+zh: DWG 和 DXF 可转为黑白或灰度，新增德语界面
+zh: 修复了 calibre 长时间转换 10 分钟后被中止、转换时鼠标卡顿、OCR 识别的中文字之间多出空格等问题
+zh: 修复了 AppData 移到其他驱动器后引擎无法安装、macOS 上环形工具栏不显示在全屏应用上方等问题
+pl: Edytuj obrazy: rozmiar, format i obrót wybierasz za każdym razem w oknie
+pl: Pikselizacja / rozmycie: ukryj nazwiska, twarze i numery telefonów na obrazie, zanim go udostępnisz
+pl: Połącz obrazy: zdjęcia jedno pod drugim lub obok siebie, np. obie strony dowodu osobistego
+pl: Kadrowanie w proporcjach 4:5 lub wpisanych przez siebie, zachowanych dla całej partii
+pl: Zmiana rozmiaru na dokładną szerokość i wysokość albo powiększenie do minimalnego krótszego boku
+pl: Limit rozmiaru w MB i gotowe ustawienia do e-maila, Discorda, WhatsAppa i Instagrama
+pl: Cofanie konwersji na stronie Start, wybór miejsca zapisu za każdym razem, a okno pamięta swój rozmiar i położenie
+pl: Archiwa dzielone (.001), wideo .dav i .m4s, czcionki .fon, Garmin FIT, pliki .ini i .sql: łącznie 268 formatów
+pl: DWG i DXF w czerni i bieli lub w skali szarości oraz język niemiecki
+pl: Poprawiono przerywanie długich konwersji calibre po 10 minutach, zacinanie się myszy podczas konwersji i spacje w chińskim tekście z OCR
+pl: Poprawiono instalację silników, gdy AppData jest na innym dysku, brak paska-pierścienia nad aplikacjami pełnoekranowymi w macOS i więcej
+es: Editar imágenes: elige el tamaño, el formato y el giro en una ventana cada vez
+es: Pixelar / difuminar: oculta nombres, caras y números de teléfono de una imagen antes de compartirla
+es: Unir imágenes: fotos una debajo de otra o una al lado de otra, como las dos caras de un documento de identidad
+es: Recorta en 4:5 o en la proporción que escribas, y se mantiene para todo el lote
+es: Cambia el tamaño a un ancho y un alto exactos, o amplía las imágenes hasta un lado corto mínimo
+es: Un límite de tamaño en MB y ajustes listos para correo, Discord, WhatsApp e Instagram
+es: Deshaz una conversión desde Inicio, elige dónde guardar cada vez, y la ventana recuerda su tamaño y posición
+es: Archivos divididos (.001), vídeos .dav y .m4s, fuentes .fon, Garmin FIT, archivos .ini y .sql: 268 formatos en total
+es: DWG y DXF en blanco y negro o escala de grises, y Filee en alemán
+es: Corregidas las conversiones largas de calibre que se cortaban a los 10 minutos, los tirones del ratón al convertir y los espacios en el texto chino del OCR
+es: Corregidos los motores que no se instalaban con AppData en otra unidad, el menú circular que no salía sobre apps a pantalla completa en macOS, y más
+hi: इमेज संपादित करें: हर बार एक विंडो में आकार, फ़ॉर्मैट और घुमाव चुनें
+hi: पिक्सलेट / धुंधला: शेयर करने से पहले तस्वीर में नाम, चेहरे और फ़ोन नंबर छिपाएँ
+hi: तस्वीरें जोड़ें: कई तस्वीरें ऊपर-नीचे या अगल-बगल एक में, जैसे पहचान पत्र के दोनों तरफ़
+hi: 4:5 या अपने लिखे अनुपात में क्रॉप करें, जो पूरे बैच में बना रहता है
+hi: ठीक-ठीक चौड़ाई और ऊँचाई पर आकार बदलें, या छोटी भुजा को न्यूनतम लंबाई तक बड़ा करें
+hi: MB में आकार सीमा, और ईमेल, Discord, WhatsApp और Instagram के लिए तैयार प्रीसेट
+hi: होम पर रूपांतरण पूर्ववत करें, हर बार सहेजने की जगह चुनें, और विंडो अपना आकार और जगह याद रखती है
+hi: स्प्लिट आर्काइव (.001), .dav और .m4s वीडियो, .fon फ़ॉन्ट, Garmin FIT, .ini और .sql फ़ाइलें: कुल 268 फ़ॉर्मैट
+hi: DWG और DXF श्वेत-श्याम या ग्रेस्केल में, और जर्मन भाषा
+hi: calibre के लंबे रूपांतरण का 10 मिनट में रुक जाना, रूपांतरण के दौरान माउस का अटकना और OCR के चीनी टेक्स्ट में खाली जगहें ठीक की गईं
+hi: AppData दूसरी ड्राइव पर होने पर इंजन इंस्टॉल न होना, macOS पर फ़ुल-स्क्रीन ऐप के ऊपर डोनट न दिखना और कई गड़बड़ियाँ ठीक की गईं
+ja: 画像を編集：サイズ・形式・回転をその都度ウィンドウで選べます
+ja: モザイク・ぼかし：共有する前に、画像の名前や顔、電話番号を隠せます
+ja: 画像を結合：身分証の表と裏のように、複数の画像を縦や横につないで 1 枚にできます
+ja: 4:5 や自分で入力した比率でトリミングでき、選んだ比率はまとめて処理する間ずっと保たれます
+ja: 幅と高さを指定してサイズを変えたり、短辺が指定の長さになるまで拡大したりできます
+ja: サイズ上限（MB）を設定でき、メール・Discord・WhatsApp・Instagram 向けのプリセットもすぐ追加できます
+ja: ホームで変換を元に戻せ、保存先を毎回選べるほか、ウィンドウのサイズと位置も記憶されます
+ja: 分割アーカイブ（.001）、.dav・.m4s 動画、.fon フォント、Garmin FIT、.ini・.sql ファイルなど、全部で 268 形式に対応しました
+ja: DWG・DXF を白黒やグレースケールで出力でき、ドイツ語に対応しました
+ja: calibre の長い変換が 10 分で止まる問題、変換中にマウスが引っかかる問題、OCR した中国語の文字の間に空白が入る問題を修正しました
+ja: AppData を別のドライブに移すとエンジンをインストールできない問題、macOS で全画面アプリの上にドーナツメニューが出ない問題などを修正しました
+ru: Изменить изображения: размер, формат и поворот выбираются в окне каждый раз
+ru: Пикселизация / размытие: скройте имена, лица и номера телефонов на картинке, прежде чем ею поделиться
+ru: Объединить изображения: картинки одна под другой или рядом, например обе стороны удостоверения
+ru: Обрезка в 4:5 или в своём соотношении, которое сохраняется для всей пачки файлов
+ru: Точные ширина и высота или увеличение до минимальной короткой стороны
+ru: Предел размера в МБ и готовые пресеты для почты, Discord, WhatsApp и Instagram
+ru: Отмена конвертации на Главной, выбор места сохранения каждый раз, а окно запоминает свой размер и положение
+ru: Многотомные архивы (.001), видео .dav и .m4s, шрифты .fon, Garmin FIT, файлы .ini и .sql: всего 268 форматов
+ru: DWG и DXF в чёрно-белом виде или в оттенках серого, а также немецкий язык
+ru: Исправлены остановка долгих конвертаций calibre через 10 минут, подёргивание мыши во время конвертации и пробелы в китайском тексте после OCR
+ru: Исправлены установка движков, когда AppData на другом диске, круговое меню поверх полноэкранных приложений в macOS и другое
+ar: تعديل الصور: اختر الحجم والصيغة والتدوير في نافذة في كل مرة
+ar: بكسلة / تمويه: أخفِ الأسماء والوجوه وأرقام الهواتف في الصورة قبل مشاركتها
+ar: دمج الصور: صور فوق بعضها أو جنبًا إلى جنب، مثل وجهَي بطاقة الهوية
+ar: الاقتصاص بنسبة 4:5 أو بنسبة تكتبها بنفسك، وتبقى النسبة للدفعة كلها
+ar: تغيير الحجم إلى عرض وارتفاع محددين، أو تكبير الصور حتى حد أدنى للضلع الأقصر
+ar: حد للحجم بالميغابايت، وإعدادات جاهزة للبريد الإلكتروني وDiscord وWhatsApp وInstagram
+ar: التراجع عن تحويل من الرئيسية، واختيار مكان الحفظ في كل مرة، وتتذكر النافذة حجمها وموضعها
+ar: الأرشيفات المجزأة (.001) وفيديو .dav و.m4s وخطوط .fon وGarmin FIT وملفات .ini و.sql: 268 صيغة في المجموع
+ar: DWG وDXF بالأبيض والأسود أو بتدرّج رمادي، واللغة الألمانية
+ar: إصلاح توقف تحويلات calibre الطويلة بعد 10 دقائق، وتقطّع حركة الفأرة أثناء التحويل، والمسافات في النص الصيني بعد OCR
+ar: إصلاح تعذّر تثبيت المحركات عندما يكون AppData على محرك أقراص آخر، وعدم ظهور الشريط الدائري فوق التطبيقات بملء الشاشة في macOS، وغير ذلك
+pt-BR: Editar imagens: escolha o tamanho, o formato e a rotação em uma janela toda vez
+pt-BR: Pixelizar / desfocar: esconda nomes, rostos e números de telefone de uma imagem antes de compartilhá-la
+pt-BR: Juntar imagens: fotos uma embaixo da outra ou lado a lado, como a frente e o verso de um documento
+pt-BR: Recorte em 4:5 ou na proporção que você digitar, mantida para o lote inteiro
+pt-BR: Redimensione para largura e altura exatas, ou amplie imagens até um lado menor mínimo
+pt-BR: Um limite de tamanho em MB e predefinições prontas para e-mail, Discord, WhatsApp e Instagram
+pt-BR: Desfaça uma conversão no Início, escolha onde salvar toda vez, e a janela lembra o tamanho e a posição
+pt-BR: Arquivos divididos (.001), vídeos .dav e .m4s, fontes .fon, Garmin FIT, arquivos .ini e .sql: 268 formatos no total
+pt-BR: DWG e DXF em preto e branco ou tons de cinza, e o Filee em alemão
+pt-BR: Corrigidos conversões longas do calibre interrompidas após 10 minutos, o mouse travando durante a conversão e espaços no texto chinês do OCR
+pt-BR: Corrigidos motores que não instalavam com o AppData em outra unidade, o menu circular sumido sobre apps em tela cheia no macOS, e mais
+de: Bilder bearbeiten: Größe, Format und Drehung jedes Mal in einem Fenster wählen
+de: Verpixeln / Weichzeichnen: Namen, Gesichter und Telefonnummern in einem Bild verdecken, bevor du es teilst
+de: Bilder zusammenführen: Bilder unter- oder nebeneinander, etwa Vorder- und Rückseite eines Ausweises
+de: Zuschneiden im Verhältnis 4:5 oder einem eigenen, das für den ganzen Stapel gilt
+de: Auf genaue Breite und Höhe skalieren oder Bilder bis zu einer Mindestlänge der kurzen Kante vergrößern
+de: Ein Größenlimit in MB und fertige Vorlagen für E-Mail, Discord, WhatsApp und Instagram
+de: Konvertierungen auf der Startseite rückgängig machen, den Speicherort jedes Mal wählen, und das Fenster merkt sich Größe und Position
+de: Geteilte Archive (.001), .dav- und .m4s-Videos, .fon-Schriften, Garmin FIT, .ini- und .sql-Dateien: insgesamt 268 Formate
+de: DWG und DXF in Schwarzweiß oder Graustufen, und Filee spricht jetzt Deutsch
+de: Behoben: lange calibre-Konvertierungen brachen nach 10 Minuten ab, die Maus ruckelte beim Konvertieren, Leerzeichen in chinesischem OCR-Text
+de: Behoben: Module ließen sich nicht installieren, wenn AppData auf einem anderen Laufwerk liegt, das Ringmenü fehlte über Vollbild-Apps unter macOS, und mehr
+th: แก้ไขรูปภาพ: เลือกขนาด ฟอร์แมต และการหมุนในหน้าต่างได้ทุกครั้ง
+th: โมเสก / เบลอ: ซ่อนชื่อ ใบหน้า และเบอร์โทรศัพท์ในรูปก่อนแชร์
+th: รวมรูปภาพ: ต่อหลายรูปเป็นรูปเดียวแบบบนลงล่างหรือเรียงข้างกัน เช่น ด้านหน้าและด้านหลังของบัตรประชาชน
+th: ครอบตัดในอัตราส่วน 4:5 หรืออัตราส่วนที่พิมพ์เอง และใช้อัตราส่วนเดิมกับรูปทั้งชุด
+th: ปรับขนาดเป็นความกว้างและความสูงที่ระบุ หรือขยายรูปจนด้านที่สั้นที่สุดยาวถึงค่าขั้นต่ำ
+th: กำหนดขนาดสูงสุดเป็น MB และมีพรีเซ็ตสำเร็จรูปสำหรับอีเมล Discord WhatsApp และ Instagram
+th: เลิกทำการแปลงได้จากหน้าแรก เลือกที่บันทึกได้ทุกครั้ง และหน้าต่างจำขนาดและตำแหน่งไว้
+th: ไฟล์บีบอัดแบบแบ่งส่วน (.001) วิดีโอ .dav และ .m4s ฟอนต์ .fon ไฟล์ Garmin FIT ไฟล์ .ini และ .sql รวมทั้งหมด 268 ฟอร์แมต
+th: แปลง DWG และ DXF เป็นขาวดำหรือระดับสีเทาได้ และรองรับภาษาเยอรมัน
+th: แก้ปัญหาการแปลงด้วย calibre ที่ใช้เวลานานถูกหยุดหลัง 10 นาที เมาส์กระตุกระหว่างแปลง และมีช่องว่างแทรกในข้อความภาษาจีนจาก OCR
+th: แก้ปัญหาติดตั้งเครื่องมือแปลงไฟล์ไม่ได้เมื่อ AppData อยู่บนไดรฟ์อื่น แถบโดนัทไม่แสดงเหนือแอปแบบเต็มจอบน macOS และอื่น ๆ
+tr: Görselleri düzenle: boyutu, biçimi ve döndürmeyi her seferinde bir pencerede seçin
+tr: Pikselleştir / bulanıklaştır: paylaşmadan önce görseldeki adları, yüzleri ve telefon numaralarını gizleyin
+tr: Görselleri birleştir: kimlik kartının iki yüzü gibi görselleri alt alta ya da yan yana tek görselde toplayın
+tr: 4:5 ya da kendi yazdığınız bir oranla kırpın; seçtiğiniz oran tüm toplu işlem boyunca korunur
+tr: Tam bir genişlik ve yüksekliğe boyutlandırın ya da görselleri kısa kenar alt sınırına kadar büyütün
+tr: MB cinsinden boyut sınırı ve e-posta, Discord, WhatsApp ve Instagram için hazır ön ayarlar
+tr: Ana sayfada bir dönüştürmeyi geri alın, kayıt yerini her seferinde seçin; pencere de boyutunu ve konumunu hatırlar
+tr: Parçalı arşivler (.001), .dav ve .m4s videolar, .fon yazı tipleri, Garmin FIT, .ini ve .sql dosyaları: toplam 268 biçim
+tr: DWG ve DXF siyah beyaz ya da gri tonlamalı dönüştürülebilir, Almanca dil desteği eklendi
+tr: calibre'nin uzun dönüştürmelerinin 10 dakikada durması, dönüştürme sırasında farenin takılması ve OCR'li Çince metindeki boşluklar düzeltildi
+tr: AppData başka bir sürücüdeyken dönüştürme motorlarının kurulamaması, macOS'ta tam ekran uygulamaların üstünde halka araç çubuğunun görünmemesi ve daha fazlası düzeltildi
+-->
+
+### New
+
+- **Edit pictures** (issue #584). A new slice on the front of the images donut, after Half size, opens the pictures you
+  drop on it in a small window: **Convert to** (the same format, PNG, JPG, WEBP, AVIF, HEIC once FFmpeg is downloaded,
+  GIF, BMP, TIFF or ICO), **Resize** (original size, percent, long edge or width, with the first picture's size before
+  and after), **Rotate**, **Flip**, **Grayscale**, and **Quality** for JPG, WEBP, AVIF and HEIC. Enter converts, Esc
+  closes. The results are ordinary conversions named `{name}_edited`, and the window opens with your last choices next
+  time. Kept in the same format, a picture Filee can only read (camera RAW, DICOM …) is written as PNG. The window
+  doesn't offer the new exact width × height or minimum short edge; those are in the preset editor. An updated library
+  gets the slice after Half size when that slice is still on the front and the front has room.
+- **Pixelate / blur.** The slice after Edit pictures covers parts of a picture (names, faces, phone numbers in a
+  screenshot) before you share it. Drag on the picture to draw a frame, as many as you need, and move or size them as
+  in the Crop window. Choose **Pixelate** or **Blur** and a strength. **Enter** saves, **Esc** closes, **Delete**
+  removes the selected frame, **R** clears them all, **P** / **B** switch the cover, **+** / **−** change the strength,
+  and Ctrl+Z / Ctrl+Y undo and redo. With several pictures, **Hide & Next** and **Skip** go through them, and the
+  frames carry on to the next picture. Each picture is saved as `{name}_hidden` in its own format (PNG for one Filee can
+  only read). The covered parts can't be brought back from the result: pixelate averages squares and blur averages
+  before it blurs, both at least 2 % of the picture's shorter side, and the small previews a file keeps of the original
+  (EXIF thumbnail, Photoshop and XMP previews) are removed. Animated and multi-page pictures can't be opened. An
+  updated library gets it on the front when there's room, else at the end of the back face.
+- **Merge images** (issue #645). Several pictures become one, one under another or side by side: the front and back of
+  an ID card as one JPG to upload. Drop two or more pictures on the slice and the merge order window opens with a
+  layout card: **Top to bottom** or **Side by side**, **Same width** (**Same height**) so the edges line up, a **Gap**
+  in pixels, and a **Background** colour or **Transparent** (white for JPG). Your choices are kept in the preset. The
+  result is named after the first picture, `{name}_merged`, in its format (PNG when Filee can only read it), and the
+  preset's resize, quality and size limit apply to it. A merge over 200 megapixels is refused with its size. The slice
+  is on the back of the images donut before Merge PDF, in GIF's place; GIF stays in the preset list and on the video
+  donut. An updated library gets it in a free slot of that face, else in GIF's place, unless you laid the face out
+  without GIF.
+- **Crop** (issue #542, by @cre8ive-marketing). The aspect dial has a **5:4** slice, which is **4:5** (Instagram's
+  portrait size) on an upright picture, and a **custom** slice after 16:9: type W and H beside the ratio button
+  (`1080` × `1350` shows as 4:5; only the ratio counts, not the pixels). The ratio you pick now carries on to the next
+  pictures of the batch, as large as it fits and centred; **R** goes back to Free.
+- **Exact size and minimum short edge.** The resize list in the preset editor has two more choices:
+  - **Set width and height** (issue #576, by @choksi2212), 16 to 16384 px each. Without *Keep aspect ratio* the picture
+    is stretched to exactly that size; with it, each picture keeps its shape and is scaled up or down to the largest
+    size that fits.
+  - **Set a minimum short edge** (issue #652): a picture whose shorter side is under the number (1080 by default) is
+    enlarged in proportion until it reaches it. Larger pictures are left as they are; it never shrinks anything.
+- **Size limit and ready-made presets** (issue #553, by @cre8ive-marketing). Presets have a **Size limit (MB)** for
+  pictures (next to Quality) and for videos. A picture over it is saved again at a lower quality, then with fewer
+  pixels; a video is encoded again at the bitrate its length allows (with FFmpeg). When it can't fit, the file fails
+  with the sizes instead of breaking the limit. Settings → Presets → **New** is now a menu: an empty preset, or a copy
+  of a ready-made one: *Video for email* (MP4, under 18 MB), *Video for Discord* (under 10 MB), *Video for WhatsApp*
+  (720p, under 16 MB) and *Photo for Instagram* (JPG, 1080 px wide). They aren't on a donut; add them in Settings →
+  Donut toolbar.
+- **Undo** (issue #553, by @cre8ive-marketing). A recent conversion on Home has an **Undo** button that moves its
+  results to the Recycle Bin / Trash. It shows only while the results are as the conversion left them, so a file
+  edited or overwritten since is never moved. With *Replace the original*, the originals are already in the Recycle
+  Bin / Trash and stay there. Conversions from before 2.2.0, and results that are a folder, have no Undo.
+- **Ask every time** (issue #521, by @cre8ive-marketing). A preset's **Save to** can be *Ask every time*. From the
+  donut, Filee then asks for a file name (one result) or a folder (several results, once for the whole batch),
+  starting in the source's folder; Cancel converts nothing. Watch folders and the command line save next to the source,
+  and files dragged from a browser still go to the download folder.
+- **Profile order** (issue #522). Settings → Donut toolbar has **Move up** / **Move down** arrows under the profile
+  list (Alt+↑ / Alt+↓ in the list). When two profiles take the same extension, the higher one opens, so a profile of
+  your own with `.jpg` can now come before Images. *Reset to default* keeps a profile's place.
+- **More formats**, 268 in all.
+  - **Split archives** (`.001`, `.7z.001`, `.zip.001`, `.tar.001`; issue #653, by @Armone0): drop the first part on the
+    archives donut, with the other parts next to it, and 7-Zip joins them to extract or repack what's inside.
+  - **Dahua DVR recordings** (`.dav`; issue #594) to MP4 and the other video and audio formats, with FFmpeg.
+  - **Fragmented MP4** (`.m4s`; issue #354) that carries its own start, with FFmpeg. A piece of a streamed video that
+    needs a separate init segment stops with a message saying so.
+  - **Windows bitmap fonts** (`.fon`; issue #177, by @SeoJCalive) to TTF, OTF, WOFF, WOFF2 and EOT with their pixel
+    look. A file with several sizes gives a font per size (`Name-13px.ttf`). Vector `.fon` and Chinese, Japanese or
+    Korean bitmap fonts are refused with the reason.
+  - **Garmin FIT** activities (`.fit`; issue #451, by @SeoJCalive) from a watch or bike computer, on the geospatial
+    donut: to GPX, KML / KMZ, GeoJSON, Shapefile and CSV (a row per record, with heart rate, cadence, power, speed and
+    distance), and through CSV to XLSX and JSON. The points keep their time and height. An activity without positions
+    converts to the table formats only; other FIT files (courses, settings …) are refused.
+  - **AutoHotkey, INI, MikroTik and batch files** (`.ahk`, `.ini`, `.rsc`, `.cmd`; issues #536, #660, #661) and **SQL**
+    (`.sql`; issue #607, by @adnan-bhaldar) become text like the other scripts: read, never run.
+
+  Your donuts learn the new extensions, unless one of your own donuts already takes them.
+- **CAD drawings in black and white** (issue #411). Presets that make a PDF, SVG or picture have a **CAD drawing** card
+  with **Colours**: *As drawn* (as before), *Black and white*, like a monochrome plot, or *Grayscale*. In black and
+  white every line and text is black, and filled areas become the grey of their brightness, so a light fill doesn't
+  turn into a black block. Grayscale darkens light lines, such as yellow, enough to read. PDF and SVG stay vector.
+- **What a preset takes** (issue #548, by @SeoJCalive). In Settings → Donut toolbar, hovering a chip under *Available
+  presets* shows what it makes and which formats it takes, by kind; hold Shift for the whole list.
+- **German** (by @deinzooshop). Filee and Setup speak German, and pick it when Windows, macOS or Linux is set to German
+  (Germany, Austria, Switzerland …). A language picked in Settings stays as it is.
+
+### Improved
+
+- **The window keeps its place** (issue #586, by @cre8ive-marketing). The main window opens at the size and position
+  it had when it closed, maximized or not, also after closing to the tray, quitting or signing out. It always fits the
+  screen, and opens centred when the screen it was on is gone.
+- **Keyboard and screen readers** (issue #524, by @cre8ive-marketing). Icon buttons and the fields of the preset
+  editor and the settings pages have names a screen reader reads. The chips under *Available presets* in Settings →
+  Donut toolbar can be reached with Tab: Enter adds one to the donut, Shift+F10 or the menu key edits it. Plain buttons
+  (Browse…, Revert …) are drawn on the card's colour with a border, so they no longer look like a disabled box.
+- **File Pilot** (issue #633). With the default scope, *File managers and desktop*, a Ctrl + drag out of File Pilot
+  opens the donut, as in Explorer (Windows).
+- **Lists and dropdowns** (by @adnan-bhaldar). The highlight of a selected or hovered row stops before the scrollbar,
+  and dropdown rows stay inside their rounded corners.
+- **European Portuguese** (by @Blackspirits) reads more naturally in a few places.
+
+### Fixed
+
+- Chinese and Japanese text recognized with OCR had a space between most words ("本 书 是 作者") in the DOCX, TXT or
+  other text made from it (issue #691). The words of Chinese or Japanese text read from a PDF now join without a
+  space; spaces next to Latin letters and digits stay, and Korean keeps its spaces.
+- A long calibre conversion (a 300 MB CHM → PDF) was stopped after 10 minutes (issue #651). calibre now runs as long as
+  it shows progress, and is stopped only after 10 minutes without any, with a message saying so.
+- On Windows, the mouse could stutter or freeze while Filee converted, and Filee could crash when quitting (issues
+  #511, #528, by @cre8ive-marketing). The gesture hook now answers first, and every engine runs at a lower priority.
+- LibreOffice and calibre failed to install when a folder on the way, such as `AppData\Local`, was moved to another
+  drive through a link (Windows Installer error 1620; issue #527, by @cre8ive-marketing). When Windows Installer still
+  refuses, or another installation is running, the Engines card says why.
+- Black-and-white and 16-bit pictures (scans, fax TIFFs, 1-bit PNGs) failed to go into a PDF with "Unsupported image
+  format", also as comic pages and in Apple Vision OCR (issue #605).
+- Uncompressed DDS textures stored as R, G, B, A, common in games, came out with red and blue swapped (issue #621, by
+  @SeoJCalive).
+- Half size, Grayscale, Trim transparent borders and Compress image were offered for MP3, ZIP and other files that
+  aren't pictures (issue #565, by @SeoJCalive). They're greyed out with "Works on images only"; in a mixed selection the
+  pictures count.
+- A picture resized small and saved as ICO held larger sizes blown up from it. It now holds that size and the smaller
+  ones.
+- A Setup file cut short by an unfinished download said "Filee is not installed in …" as if it were the uninstaller
+  (issue #599). It now says the file is incomplete and to download it again from filee.sh.
+- On Windows, apps that cover the desktop with their own icon layer hid the desktop from Filee, so the drag gesture
+  and the selection shortcut did nothing there (by @Cafunw). Windows that belong to the desktop now count as the
+  desktop.
+- On macOS, a Finder alias dropped on the donut or selected in Finder was refused; Filee converts the file it points
+  to, as it does with Windows shortcuts (by @mendax-iitm).
+- On macOS, the donut didn't show when dragging over a full-screen window, such as full-screen Finder (issue #251, by
+  @mendax-iitm).
+- On Linux, Filee crashed at start with `FILEE_USE_WAYLAND=1` (native Wayland) (by @mahaveergurjar).
+- On KDE Plasma with Wayland, the donut opened from the file manager's menu could appear on another Activity or
+  virtual desktop and switch to it (issue #557, by @cre8ive-marketing). After updating Filee, upgrade the KWin script
+  as installer/linux/INSTALL.txt says (`--upgrade` instead of `--install`), then turn "Filee donut" off and on again in
+  System Settings → Window Management → KWin Scripts.
+- On Linux, the flip arrow in the donut's hub hint showed as a box. The donut draws it now, the same on every system
+  (issue #554, by @cre8ive-marketing).
+- iCalendar: an event given by a start and a duration that crossed a daylight saving change ended an hour off, and a
+  calendar whose time zones have offsets in seconds failed to convert (by @Stamina9).
+- vCard: a name with a long run of combining accents was written with a line over the 75-byte limit (by @Stamina9).
+- In Watch folders, a rule that was off read "On Off" beside its switch (issue #524, by @cre8ive-marketing).
+- `filee watch --help` gave 2 seconds as the default settle time everywhere; on Linux and macOS it's 5 (by
+  @Blackspirits).
+
+## 2.1.0
+
+<!-- update
+level: recommended
+ko: Windows용 파일에 코드 서명이 들어가서 스마트 앱 컨트롤이나 백신이 Filee를 막는 일이 줄어요
+ko: 스캔본과 그림의 글자를 인식(OCR)해서 검색되는 PDF와 편집할 수 있는 문서로 만들어요
+ko: 사진·동영상·오디오를 압축하고 합치고 정보를 지울 수 있고, 동영상에서 클립을 잘라 낼 수 있어요
+ko: PDF 페이지를 편집하고, 어떤 PDF에든 워터마크·쪽 번호·암호를 넣을 수 있어요
+ko: PDF의 표가 엑셀 시트가 되고, 큰 엑셀 파일을 훨씬 빨리 PDF로 바꿔요
+ko: PDF로 저장하기 전에 스프레드시트 페이지를 배치하고, 저장할 AutoCAD 버전을 고를 수 있어요
+ko: 원본 바꾸기를 켜면 결과가 원본 자리에 들어가고 원본은 휴지통으로 가요
+ko: FITS 천체 사진, iCalendar, HAR, USM 게임 동영상, 자수·플로터 파일을 지원하고 CAD 레이아웃마다 PDF 한 쪽을 만들어요
+ko: 프랑스어, 번체 중국어, 네팔어, 태국어, 튀르키예어, 유럽 포르투갈어와 Material You 테마, 창 크기 조절을 지원해요
+ko: Linux에서는 Filee 안에서 업데이트하고, GNOME·Hyprland Wayland에서 끌기 제스처를 쓸 수 있어요(실험 기능)
+ko: 중국어 텍스트가 한글로 읽히던 문제, Word 기호가 빠지던 문제, 트레이에서 창이 두 개 뜨던 문제 등을 고쳤어요
+en: Windows files are now code-signed, so Smart App Control and antivirus programs block Filee less often
+en: Recognize text in scans and pictures (OCR): searchable PDFs and documents you can edit
+en: Compress, merge and clean up photos, videos and audio, and cut a clip out of a video
+en: Edit PDF pages, and add a watermark, page numbers or a password to any PDF
+en: Tables in PDFs become Excel sheets, and large Excel files turn into PDFs much faster
+en: Lay out spreadsheet pages before saving a PDF, and choose the AutoCAD version to save in
+en: Replace the original: the result takes its place and the original goes to the Recycle Bin
+en: FITS astrophotos, iCalendar, HAR, USM game videos, embroidery and plotter files, and a PDF page per CAD layout
+en: French, Traditional Chinese, Nepali, Thai, Turkish and European Portuguese, a Material You theme and window zoom
+en: Linux: updates from inside Filee, and drag gestures on GNOME and Hyprland Wayland (experimental)
+en: Fixed Chinese text read as Korean, missing Word symbols, a second window from the tray and more
+zh: Windows 文件现已带有代码签名，智能应用控制和杀毒软件拦截 Filee 的情况会更少
+zh: 识别扫描件和图片中的文字（OCR），生成可搜索的 PDF 和可编辑的文档
+zh: 可以压缩、合并照片、视频和音频并清除其元数据，还能从视频中剪出片段
+zh: 可以编辑 PDF 页面，并为任意 PDF 添加水印、页码或密码
+zh: PDF 中的表格可转为 Excel 工作表，大型 Excel 文件转 PDF 也快得多
+zh: 保存为 PDF 前可以排版电子表格页面，还可以选择保存的 AutoCAD 版本
+zh: 替换原文件：结果放到原文件的位置，原文件移到回收站
+zh: 支持 FITS 天文照片、iCalendar、HAR、USM 游戏视频、刺绣和绘图仪文件，CAD 的每个布局各成一页 PDF
+zh: 新增法语、繁体中文、尼泊尔语、泰语、土耳其语和欧洲葡萄牙语界面，以及 Material You 主题和窗口缩放
+zh: Linux：可在 Filee 内直接更新，并支持 GNOME 和 Hyprland Wayland 上的拖动手势（实验性）
+zh: 修复了中文文本被读成韩文、Word 符号丢失、从托盘打开两个窗口等问题
+pl: Pliki dla Windows są teraz podpisane cyfrowo, więc Inteligentna kontrola aplikacji i antywirusy rzadziej blokują Filee
+pl: Rozpoznawanie tekstu w skanach i obrazach (OCR): przeszukiwalne pliki PDF i dokumenty do edycji
+pl: Kompresja, łączenie i czyszczenie zdjęć, wideo i dźwięku oraz wycinanie klipu z wideo
+pl: Edycja stron PDF oraz znak wodny, numery stron lub hasło w każdym pliku PDF
+pl: Tabele z PDF stają się arkuszami Excela, a duże pliki Excela znacznie szybciej zamieniają się w PDF
+pl: Układ stron arkusza przed zapisem do PDF i wybór wersji AutoCAD przy zapisie
+pl: Zastąp oryginał: wynik zajmuje jego miejsce, a oryginał trafia do Kosza
+pl: Zdjęcia astronomiczne FITS, iCalendar, HAR, filmy z gier USM, pliki hafciarskie i plotterowe oraz strona PDF na każdy układ CAD
+pl: Język francuski, chiński tradycyjny, nepalski, tajski, turecki i portugalski europejski, motyw Material You i powiększanie okien
+pl: Linux: aktualizacje z poziomu Filee i gesty przeciągania w GNOME i Hyprland na Wayland (eksperymentalne)
+pl: Poprawiono chiński tekst odczytywany jako koreański, znikające symbole z Worda, drugie okno z zasobnika i więcej
+es: Los archivos de Windows ahora están firmados, así que Control inteligente de aplicaciones y los antivirus bloquean Filee con menos frecuencia
+es: Reconoce el texto de escaneos e imágenes (OCR): PDF con búsqueda y documentos editables
+es: Comprime, une y limpia fotos, vídeos y audio, y recorta un clip de un vídeo
+es: Edita páginas de PDF y añade una marca de agua, números de página o una contraseña a cualquier PDF
+es: Las tablas de los PDF pasan a hojas de Excel, y los Excel grandes pasan a PDF mucho más rápido
+es: Prepara las páginas de una hoja de cálculo antes de guardarla en PDF, y elige la versión de AutoCAD al guardar
+es: Reemplazar el original: el resultado ocupa su lugar y el original va a la Papelera
+es: Astrofotos FITS, iCalendar, HAR, vídeos de juegos USM, archivos de bordado y de plóter, y una página de PDF por presentación de CAD
+es: Francés, chino tradicional, nepalí, tailandés, turco y portugués europeo, un tema Material You y zoom de ventanas
+es: Linux: actualizaciones desde Filee y gestos de arrastre en GNOME e Hyprland con Wayland (experimental)
+es: Corregidos el texto chino leído como coreano, los símbolos de Word que faltaban, una segunda ventana desde la bandeja y más
+hi: Windows की फ़ाइलें अब कोड-साइन की हुई हैं, इसलिए स्मार्ट ऐप कंट्रोल और एंटीवायरस Filee को कम रोकते हैं
+hi: स्कैन और चित्रों का टेक्स्ट पहचानें (OCR): खोजने योग्य PDF और संपादन योग्य दस्तावेज़
+hi: फ़ोटो, वीडियो और ऑडियो को कंप्रेस करें, जोड़ें और उनका मेटाडेटा हटाएँ, और वीडियो से क्लिप काटें
+hi: PDF के पेज संपादित करें, और किसी भी PDF में वॉटरमार्क, पेज नंबर या पासवर्ड जोड़ें
+hi: PDF की तालिकाएँ Excel शीट बनती हैं, और बड़ी Excel फ़ाइलें बहुत तेज़ी से PDF बनती हैं
+hi: PDF सहेजने से पहले स्प्रेडशीट के पेज व्यवस्थित करें, और सहेजने के लिए AutoCAD संस्करण चुनें
+hi: मूल फ़ाइल बदलें: परिणाम उसकी जगह लेता है और मूल फ़ाइल रीसायकल बिन में जाती है
+hi: FITS खगोल फ़ोटो, iCalendar, HAR, USM गेम वीडियो, कढ़ाई और प्लॉटर फ़ाइलें, और हर CAD लेआउट का एक PDF पेज
+hi: फ़्रेंच, पारंपरिक चीनी, नेपाली, थाई, तुर्की और यूरोपीय पुर्तगाली भाषाएँ, Material You थीम और विंडो ज़ूम
+hi: Linux: Filee के अंदर से अपडेट, और GNOME व Hyprland Wayland पर ड्रैग जेस्चर (प्रायोगिक)
+hi: चीनी टेक्स्ट का कोरियाई पढ़ा जाना, Word के गायब चिह्न, ट्रे से दूसरी विंडो खुलना और कई गड़बड़ियाँ ठीक की गईं
+ja: Windows 版のファイルにコード署名が付き、スマート アプリ コントロールやウイルス対策ソフトに止められにくくなりました
+ja: スキャンや画像の文字を認識（OCR）して、検索できる PDF や編集できる文書にできます
+ja: 写真・動画・音声の圧縮、結合、メタデータの削除と、動画からのクリップの切り出しができます
+ja: PDF のページを編集し、どの PDF にも透かし・ページ番号・パスワードを付けられます
+ja: PDF の表が Excel のシートになり、大きな Excel ファイルもずっと速く PDF にできます
+ja: PDF に保存する前に表計算のページをレイアウトでき、保存する AutoCAD のバージョンも選べます
+ja: 元のファイルを置き換える：結果がその場所に入り、元のファイルはごみ箱へ移ります
+ja: FITS の天体写真、iCalendar、HAR、USM のゲーム動画、刺しゅう・プロッターのファイルに対応し、CAD のレイアウトごとに PDF のページを作ります
+ja: フランス語、繁体字中国語、ネパール語、タイ語、トルコ語、ヨーロッパ・ポルトガル語、Material You テーマ、ウィンドウの拡大・縮小に対応しました
+ja: Linux：Filee の中から更新でき、GNOME と Hyprland の Wayland でドラッグ操作が使えます（試験的）
+ja: 中国語のテキストが韓国語として読まれる問題、Word の記号が消える問題、タスクトレイから二つ目のウィンドウが開く問題などを修正しました
+ru: Файлы для Windows теперь подписаны, поэтому Интеллектуальное управление приложениями и антивирусы реже блокируют Filee
+ru: Распознавание текста на сканах и картинках (OCR): PDF с поиском и редактируемые документы
+ru: Сжатие, объединение и очистка фото, видео и аудио, а также вырезание клипа из видео
+ru: Редактирование страниц PDF, а также водяной знак, номера страниц или пароль для любого PDF
+ru: Таблицы из PDF становятся листами Excel, а большие файлы Excel намного быстрее превращаются в PDF
+ru: Разметка страниц таблицы перед сохранением в PDF и выбор версии AutoCAD для сохранения
+ru: Заменить оригинал: результат занимает его место, а оригинал отправляется в Корзину
+ru: Астрофото FITS, iCalendar, HAR, игровые видео USM, файлы вышивки и плоттера, а также страница PDF на каждый лист CAD
+ru: Французский, традиционный китайский, непальский, тайский, турецкий и европейский португальский, тема Material You и масштаб окон
+ru: Linux: обновления прямо из Filee и жесты перетаскивания в GNOME и Hyprland на Wayland (экспериментально)
+ru: Исправлены чтение китайского текста как корейского, пропадающие символы Word, второе окно из трея и другое
+ar: أصبحت ملفات Windows موقّعة رقميًا، فيقلّ حظر التحكم الذكي في التطبيقات وبرامج مكافحة الفيروسات لـ Filee
+ar: التعرّف على النص في المستندات الممسوحة والصور (OCR): ملفات PDF قابلة للبحث ومستندات قابلة للتحرير
+ar: ضغط الصور والفيديو والصوت ودمجها وتنظيفها، واقتطاع مقطع من فيديو
+ar: تحرير صفحات PDF، وإضافة علامة مائية أو أرقام صفحات أو كلمة مرور إلى أي ملف PDF
+ar: تتحول جداول PDF إلى أوراق Excel، وتتحول ملفات Excel الكبيرة إلى PDF بسرعة أكبر بكثير
+ar: تنسيق صفحات جدول البيانات قبل حفظه بصيغة PDF، واختيار إصدار AutoCAD عند الحفظ
+ar: استبدال الأصل: تأخذ النتيجة مكانه وينتقل الأصل إلى سلة المحذوفات
+ar: صور الفلك FITS وiCalendar وHAR وفيديوهات الألعاب USM وملفات التطريز والراسمات، وصفحة PDF لكل تخطيط CAD
+ar: الفرنسية والصينية التقليدية والنيبالية والتايلاندية والتركية والبرتغالية الأوروبية، ومظهر Material You وتكبير النوافذ
+ar: Linux: التحديث من داخل Filee، وإيماءات السحب في GNOME وHyprland على Wayland (تجريبي)
+ar: إصلاح قراءة النص الصيني كأنه كوري، واختفاء رموز Word، وفتح نافذة ثانية من منطقة الإعلام، وغير ذلك
+pt-BR: Os arquivos para Windows agora são assinados, então o Controle Inteligente de Aplicativos e os antivírus bloqueiam o Filee com menos frequência
+pt-BR: Reconheça o texto de digitalizações e imagens (OCR): PDFs pesquisáveis e documentos editáveis
+pt-BR: Comprima, junte e limpe fotos, vídeos e áudio, e corte um trecho de um vídeo
+pt-BR: Edite páginas de PDF e adicione marca d'água, números de página ou senha a qualquer PDF
+pt-BR: Tabelas de PDF viram planilhas do Excel, e arquivos grandes do Excel viram PDF muito mais rápido
+pt-BR: Organize as páginas de uma planilha antes de salvar em PDF e escolha a versão do AutoCAD ao salvar
+pt-BR: Substituir o original: o resultado fica no lugar dele e o original vai para a Lixeira
+pt-BR: Astrofotos FITS, iCalendar, HAR, vídeos de jogos USM, arquivos de bordado e de plotter, e uma página de PDF por layout de CAD
+pt-BR: Francês, chinês tradicional, nepalês, tailandês, turco e português europeu, um tema Material You e zoom das janelas
+pt-BR: Linux: atualizações dentro do Filee e gestos de arrastar no GNOME e no Hyprland com Wayland (experimental)
+pt-BR: Corrigidos texto chinês lido como coreano, símbolos do Word que sumiam, uma segunda janela pela bandeja e mais
+tr: Windows dosyaları artık kod imzalı; Akıllı Uygulama Denetimi ve antivirüs programları Filee'yi daha seyrek engeller
+tr: Tarama ve görsellerdeki metinleri tanıyın (OCR): aranabilir PDF'ler ve düzenlenebilir belgeler oluşturun
+tr: Fotoğraf, video ve sesleri sıkıştırın, birleştirin, üstverilerini temizleyin ve videodan klip kesin
+tr: PDF sayfalarını düzenleyin; herhangi bir PDF'ye filigran, sayfa numarası veya parola ekleyin
+tr: PDF'deki tablolar Excel çalışma sayfasına dönüşür ve büyük Excel dosyaları PDF'ye çok daha hızlı aktarılır
+tr: PDF olarak kaydetmeden önce elektronik tablo sayfalarını yerleştirin ve kaydedilecek AutoCAD sürümünü seçin
+tr: Orijinali değiştirin: sonuç dosya orijinalin yerini alır ve orijinal Geri Dönüşüm Kutusu'na gider
+tr: FITS uzay fotoğrafları, iCalendar, HAR, USM oyun videoları, nakış ve çizici dosyaları ile CAD yerleşimi başına bir PDF sayfası
+tr: Fransızca, Geleneksel Çince, Nepalce, Tayca, Türkçe ve Avrupa Portekizcesi dil desteği, Material You teması ve pencere yakınlaştırma
+tr: Linux: Filee içinden doğrudan güncelleme ve GNOME ile Hyprland Wayland üzerinde sürükleme hareketleri (deneysel)
+tr: Çince metnin Korece okunması, eksik Word simgeleri ve sistem tepsisinden iki pencere açılması gibi sorunlar düzeltildi
+-->
+
+### New
+
+- **Signed for Windows** (issue #333). 2.1.0 is the first Filee whose Windows files are code-signed, with a Certum
+  open source certificate issued to "Open Source Developer MYEONGGU KIM". `Filee-2.1.0-win-Setup.exe`, the portable
+  zip's files, `Filee.exe`, `filee-cli.exe`, the uninstaller and the bundled programs and libraries that came unsigned
+  (rhwp, 7-Zip and most libraries) carry that signature; files their makers signed (.NET, ImageMagick, the Microsoft
+  C++ runtime …) keep their own. Smart App Control and other Application Control policies, which could refuse to load
+  parts of an unsigned Filee, let it start, antivirus programs flag it less often, and Windows names the publisher
+  instead of "Unknown publisher". SmartScreen can still warn about a new release until it has been downloaded enough
+  ("More info" → "Run anyway"). macOS packages stay ad-hoc signed and not notarized.
+- **Text recognition (OCR)** (issue #288, by @cre8ive-marketing; Apple Vision by @smjrifle). Scans and pictures become
+  searchable PDFs, and their text goes into DOCX, TXT, Markdown and HWPX: a scanned PDF → DOCX gives text you can edit
+  instead of pictures of the pages. Tick **Recognize text (OCR)** in the PDF card of the preset editor (for PDF, DOCX,
+  TXT, Markdown and HWPX targets) and pick the language of the text: 69 languages, each downloaded the first time it's
+  needed (0.4 to 10 MB). The new **Searchable PDF** preset does it in one step; it's in the preset list, not on a
+  donut, so add it in Settings → Donut toolbar. Pages that already have text are copied as they are, and a PDF with
+  text on every page is left as it is, with a note. Bookmarks and form fields of a scanned PDF don't come along.
+  - On Windows, **Tesseract** is a new engine in Settings → Engines (offered, not installed for you). On Linux and
+    macOS, Filee uses the system's Tesseract (`sudo apt install tesseract-ocr`, `brew install tesseract`).
+  - On macOS, **Apple Vision** reads the text with nothing to download. Languages it can't read (Hindi, Nepali, Greek
+    …) need Tesseract.
+- **Everyday media tools** (by @cre8ive-marketing). Eight new presets:
+  - **Compress image**: the same format, smaller (quality 75, never above a JPEG's own; PNG and TIFF losslessly).
+  - **Compress video**: H.264 MP4 at the Small quality, at most 1080p. **Compress audio**: AAC M4A at 128 kbit/s.
+  - **Extract audio**: a video's sound as M4A, copied without re-encoding when it's AAC or ALAC.
+  - **Merge videos** and **Merge audio**: the files joined into one, in the order you set in the merge order window.
+    Clips recorded the same way are copied as they are; others are fitted into the first clip's frame and encoded.
+  - **Video from images**: the pictures as a 1080p MP4, 3 s each with 1 s crossfades (both can be changed in the
+    preset editor), up to 300 pictures.
+  - **Remove metadata**: a copy named `{name}_clean` without EXIF, location, comments, tags, chapters, or a PDF's
+    document information. Videos and audio aren't re-encoded, and MKV subtitle fonts stay.
+
+  A compressed result that isn't smaller is replaced by the original, with a note. A new library has them on the
+  back faces of the image, video, audio and PDF donuts (Extract Live Photo video leaves the image donut's back face to
+  make room, and stays in the preset list); an updated library gets them where a back face has room, and Extract audio
+  takes the M4A slice's place on the video donut's back. Video from images is on no donut. All but Compress image, and
+  Remove metadata for pictures and PDFs, need FFmpeg.
+- **Cut a clip** (by @flexeykinDev). The first slice on the back of the video donut (in FLAC's place; FLAC stays in
+  the preset list) opens your videos one after another in a clip window. Pick the start and end on an overview of the
+  whole video, or press 15 s / 30 s / 60 s; **Space** plays the clip with its sound. **C** cuts at the playhead,
+  **Delete** takes a piece out, and dragging a piece's edge trims it. Each piece can have its own volume, mute and
+  speed (0.25× to 4×, the pitch kept), and the clip can get music from another file, *Remove silence*, fades in and
+  out, and Ctrl+Z / Ctrl+Y. *Fast, no re-encoding* copies a plain clip in a moment but starts at the key frame before
+  the start; cuts, speed, volume or fades are encoded with the preset's settings. Results are saved as `{name}_clip`.
+  Needs FFmpeg.
+- **Edit PDF pages** (by @Perricheno). **Edit**, the first slice on the back of the PDF donut, opens into Crop, Rotate left,
+  Rotate right, Pages, Split and Add. Crop and rotate change only the page boxes and the rotation, so text and
+  drawings stay sharp and bookmarks and forms stay. **Pages** opens a page editor with thumbnails and a large preview:
+  reorder, rotate and delete pages, add pages from another PDF, or extract the selected page as its own file.
+- **Watermark, page numbers and a password** (by @cre8ive-marketing). The PDF card of the preset editor has three new
+  options for every PDF a preset writes, whatever it is made from: a **Watermark** text ("DRAFT"), large and light
+  grey across each page; **Page numbers** ("3 / 10" at the bottom); and a **Password to open** (AES-256). With *Merge
+  into one PDF* the pages are numbered through. The watermark and the numbers can't be selected or searched, and a
+  PDF/A can't have a password. The password is saved with the preset in Filee's settings, but left out of the history
+  and of Settings → General → Export.
+- **PDF tables to Excel** (issue #267, by @cre8ive-marketing). The XLSX preset now takes PDFs: every table drawn with
+  lines becomes its own sheet, with merged cells, borders, column widths, and numbers, amounts, percentages and dates
+  as real values (codes with a leading zero stay text). A table that goes on over the next page stays one sheet,
+  without its repeated header. Text outside the tables is left out, tables without lines aren't found, and a PDF
+  without ruled tables (or a scan) stops with a message. ODS and CSV work the same way. The XLSX preset isn't on the
+  PDF donut; add it in Settings → Donut toolbar.
+- **Spreadsheet Print Studio** (by @Perricheno). **PDF + Edit**, the first slice on the back of the spreadsheets
+  donut, opens an Excel workbook before it becomes a PDF: the sheets in output order on the left, the real PDF pages
+  in the middle, and the page setup on the right (print area, paper, portrait or landscape, scale or fit to pages,
+  margins, page order, hidden rows and columns, manual page breaks). A sheet can be split into regions with a page
+  setup each. When a workbook asks for a tiny scale, or a very wide sheet has no print area, it offers a suggested
+  layout. The preview is exactly what is exported, and your workbook isn't changed. Needs LibreOffice.
+- **Replace the original** (issue #332, by @cre8ive-marketing). A new option in the preset editor's output card, off
+  unless you tick it. When a file's result has the same format as the file (Compress image, Rotate, Trim transparent
+  borders …), the original goes to the Recycle Bin / Trash and the result takes its name and place. When the original
+  can't go there (a network drive, a file open in another program), both are kept and the notice says why. It never
+  applies to watch folders, files from a browser, ZIP results, files that become several, or the command line.
+- **Trim transparent borders** (issue #332, by @cre8ive-marketing). A new preset on the image donut's back face, after
+  Remove background: a copy named `name_trimmed`, cropped to the pixels that aren't fully transparent. Pictures without
+  transparency and animations stay as they are.
+- **More formats**, 263 in all.
+  - **FITS** astrophotos (`.fits`, `.fts`; issue #460) from telescope cameras and capture or stacking programs such as
+    N.I.N.A., on the image donut. To PNG, JPG and the other picture formats they're stretched automatically, like a
+    capture program's preview, and a raw frame from a colour camera is debayered with the Bayer pattern in its header
+    (*Debayer FITS from a colour camera* in the preset editor, on unless you turn it off). To TIFF they keep their
+    data: *FITS (astronomy) to TIFF* is *Linear: the data as it is* (8 and 16 bits stay as they are, 32-bit and
+    floating-point data become 32-bit floating point, never debayered) or *Stretched, like a preview*. PNG and JPG are
+    8-bit. Tile-compressed files (fpack, `.fz`) stop with a message asking to `funpack` them, and `.fit` is left to
+    Garmin FIT files.
+  - **CRI USM** game videos (`.usm`; issue #485), used for the cutscenes of many games, to MP4 and the other video and
+    audio formats, with FFmpeg. Encrypted USM files can't be read.
+  - **iCalendar** (`.ics`; issue #340, by @SeoJCalive): events and to-dos become CSV, one row each, and through it
+    JSON and the other data formats; CSV goes back to `.ics`. The new "iCalendar" preset is on the back of the
+    spreadsheets donut, after vCard. Recurring events keep their rule; they aren't expanded.
+  - **HAR** network logs (issue #328): to JSON, YAML, XML, or a table with one request per row (CSV, spreadsheets,
+    PDF).
+  - **Raw H.265 / H.264 streams** (`.h265`, `.265`, `.hevc`, `.h264`, `.264`; issue #301) to MP4 and the other video
+    formats, with FFmpeg.
+  - **Tajima DST embroidery** (issue #397): the stitches at real size as PNG, JPG, PDF or SVG, a colour per thread
+    (DST stores none). AutoCAD sheet sets, which also use `.dst`, are refused with the reason.
+  - **HP-GL plot files** (`.plt`, `.hpgl`, `.hpg`, `.hgl`; issue #410), also AutoCAD's "plot to file", to PDF, PNG,
+    JPG and SVG with their pen colours and widths. Text labels and fill patterns aren't drawn.
+  - **Lua, CSS and PowerShell** (`.lua`, `.css`, `.ps1`; issues #388, #368, #442) become text like the other scripts:
+    read, never run.
+  - **`.png_large` / `.jpg_large`** downloads open as PNG and JPEG (issue #461, by @Nitjsefnie).
+
+  Your donuts learn the new extensions, unless one of your own donuts already takes them.
+- **CAD drawings.**
+  - **One page per layout** (issue #172, by @cre8ive-marketing). DWG / DXF → PDF makes a page for each paper-space
+    layout, in tab order, with model space drawn through each viewport at its scale. Drawings without layouts come
+    out as before, and SVG and pictures are still one picture of model space. Twisted views, layers frozen per
+    viewport, clipped viewports and the layout's paper size and plot scale aren't followed yet.
+  - **AutoCAD version** (issue #489, by @cre8ive-marketing). DWG and DXF presets have a "CAD drawing" card: 2018 (as
+    before), 2013, 2010, 2007, 2004, 2000 or *Same as the source*, and DWG → DWG or DXF → DXF just changes the
+    version. Objects the version doesn't have (multileaders, meshes …) are left out with a note. Before 2007, Korean,
+    Chinese or Japanese text is saved in the code page that fits it. A 2007 DWG is saved as 2004, which AutoCAD 2007
+    opens.
+- **Material You** (by @gtxPrime). Settings → Theme → *Theme style* has *Filee Soft* (as before) and *Material You*,
+  with Material 3 surfaces toned from your accent colour. The accent colours come as vibrant swatches and pastel
+  presets.
+- **Window size** (by @flexeykinDev). Settings → Theme → *Window size* makes everything in Filee's windows larger or
+  smaller (70 to 180 %), with Reset. In any window, Ctrl + mouse wheel and Ctrl + plus / minus do the same, and
+  Ctrl + 0 goes back to 100 % (⌘ on a Mac). The donut and the toasts keep their size.
+- **Preset tabs** (issue #343, by @SeoJCalive). *Available presets* in Settings → Donut toolbar is split into tabs:
+  All, Image, Document, Video & audio, Edit, 3D & CAD, Geospatial, Archive and Font; tabs with nothing for the selected
+  donut are hidden. A search looks through every tab and also shows, dimmed and with the reason, presets the donut's
+  files can't use.
+- **Missing fonts** (issue #413, by @Perricheno). When a DOCX, XLSX, PPTX or HWPX names fonts this computer doesn't
+  have, the conversion still runs and its card lists them, with **Get fonts** opening each font's own page
+  (Microsoft's, the project's, or Google Fonts). Nothing is downloaded or installed for you. Fonts embedded in the
+  document, or with a look-alike installed (Calibri → Carlito), don't count. The command line reports them too.
+- **Choose files on Home** (by @gtxPrime). Double-click the drop zone to pick files; the donut opens at the pointer.
+- **Updates on Linux** (by @manish0467). A Filee installed with `install.sh` downloads and installs new versions
+  itself, as on Windows: it checks the download against the release's checksums, closes, installs and starts again,
+  and your settings, presets, history and engines stay. If the install fails, the previous version is put back and
+  Filee says so. To get 2.1.0 over 2.0.0, unpack the package and run `./install.sh --upgrade`, which keeps the engines
+  you downloaded (without `--upgrade`, an existing install is still never overwritten).
+- **Wayland** (experimental).
+  - **GNOME** (by @yanscholze). On GNOME Shell 45 to 50, `install.sh` adds the Shell extension "Filee donut at the
+    cursor". Turn it on in Extensions (sign out and in again if it doesn't show), then hold Ctrl and drag a file in
+    Files. No `input` group or root is needed. Selection shortcuts, Hold, and flipping the donut during a drag don't
+    work there. `install.sh` and updates keep the extension current, and Settings → Shortcuts says when Filee is
+    waiting for it or when the running extension belongs to another version (sign out and in again).
+  - **Hyprland** (by @mahaveergurjar). The drag gesture 2.0.0 brought to KDE (`FILEE_WAYLAND_GESTURES=1` and the
+    `input` group) works on Hyprland too, with a few window rules. `FILEE_USE_WAYLAND=1` runs Filee as a native Wayland
+    app instead of through XWayland. installer/linux/INSTALL.txt has the steps.
+- **macOS disk image** (issue #379). Next to the tar.gz, each macOS package comes as a `.dmg` too: open it and drag
+  Filee to Applications. The `filee` command still comes with the tar.gz's `install.sh`, and the first start still
+  goes through Privacy & Security → Open Anyway.
+- **Languages.** Filee speaks French (by @devohmycode), Traditional Chinese, also for Hong Kong and Macau (by
+  @LouisChen-TW), Nepali (by @smjrifle), Thai, with its own font (by @Sudo-Bannawat), Turkish, in Setup too (by
+  @xmetropolicex), and European Portuguese, next to Brazilian Portuguese (by @Blackspirits). It picks them when
+  Windows, macOS or Linux does: a PC set to Portugal gets European Portuguese, one set to Brazil Brazilian, and a
+  language picked in Settings stays as it is.
+
+### Improved
+
+- **Large spreadsheets to PDF.** XLSX, XLS, ODS and CSV going to PDF or pictures through Filee's built-in route are
+  drawn far faster: a 65-page workbook takes 25 seconds instead of 24 minutes, and the progress bar no longer stalls
+  halfway.
+- **Rows to repeat at top** (issue #407, by @cre8ive-marketing). XLSX → PDF repeats the rows a sheet sets in Page
+  Layout → Print Titles on every page, not only frozen rows.
+- **Every audio track** (issue #396, by @cre8ive-marketing). Video → video keeps all audio tracks (a film with several
+  languages) with their language tags, not only the first. FLV and DV still hold one.
+- **Cyrillic, Greek and Central European text to PDF** (by @anatolykoptev). Russian, Greek, Polish, Czech, Turkish,
+  Vietnamese and other text with letters beyond Western European ones came out of DOCX, Markdown, TXT, HTML, XLSX,
+  PPTX and HWPX → PDF with letters on top of each other. Such documents now go through LibreOffice when it's
+  installed; without it they convert as before.
+- **Arabic in `.xls`** (issue #345, by @cre8ive-marketing). Old Excel files with Arabic now take the route XLSX took
+  in 2.0.0 (LibreOffice, or a message without it) instead of becoming PDFs with broken letters.
+- **Word → Markdown** (issue #391). Tables with merged cells become plain Markdown tables instead of HTML, pictures are
+  linked relative to the result, and EMF / WMF pictures become PNG on Windows.
+- **Crop** (issue #369, by @cre8ive-marketing). The frame's centre snaps onto the picture's centre lines, with a dashed
+  guide, while you drag it. The arrow keys still move it by a pixel.
+- **The donut's flip** (issue #371, by @SeoJCalive). Each slice now turns over on its own, in a short wave that starts
+  where you point and spreads both ways, and the whole flip still takes 0.2 s. The face switches the moment the flip
+  starts, so a file dropped during the flip goes to the new face's slice. With "Reduce animations" the faces still
+  swap at once.
+- **Recent conversions** (by @gtxPrime) show thumbnails of videos too, with FFmpeg.
+- **Installing an update** (Windows, by @gtxPrime) from the sidebar, About or the tray shows a window with the
+  download's progress.
+
+### Fixed
+
+- A TXT, Markdown or CSV file saved as "ANSI" was always read as Korean, so Chinese, Japanese or Western text turned
+  into Hangul (issue #491, by @cre8ive-marketing). It's now read in the computer's own code page, and as Korean when it
+  looks Korean or on a Korean PC. A Chinese file on an English PC still can't be told apart.
+- Check boxes, ticks, arrows and other symbols inserted from Wingdings, Webdings or Symbol came out of Word and
+  PowerPoint → PDF or HWPX as black dots (issue #350). They're the right characters now.
+- On Linux without Korean fonts, DOCX, XLSX and other documents converted to PDF through rhwp came out without their
+  text (by @Perricheno).
+- Spreadsheets converted to PDF through LibreOffice could get completely empty pages. They're removed, with a note;
+  PDF/A results are left as LibreOffice wrote them (by @Perricheno).
+- A file with a file name token in its own name had it filled in: `Minutes {date}.png` became `Minutes 20261022.jpg`
+  (by @Bortlesboat). Only the tokens in your file name pattern are filled in now.
+- *One ZIP* packed only the `.shp` of a Shapefile, and selecting a Shapefile with its `.dbf`, `.shx`, `.prj` … opened
+  the donut for mixed files and failed once per companion. A Shapefile now goes into the ZIP with its companion files,
+  and a selected set counts as one file (by @KAPPI1925).
+- Double-clicking the tray icon could open two main windows (Windows).
+- After quitting Filee from the tray, the mouse stuttered for about five seconds (issue #358).
+- Shortcuts (issue #450): the recorder couldn't take Space or Enter, so even Ctrl+Alt+Space couldn't be recorded again.
+  Hold and the keyboard shortcut didn't work on files selected on the desktop. Hold never fired when it used the same
+  keys and button as Drag. A keyboard shortcut is now judged by the window in front, not by where the pointer is. When
+  *Start at sign-in* doesn't stick (security software, for example), the switch says so.
+- On macOS, the Accessibility alert showed at every start after an update or reinstall (issues #316, #426). It shows
+  once, and the reminder says to remove Filee from the list with − and add it again with +. `install.sh` clears the
+  download flag on Filee.app and replaces a `filee` link left behind by an app moved to the Trash.
+- On KDE Plasma with Wayland, the donut could open behind the file manager (by @Perricheno). After updating Filee,
+  upgrade the KWin script: the `kpackagetool6` line in installer/linux/INSTALL.txt with `--upgrade` instead of
+  `--install`, then the reconfigure line (`qdbus6`, `qdbus-qt6` or `qdbus`, depending on the distribution).
+- On macOS, one press of the flip key while dragging could flip the donut twice, back to the face it started on (issue
+  #504, by @cre8ive-marketing). It flips once.
+- A glTF model whose buffer or texture names are percent-encoded (`mesh%20data.bin`) failed to find those files (by
+  @Stamina9).
+- The sample switch in Settings → Theme's preview didn't react to clicks. It now flips on and off to show the
+  theme's switch, with the mouse or Space, and still changes no setting (issue #363, by @Saad-elnagar).
+- The engine setup window ran off small or scaled screens with its buttons out of reach (issue #370). The list
+  scrolls now, the buttons stay in the window, and Esc closes it.
+- A donut slice's small caption was cut off; it takes a second line where the slice has room (issue #361, by
+  @devohmycode).
+- In Settings → Donut toolbar, a donut's count showed only its front face, and the preset search had no clear button
+  and stayed when you chose another donut (issues #425, #427, by @cre8ive-marketing). The count shows both faces
+  (`10 · 9`), every search box has an ×, and the preset search empties when you switch donuts.
+- **Security** (by @Bddgc): before the built-in updater runs a downloaded installer, it checks that Windows trusts its
+  signature and that the publisher who signed the running Filee signed it too. From 2.1.0 on, an installer signed by
+  anyone else, or not at all, is deleted and you're sent to the download page instead.
+
 ## 2.0.0
 
 <!-- update
@@ -118,6 +758,16 @@ pt-BR: Qualquer cor de destaque e um menu circular translúcido
 pt-BR: Espanhol, hindi, japonês, russo, árabe e português do Brasil
 pt-BR: Tabelas de PDF viram tabelas de verdade no Word, e documentos em árabe ou hindi viram PDFs corretos
 pt-BR: Correções de segurança para e-books, SVG, modelos 3D e e-mails, e muitos outros erros corrigidos
+tr: Filee'nin kendi Windows yükleyicisi; ayarlarınız, ön ayarlarınız ve motorlarınız aynen korunur
+tr: Web tarayıcısından resimleri ve dosya bağlantılarını doğrudan halkanın üzerine sürükleyin
+tr: Halkanın bir arka yüzü var: çevirmek için Tab tuşuna basın veya fare tekerleğini döndürün
+tr: Yeni bir kırpma aracı: tam oradayken oran seçmek için görselin üzerinde A tuşuna basın
+tr: Live ve Motion Photo'lardan videoyu çıkarın veya bir videodan Live/Motion Photo oluşturun (deneysel)
+tr: OFD, MHTML, POTM, FBX, JPEG XR ile Shapefile, GeoJSON, KML ve GPX harita desteği
+tr: İstenen vurgu rengi ve yarı saydam halka menü
+tr: İspanyolca, Hintçe, Japonca, Rusça, Arapça ve Brezilya Portekizcesi desteği
+tr: PDF'deki tablolar gerçek Word tablolarına dönüşür; Arapça ve Hintçe belgeler düzgün PDF'lere aktarılır
+tr: E-kitaplar, SVG, 3B modeller ve e-postalar için güvenlik düzeltmeleri ve birçok hata giderildi
 -->
 
 ### New

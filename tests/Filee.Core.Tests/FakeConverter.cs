@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Filee.Core.Conversion;
 
 namespace Filee.Core.Tests;
@@ -25,14 +26,25 @@ internal sealed class FakeConverter(string id, params ConversionEdge[] edges) : 
     /// <summary>Thrown instead of converting, when set.</summary>
     public Exception? Failure { get; set; }
 
+    /// <summary>Document fonts this test engine reports before writing.</summary>
+    public IReadOnlyList<string> FontsToReport { get; set; } = [];
+    public ConcurrentQueue<string?> OriginalSources { get; } = new();
+
+    /// <summary>The preset each step was given.</summary>
+    public ConcurrentQueue<Filee.Core.Presets.Preset> Presets { get; } = new();
+
     public EngineStatus GetStatus() => Available ? EngineStatus.Available() : EngineStatus.Unavailable("engine.reason.not_installed");
 
     public Task<IReadOnlyList<string>> ConvertAsync(ConversionStep step, IProgress<double>? progress, CancellationToken cancellationToken)
     {
+        OriginalSources.Enqueue(step.OriginalSourcePath);
+        Presets.Enqueue(step.Preset);
         if (Throw)
             throw new InvalidOperationException("boom");
         if (Failure is not null)
             throw Failure;
+        if (FontsToReport.Count > 0)
+            step.MissingFonts?.Invoke(FontsToReport);
 
         var written = new List<string>();
         for (var i = 0; i < OutputsPerInput; i++)
@@ -150,6 +162,28 @@ internal sealed class FakeCombiner : IFileCombiner
     public Task CombineAsync(IReadOnlyList<string> inputPaths, string outputPath, string format, Filee.Core.Presets.Preset preset,
         string workDirectory, IProgress<double>? progress, CancellationToken cancellationToken)
     {
+        if (Throw)
+            throw new InvalidOperationException("boom");
+        Inputs.AddRange(inputPaths);
+        File.WriteAllText(outputPath, string.Join("|", inputPaths.Select(Path.GetFileName)));
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Test double for the FFmpeg engine's joining: records what it was given and writes their names.</summary>
+internal sealed class FakeJoiner : IMediaJoiner
+{
+    public List<string> Inputs { get; } = [];
+
+    public bool Throw { get; set; }
+
+    /// <summary>Called when the join starts, before anything is written.</summary>
+    public Action? Joining { get; set; }
+
+    public Task JoinAsync(IReadOnlyList<string> inputPaths, string outputPath, string format, Filee.Core.Presets.Preset preset,
+        string workDirectory, IProgress<double>? progress, CancellationToken cancellationToken)
+    {
+        Joining?.Invoke();
         if (Throw)
             throw new InvalidOperationException("boom");
         Inputs.AddRange(inputPaths);

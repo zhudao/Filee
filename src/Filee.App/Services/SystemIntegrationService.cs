@@ -67,6 +67,13 @@ public sealed class SystemIntegrationService(IPlatformServices platform, ILocali
         bool ApplyOne(Action action)
         {
             try { action(); return true; }
+            catch (StartupEntryNotKeptException ex)
+            {
+                // Security software took the entry away (#450): one line, and the switch says it in the user's language.
+                log.LogWarning("Start with the system did not stay on: {Detail}", ex.Message);
+                errors.Add(loc["general.startup_entry_missing"]);
+                return false;
+            }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 log.LogWarning(ex, "Could not update system integration");

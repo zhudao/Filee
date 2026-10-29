@@ -7,6 +7,7 @@
 
 using System.Numerics;
 using System.Text.Json.Nodes;
+using Filee.Engines.Magick;
 using ImageMagick;
 using SharpGLTF.Memory;
 using SharpGLTF.Schema2;
@@ -26,8 +27,10 @@ internal static class GltfFormat
             // Separate buffers and pictures are read only from the model's folder (ObjFormat.Resolve), never from a
             // path the file names elsewhere on the disk.
             var directory = Path.GetDirectoryName(Path.GetFullPath(path))!;
+            // glTF external resources are URIs: percent-encoded names must be decoded before checking their path.
             var context = ReadContext.Create(name => File.ReadAllBytes(
-                ObjFormat.Resolve(directory, name) ?? throw new FileNotFoundException($"{name} is not in the model's folder.", name)));
+                ObjFormat.Resolve(directory, Uri.UnescapeDataString(name))
+                ?? throw new FileNotFoundException($"{name} is not in the model's folder.", name)));
             context.Validation = ValidationMode.Skip;
             using var stream = File.OpenRead(path);
             root = context.ReadSchema2(stream);
@@ -312,6 +315,7 @@ internal static class GltfFormat
         try
         {
             using var image = new MagickImage(texture.Data);
+            DdsChannelOrder.Correct(texture.Data, image);
             return image.ToByteArray(MagickFormat.Png);
         }
         catch (MagickException ex)

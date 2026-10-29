@@ -60,7 +60,79 @@ public class WhatsNewTests
             .Where(f => !f.EndsWith(".json", StringComparison.OrdinalIgnoreCase)).Select(f => new FileInfo(f)).ToList();
         Assert.NotEmpty(media);
         Assert.All(media, f => Assert.True(f.Length <= 400 * 1024, $"{f.Name} is {f.Length / 1024} KB"));
-        Assert.True(media.Sum(f => f.Length) <= 2 * 1024 * 1024, "the slides' media add up to more than 2 MB");
+        foreach (var pack in media.GroupBy(f => f.DirectoryName))
+            Assert.True(pack.Sum(f => f.Length) <= 2 * 1024 * 1024, $"{pack.Key} adds up to more than 2 MB");
+        Assert.True(media.Sum(f => f.Length) <= 6 * 1024 * 1024, "the shared and Portuguese media exceed 6 MB");
+    }
+
+    [Theory]
+    [InlineData("pt-PT", "pt-PT/crop.webp", 4)]
+    [InlineData("PT-br", "pt-BR/crop.webp", 7)]
+    [InlineData("pt", "crop.webp", 2)]
+    [InlineData("fr", "crop.webp", 2)]
+    [InlineData(null, "crop.webp", 2)]
+    public void Localized_media_use_an_exact_variant_and_their_own_poster(string? language, string path, int poster)
+    {
+        var folder = new Uri("avares://Filee/Assets/WhatsNew/2.0.0/");
+        var deck = SlideDeck.Parse("""
+            { "version": "2.0.0", "slides": [
+              { "id": "crop", "media": "crop.webp", "poster": 2, "title": "t", "text": "x",
+                "localizedMedia": {
+                  "pt-PT": { "media": "pt-PT/crop.webp", "poster": 4 },
+                  "pt-BR": { "media": "pt-BR/crop.webp", "poster": 7 },
+                  "fr": { "media": "../../secret.webp" },
+                  "es": { "media": "https://example.com/crop.webp" },
+                  "de": "bad entry"
+                } }
+            ] }
+            """, folder)!;
+        var slide = Assert.Single(deck.Slides);
+        Assert.Equal(2, slide.LocalizedMedia.Count);
+        Assert.Equal(new SlideMedia(new Uri(folder, path), poster), slide.MediaFor(language));
+    }
+
+    [AvaloniaTheory]
+    [InlineData("pt-PT")]
+    [InlineData("pt-BR")]
+    public void Portuguese_recordings_preserve_the_desktop_context_and_localize_the_other_slides(string language)
+    {
+        TestServices.EnsureInitialized(language);
+        var deck = Assert.Single(SlideDeck.LoadAll("Filee"), d => d.Version == V2);
+        foreach (var slide in deck.Slides)
+        {
+            var media = slide.MediaFor(language);
+            Assert.True(AssetLoader.Exists(media.Source), $"{media.Source} is missing");
+            if (slide.Id is "languages" or "browser" or "flip")
+                Assert.Equal(slide.Media, media.Source);
+            else
+                Assert.Contains($"/{language}/", media.Source.AbsolutePath);
+        }
+    }
+
+    [AvaloniaFact]
+    public void Changing_language_refreshes_the_current_recording_without_resetting_the_slide()
+    {
+        var window = Open("pt-PT");
+        var loc = AppHost.Get<LocalizationService>();
+        try
+        {
+            var slides = window.SlideShow;
+            slides.GoTo(3);
+            foreach (var language in new[] { "pt-PT", "pt-BR", "en", "pt-PT" })
+            {
+                loc.SetLanguage(language);
+                Pump();
+                Assert.Equal(3, slides.Index);
+                Assert.Equal(slides.Slides[3].MediaFor(language).Source, slides.Media.Source);
+                Assert.True(slides.Media.HasPicture);
+                Assert.Equal(slides.Slides[3].MediaFor(language).PosterFrame, slides.Media.PosterFrame);
+            }
+        }
+        finally
+        {
+            window.Close();
+            TestServices.EnsureInitialized("en");
+        }
     }
 
     [Fact]
@@ -310,10 +382,13 @@ public class WhatsNewTests
         }
     }
 
-    [AvaloniaFact]
-    public void Arrow_keys_move_and_escape_closes()
+    [AvaloniaTheory]
+    [InlineData("en")]
+    [InlineData("pt-PT")]
+    [InlineData("pt-BR")]
+    public void Arrow_keys_move_and_escape_closes(string language)
     {
-        var window = Open();
+        var window = Open(language);
         try
         {
             Press(window, Key.Right);
@@ -372,22 +447,40 @@ public class WhatsNewTests
         }
     }
 
-    [AvaloniaFact]
-    public void Reduced_motion_shows_each_slides_poster_frame()
+    [AvaloniaTheory]
+    [InlineData("en")]
+    [InlineData("pt-PT")]
+    [InlineData("pt-BR")]
+    public void Reduced_motion_shows_each_slides_poster_frame(string language)
     {
         var before = Motion.Enabled;
-        var window = Open(beforeOpening: () => Motion.Set(false)); // after the theme, which applies the setting
+        var window = Open(language, beforeOpening: () => Motion.Set(false)); // after the theme, which applies the setting
         try
         {
             var media = window.SlideShow.Media;
             Assert.False(window.SlideShow.PlayAnimations);
             Assert.True(media.HasPicture);
             Assert.True(media.FrameCount > 1);
-            // The first slide names a poster frame: the donut open over the browser, not an empty desktop.
-            var poster = window.SlideShow.Slides[0].PosterFrame;
-            Assert.True(poster > 0);
+            // Each recording has its own meaningful poster: the localized ones open with the donut already visible.
+            var poster = window.SlideShow.Slides[0].MediaFor(language).PosterFrame;
+            if (language == "en")
+                Assert.True(poster > 0);
             Assert.Equal(poster, media.CurrentFrame);
             Assert.False(media.IsPlaying);
+            for (var i = 0; i < window.SlideShow.Slides.Count; i++)
+            {
+                window.SlideShow.GoTo(i);
+                Pump();
+                var expected = window.SlideShow.Slides[i].MediaFor(language).PosterFrame;
+                Assert.InRange(expected, 0, media.FrameCount - 1);
+                Assert.Equal(expected, media.CurrentFrame);
+                Assert.True(media.HasPicture);
+                Assert.False(media.IsPlaying);
+                if (language is "pt-PT" or "pt-BR")
+                    RenderTests.Save(window, $"whatsnew-poster-{language}-{window.SlideShow.Slides[i].Id}.png");
+            }
+            window.SlideShow.GoTo(0);
+            Pump();
 
             Motion.Set(true);
             Pump();
@@ -484,6 +577,10 @@ public class WhatsNewTests
     [InlineData("ru", false)]
     [InlineData("ru", true)]
     [InlineData("pt-BR", false)]
+    [InlineData("pt-BR", true)]
+    [InlineData("pt-PT", false)]
+    [InlineData("pt-PT", true)]
+    [InlineData("fr", false)]
     public void Window_renders(string language, bool dark)
     {
         TestServices.EnsureInitialized(language);

@@ -128,14 +128,33 @@ internal static partial class RhwpInput
     }
 
     /// <summary>
-    /// Options for <c>rhwp export-pdf</c>: Cambria Math for equations when none of the fonts rhwp draws their symbols
-    /// with is installed.
+    /// Options for <c>rhwp export-pdf</c>: installed generic fallback families (some Linux installations do not have
+    /// rhwp's Korean defaults, which otherwise leaves every missing-font run blank), and Cambria Math for equations
+    /// when none of the fonts rhwp draws their symbols with is installed.
     /// </summary>
     public static IReadOnlyList<string> PdfOptions(Func<string, InstalledFont?>? lookup = null)
     {
         lookup ??= RhwpFonts.Find;
+        var options = new List<string>();
+        AddFallback("--fallback-serif", ["Times New Roman", "Noto Serif", "DejaVu Serif", "Georgia", "Liberation Serif"]);
+        AddFallback("--fallback-sans", ["Segoe UI", "Tahoma", "Arial", "Noto Sans", "DejaVu Sans", "Helvetica", "Liberation Sans"]);
+        AddFallback("--fallback-mono", ["Cascadia Mono", "Consolas", "SF Mono", "Menlo", "Noto Sans Mono", "DejaVu Sans Mono", "Liberation Mono"]);
+
         var hasSymbols = new[] { "Latin Modern Math", "STIX Two Math", "Arial Unicode MS" }.Any(f => lookup(f) is { Usable: true });
-        return !hasSymbols && lookup("Cambria Math") is { Usable: true } ? ["--equation-font", "Cambria Math"] : [];
+        if (!hasSymbols && lookup("Cambria Math") is { Usable: true })
+        {
+            options.Add("--equation-font");
+            options.Add("Cambria Math");
+        }
+        return options;
+
+        void AddFallback(string option, IReadOnlyList<string> families)
+        {
+            if (families.FirstOrDefault(f => lookup(f) is { Usable: true }) is not { } family)
+                return;
+            options.Add(option);
+            options.Add(family);
+        }
     }
 
     private static XDocument Load(ZipArchiveEntry entry)

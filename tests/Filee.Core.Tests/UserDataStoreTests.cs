@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Filee.Core.Presets;
 using Filee.Core.Profiles;
 using Filee.Core.Settings;
@@ -51,6 +52,126 @@ public class UserDataStoreTests
         Assert.Single(reloaded.Profiles, p => p.Extensions.Contains("py"));
         Assert.Single(reloaded.Profiles, p => p.Extensions.Contains("dat"));
         Assert.DoesNotContain("log", reloaded.Profiles.Single(p => p.Id == "text").Extensions);
+    }
+
+    [Fact]
+    public void A_preset_with_custom_sizing_never_writes_a_resize_name_an_older_version_rejects()
+    {
+        using var dir = new TempDir();
+        var store = new UserDataStore(dir.Path);
+        store.Load();
+        var preset = store.Presets[0];
+        preset.Image.Resize = ResizeMode.None;
+        preset.Image.CustomSize = new CustomImageSize { Width = 777, Height = 333, LockAspect = true };
+        store.SaveLibrary();
+
+        // What a version without custom sizing reads: every resize stays a name it knows (so presets.json is not
+        // dropped as broken and overwritten with the built-in presets) and the unknown customSize is simply skipped.
+        var stored = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir.Path, "presets.json")));
+        foreach (var p in stored.RootElement.EnumerateArray())
+        {
+            var name = p.GetProperty("image").GetProperty("resize").GetString();
+            Assert.Contains(name, new[] { "None", "Percent", "LongEdge", "Width" });
+        }
+        var image = stored.RootElement.EnumerateArray().Single(p => p.GetProperty("id").GetString() == preset.Id).GetProperty("image");
+        var size = image.GetProperty("customSize");
+        Assert.Equal(777, size.GetProperty("width").GetInt32());
+        Assert.Equal(333, size.GetProperty("height").GetInt32());
+        Assert.True(size.GetProperty("lockAspect").GetBoolean());
+
+        // And this version reads the custom sizing back.
+        var reloaded = new UserDataStore(dir.Path);
+        reloaded.Load();
+        var back = reloaded.Presets.Single(p => p.Id == preset.Id);
+        Assert.Equal(ResizeMode.None, back.Image.Resize);
+        Assert.Equal((777, 333, true), (back.Image.CustomSize!.Width, back.Image.CustomSize!.Height, back.Image.CustomSize!.LockAspect));
+    }
+
+    [Fact]
+    public void A_resize_mode_of_Custom_is_never_written_to_presets_json()
+    {
+        using var dir = new TempDir();
+        var store = new UserDataStore(dir.Path);
+        store.Load();
+        store.Presets[0].Image.Resize = ResizeMode.Custom;
+        store.SaveLibrary();
+
+        // However custom sizing reaches the model, the file keeps a resize name every version knows.
+        var stored = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir.Path, "presets.json")));
+        foreach (var p in stored.RootElement.EnumerateArray())
+        {
+            var name = p.GetProperty("image").GetProperty("resize").GetString();
+            Assert.Contains(name, new[] { "None", "Percent", "LongEdge", "Width" });
+        }
+    }
+
+    [Fact]
+    public void A_preset_with_a_minimum_short_edge_never_writes_a_resize_name_an_older_version_rejects()
+    {
+        using var dir = new TempDir();
+        var store = new UserDataStore(dir.Path);
+        store.Load();
+        var preset = store.Presets[0];
+        preset.Image.Resize = ResizeMode.None;
+        preset.Image.MinShortEdge = 1080;
+        store.SaveLibrary();
+
+        // What Filee 2.1.0 reads: every resize stays a name it knows, and the unknown minShortEdge is skipped (#652).
+        var stored = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir.Path, "presets.json")));
+        foreach (var p in stored.RootElement.EnumerateArray())
+        {
+            var name = p.GetProperty("image").GetProperty("resize").GetString();
+            Assert.Contains(name, new[] { "None", "Percent", "LongEdge", "Width" });
+        }
+        var image = stored.RootElement.EnumerateArray().Single(p => p.GetProperty("id").GetString() == preset.Id).GetProperty("image");
+        Assert.Equal(1080, image.GetProperty("minShortEdge").GetInt32());
+        // Presets without it keep the shape they had: no "minShortEdge": null written into each one.
+        Assert.All(stored.RootElement.EnumerateArray().Where(p => p.GetProperty("id").GetString() != preset.Id),
+            p => Assert.False(p.GetProperty("image").TryGetProperty("minShortEdge", out _)));
+
+        // And this version reads it back.
+        var reloaded = new UserDataStore(dir.Path);
+        reloaded.Load();
+        var back = reloaded.Presets.Single(p => p.Id == preset.Id);
+        Assert.Equal(ResizeMode.None, back.Image.Resize);
+        Assert.Equal(1080, back.Image.MinShortEdge);
+        Assert.True(back.Image.EditsPicture);
+        Assert.Equal(1080, back.Image.Clone().MinShortEdge);
+    }
+
+    [Fact]
+    public void A_resize_mode_of_MinShortEdge_is_never_written_to_presets_json()
+    {
+        using var dir = new TempDir();
+        var store = new UserDataStore(dir.Path);
+        store.Load();
+        store.Presets[0].Image.Resize = ResizeMode.MinShortEdge;
+        store.SaveLibrary();
+
+        var stored = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir.Path, "presets.json")));
+        Assert.Equal("None", stored.RootElement[0].GetProperty("image").GetProperty("resize").GetString());
+    }
+
+    [Fact]
+    public void A_resize_name_this_version_does_not_know_reads_as_no_resize()
+    {
+        using var dir = new TempDir();
+        var store = new UserDataStore(dir.Path);
+        store.Load();
+        store.Presets[0].Name = "mine";
+        store.SaveLibrary();
+
+        // A preset from a future version, or a hand-edited one: a resize name this version has never heard of.
+        var path = Path.Combine(dir.Path, "presets.json");
+        var original = File.ReadAllText(path);
+        var edited = original.Replace("\"resize\": \"None\"", "\"resize\": \"Quantum\"");
+        Assert.NotEqual(original, edited);
+        File.WriteAllText(path, edited);
+
+        var reloaded = new UserDataStore(dir.Path);
+        reloaded.Load();
+        Assert.Equal(ResizeMode.None, reloaded.Presets[0].Image.Resize);   // the lenient converter, not a broken file
+        Assert.Equal("mine", reloaded.Presets[0].Name);                    // and the library was kept, not replaced
     }
 
     [Fact]
@@ -874,7 +995,7 @@ public class UserDataStoreTests
         Assert.Equal(ids.IndexOf("models") + 1, ids.IndexOf("geo"));
         Assert.Equal(ids.IndexOf("mixed") - 1, ids.IndexOf("geo"));
         var geo = profiles.Single(p => p.Id == "geo");
-        Assert.Equal(["geojson", "kml", "kmz", "gpx", "shp"], geo.Extensions);
+        Assert.Equal(["geojson", "kml", "kmz", "gpx", "shp", "fit"], geo.Extensions);
         Assert.Equal(BuiltInData.GeoProfile().PresetIds, geo.PresetIds);
         Assert.All(geo.PresetIds, id => Assert.Contains(presets, p => p.Id == id));
         Assert.False(SettingsMigrations.ApplyToLibrary(24, presets, profiles)); // once only
@@ -888,10 +1009,10 @@ public class UserDataStoreTests
         profiles.Insert(0, new ToolbarProfile { Id = "earth", Name = "Earth", Extensions = ["kml", "kmz"] });
 
         Assert.True(SettingsMigrations.ApplyToLibrary(24, presets, profiles));
-        Assert.Equal(["geojson", "gpx", "shp"], profiles.Single(p => p.Id == "geo").Extensions);
+        Assert.Equal(["geojson", "gpx", "shp", "fit"], profiles.Single(p => p.Id == "geo").Extensions);
 
         var taken = BuiltInData.CreateProfiles().Where(p => p.Id != "geo").ToList();
-        taken.Insert(0, new ToolbarProfile { Id = "all", Name = "All", Extensions = ["geojson", "kml", "kmz", "gpx", "shp"] });
+        taken.Insert(0, new ToolbarProfile { Id = "all", Name = "All", Extensions = ["geojson", "kml", "kmz", "gpx", "shp", "fit"] });
         var geoIds = BuiltInData.GeoPresets().Select(p => p.Id).ToHashSet();
         var withoutPresets = BuiltInData.CreatePresets().Where(p => !geoIds.Contains(p.Id)).ToList();
 
@@ -914,7 +1035,7 @@ public class UserDataStoreTests
         var geo = profiles.Single(p => p.Id == "geo");
         Assert.Equal(["to-kml"], geo.PresetIds);
         // The extensions of the default donut that no donut takes yet are added to it, after the user's own.
-        Assert.Equal(["kml", "geojson", "kmz", "gpx", "shp"], geo.Extensions);
+        Assert.Equal(["kml", "geojson", "kmz", "gpx", "shp", "fit"], geo.Extensions);
     }
 
     [Fact]
@@ -1042,6 +1163,77 @@ public class UserDataStoreTests
         Assert.Equal(LivePhotoKind.Apple, iphone.Media.LivePhoto);
         Assert.Equal("My Live Photo", iphone.Name);
         Assert.Single(presets, p => p.Id == "live-photo-iphone");
+    }
+
+    [Fact]
+    public void Version_35_libraries_learn_icalendar_extensions_and_preset_without_overriding_user_choices()
+    {
+        using var fullDir = new TempDir();
+        var full = new UserDataStore(fullDir.Path);
+        full.Load();
+        full.Settings.SchemaVersion = 35;
+        var data = full.Profiles.Single(p => p.Id == "data");
+        data.Extensions.RemoveAll(e => e is "ics" or "ical");
+        full.Profiles.Insert(0, new ToolbarProfile { Id = "my-calendar", Name = "My calendar", Extensions = ["ics"] });
+        var fullBack = full.Profiles.Single(p => p.Id == "spreadsheets").BackPresetIds!;
+        fullBack.Remove("to-ics");
+        fullBack.AddRange(full.Presets.Select(p => p.Id).Where(id => !fullBack.Contains(id))
+            .Take(ToolbarProfile.MaxSlices - fullBack.Count));
+        var fullBackBeforeMigration = fullBack.ToList();
+        full.Presets.RemoveAll(p => p.Id == "to-ics");
+        full.SaveSettings();
+        full.SaveLibrary();
+
+        var upgradedFull = new UserDataStore(fullDir.Path);
+        upgradedFull.Load();
+        Assert.Contains("ical", upgradedFull.Profiles.Single(p => p.Id == "data").Extensions);
+        Assert.DoesNotContain("ics", upgradedFull.Profiles.Single(p => p.Id == "data").Extensions);
+        Assert.Contains("ics", upgradedFull.Profiles.Single(p => p.Id == "my-calendar").Extensions);
+        Assert.Equal(fullBackBeforeMigration, upgradedFull.Profiles.Single(p => p.Id == "spreadsheets").BackPresetIds);
+        Assert.Single(upgradedFull.Presets, p => p.Id == "to-ics");
+
+        using var roomDir = new TempDir();
+        var room = new UserDataStore(roomDir.Path);
+        room.Load();
+        room.Settings.SchemaVersion = 35;
+        foreach (var profile in room.Profiles)
+            profile.Extensions.RemoveAll(e => e is "ics" or "ical");
+        room.Profiles.Single(p => p.Id == "spreadsheets").BackPresetIds!.Remove("to-ics");
+        room.Presets.RemoveAll(p => p.Id == "to-ics");
+        room.SaveSettings();
+        room.SaveLibrary();
+
+        var upgradedRoom = new UserDataStore(roomDir.Path);
+        upgradedRoom.Load();
+        var sheets = upgradedRoom.Profiles.Single(p => p.Id == "spreadsheets").BackPresetIds!;
+        Assert.Equal(sheets.IndexOf("to-vcf") + 1, sheets.IndexOf("to-ics"));
+        Assert.Single(upgradedRoom.Presets, p => p.Id == "to-ics");
+        upgradedRoom.Profiles.Single(p => p.Id == "data").Extensions.Remove("ics");
+        upgradedRoom.SaveLibrary();
+
+        var reloadedRoom = new UserDataStore(roomDir.Path);
+        reloadedRoom.Load();
+        Assert.DoesNotContain("ics", reloadedRoom.Profiles.Single(p => p.Id == "data").Extensions);
+        Assert.Equal(1, reloadedRoom.Profiles.Single(p => p.Id == "spreadsheets").BackPresetIds!.Count(id => id == "to-ics"));
+        Assert.Single(reloadedRoom.Presets, p => p.Id == "to-ics");
+
+        using var deletedDir = new TempDir();
+        var deleted = new UserDataStore(deletedDir.Path);
+        deleted.Load();
+        deleted.Settings.SchemaVersion = 35;
+        deleted.Profiles.RemoveAll(p => p.Id == "data");
+        foreach (var profile in deleted.Profiles)
+            profile.Extensions.RemoveAll(e => e is "ics" or "ical");
+        deleted.Profiles.Single(p => p.Id == "spreadsheets").BackPresetIds!.Remove("to-ics");
+        deleted.Presets.RemoveAll(p => p.Id == "to-ics");
+        deleted.SaveSettings();
+        deleted.SaveLibrary();
+
+        var upgradedDeleted = new UserDataStore(deletedDir.Path);
+        upgradedDeleted.Load();
+        Assert.DoesNotContain(upgradedDeleted.Profiles, p => p.Id == "data");
+        Assert.DoesNotContain(upgradedDeleted.Profiles.SelectMany(p => p.Extensions), e => e is "ics" or "ical");
+        Assert.Single(upgradedDeleted.Presets, p => p.Id == "to-ics");
     }
 
     [Fact]
@@ -1319,6 +1511,38 @@ public class UserDataStoreTests
         Assert.Equal("remove-background", presets[presets.IndexOf(crop) - 1].Id);
         Assert.DoesNotContain(profiles, p => p.PresetIds.Contains("tool-crop"));
         Assert.False(SettingsMigrations.ApplyToLibrary(25, presets, profiles)); // once only
+    }
+
+    [Fact]
+    public void Version_41_libraries_get_the_spreadsheet_print_studio_after_crop_and_on_the_back()
+    {
+        var presets = BuiltInData.CreatePresets();
+        presets.RemoveAll(p => p.Id == "tool-sheet-studio");
+        var profiles = BuiltInData.CreateProfiles();
+        profiles.Single(p => p.Id == "spreadsheets").BackPresetIds!.Remove("tool-sheet-studio");
+
+        Assert.True(SettingsMigrations.ApplyToLibrary(41, presets, profiles));
+
+        var studio = presets.Single(p => p.Id == "tool-sheet-studio");
+        Assert.Equal((PresetKind.Tool, "pdf"), (studio.Kind, studio.TargetFormat));
+        Assert.Equal(presets.FindIndex(p => p.Id == "tool-crop") + 1, presets.IndexOf(studio)); // as in a new library
+        Assert.Equal("tool-sheet-studio", profiles.Single(p => p.Id == "spreadsheets").BackPresetIds![0]);
+        Assert.False(SettingsMigrations.ApplyToLibrary(41, presets, profiles));
+    }
+
+    [Fact]
+    public void Version_41_libraries_keep_the_print_studio_off_the_back_when_the_front_has_it()
+    {
+        var presets = BuiltInData.CreatePresets();
+        var profiles = BuiltInData.CreateProfiles();
+        var spreadsheets = profiles.Single(p => p.Id == "spreadsheets");
+        spreadsheets.BackPresetIds!.Remove("tool-sheet-studio");
+        spreadsheets.PresetIds.Add("tool-sheet-studio"); // the user put it on the front
+
+        SettingsMigrations.ApplyToLibrary(41, presets, profiles);
+
+        Assert.DoesNotContain("tool-sheet-studio", spreadsheets.BackPresetIds);
+        Assert.Single(presets, p => p.Id == "tool-sheet-studio");
     }
 
     [Fact]

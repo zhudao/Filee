@@ -19,6 +19,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Filee.App.Tests;
 
+[Collection("MainWindow")]
 public class CloseActionTests
 {
     private static void Pump()

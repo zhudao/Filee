@@ -31,7 +31,7 @@ public static class FormatRequest
     {
         var label = Label(extensions);
         return new Uri(UpdateService.RepositoryUrl.TrimEnd('/') + "/issues/new?template=format_request.yml" +
-            "&title=" + Uri.EscapeDataString("Format request: " + label) +
+            "&title=" + Uri.EscapeDataString("[Format]: " + label) +
             "&extension=" + Uri.EscapeDataString(label));
     }
 }

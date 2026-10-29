@@ -47,13 +47,15 @@ public class NativeMemoryStressTests(EngineFixture fx) : IClassFixture<EngineFix
         var compactions = 0;
         var compactor = Task.Run(() =>
         {
-            while (!Volatile.Read(ref done))
+            // At least once: on a busy CI runner this task can start only after the workers have finished.
+            do
             {
                 GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
                 GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
                 compactions++;
                 Thread.Sleep(20);
             }
+            while (!Volatile.Read(ref done));
         }, TestContext.Current.CancellationToken);
         var releaser = Task.Run(() =>
         {

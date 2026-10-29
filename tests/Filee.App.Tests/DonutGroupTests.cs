@@ -395,9 +395,19 @@ public class DonutGroupTests
             vm.ResetForDrag(); // dragging: the files (and so the donut) aren't known yet
             Assert.True(vm.ReserveSubRing);
 
-            vm.Load([@"C:\docs\a.pdf"], clickMode: true); // the PDF donut has no group
+            vm.Load([@"C:\downloads\a.zip"], clickMode: true); // the archive donut has no group
             vm.FitToThisDonut();
             Assert.False(vm.ReserveSubRing);
+
+            vm.Load([@"C:\docs\a.pdf"], clickMode: true); // Edit is a group on the PDF donut's back
+            vm.FitToThisDonut();
+            Assert.True(vm.ReserveSubRing);
+            Assert.True(vm.ToggleFace());
+            Assert.True(vm.Items[0].IsGroup);
+            Assert.Equal(Preset.MaxSubPresets, vm.Items[0].Children!.Count);
+            Assert.Equal("tool-pdf-crop", vm.PresetShownAt(0, 0)!.Id);
+            Assert.Equal("tool-pdf-add", vm.PresetShownAt(0, 5)!.Id);
+
             vm.Load([@"C:\photos\a.jpg"], clickMode: true); // the image donut has
             vm.FitToThisDonut();
             Assert.True(vm.ReserveSubRing);
@@ -428,6 +438,66 @@ public class DonutGroupTests
     }
 
     [AvaloniaFact]
+    public void Picture_edits_in_the_same_format_are_offered_for_images_only()
+    {
+        TestServices.EnsureInitialized("en");
+        var availability = AppHost.Get<PresetAvailability>();
+        var presets = BuiltInData.CreatePresets();
+        var halfSize = presets.Single(p => p.Id == "half-size");
+        var grayscale = presets.Single(p => p.Id == "grayscale");
+        var trim = presets.Single(p => p.Id == "trim-transparent");
+        var compress = presets.Single(p => p.Id == "compress-image");
+        var removeMetadata = presets.Single(p => p.Id == "remove-metadata");
+        var png = Filee.Core.Formats.FormatRegistry.Get("png");
+        var gif = Filee.Core.Formats.FormatRegistry.Get("gif");
+        var mp3 = Filee.Core.Formats.FormatRegistry.Get("mp3");
+
+        foreach (var preset in new[] { halfSize, grayscale, trim, compress })
+        {
+            Assert.Null(availability.Check(preset, [png]));
+            Assert.Null(availability.Check(preset, [gif]));
+            foreach (var id in new[] { "mp3", "mp4", "zip", "pdf", "srt", "dxf", "geojson", "txt", "svg" })
+                Assert.Equal("Works on images only", availability.Check(preset, [Filee.Core.Formats.FormatRegistry.Get(id)]));
+        }
+
+        Assert.Null(availability.Check(halfSize, [png, mp3]));
+        Assert.Equal("This format has no transparency, so there's nothing to trim",
+            availability.Check(trim, [Filee.Core.Formats.FormatRegistry.Get("jpg"), mp3]));
+
+        var speed = new Preset { TargetFormat = BuiltInData.SameAsSource, Image = { AnimationSpeed = 2 } };
+        Assert.Equal("Works on images only", availability.Check(speed, [mp3]));
+        Assert.Null(availability.Check(speed, [gif]));
+
+        var removeBackground = new Preset { TargetFormat = BuiltInData.SameAsSource, Image = { RemoveBackground = true } };
+        Assert.Equal("Works on images only", availability.Check(removeBackground, [mp3]));
+        Assert.Null(availability.Check(removeBackground, [png]));
+
+        // Custom sizing edits the picture too: a same-format Custom preset stores Resize None plus CustomSize, so
+        // EditsPicture has to read CustomSize as well, or it would still be offered for an MP3 (#604 follow-up).
+        var customSize = new Preset
+        {
+            TargetFormat = BuiltInData.SameAsSource,
+            Image = { CustomSize = new CustomImageSize { Width = 777, Height = 333 } }
+        };
+        Assert.Equal("Works on images only", availability.Check(customSize, [mp3]));
+        Assert.Null(availability.Check(customSize, [png]));
+
+        // A minimum short edge is stored the same way, as Resize None plus MinShortEdge (#652).
+        var minShortEdge = new Preset { TargetFormat = BuiltInData.SameAsSource, Image = { MinShortEdge = 1080 } };
+        Assert.Equal("Works on images only", availability.Check(minShortEdge, [mp3]));
+        Assert.Null(availability.Check(minShortEdge, [png]));
+
+        var mixedOptions = new Preset
+        {
+            TargetFormat = BuiltInData.SameAsSource,
+            Image = { Grayscale = true },
+            Media = { RemoveMetadata = true },
+        };
+        Assert.Equal("Works on images only", availability.Check(mixedOptions, [mp3]));
+        Assert.NotEqual("Works on images only", availability.Check(removeMetadata, [mp3]));
+    }
+
+    [AvaloniaFact]
     public void Tool_presets_are_available_only_for_writable_single_frame_raster_formats()
     {
         TestServices.EnsureInitialized("en");
@@ -443,6 +513,22 @@ public class DonutGroupTests
         Assert.Equal("This file type isn't supported", availability.Check(crop, [Filee.Core.Formats.FormatRegistry.Get("heic")]));
 
         Assert.Equal("This file type isn't supported", availability.Check(crop, [Filee.Core.Formats.FormatRegistry.Get("png"), Filee.Core.Formats.FormatRegistry.Get("pdf")]));
+        Assert.Equal("This file type isn't supported", availability.Check(crop, []));
+    }
+
+    [AvaloniaFact]
+    public void Pdf_tools_are_available_only_when_every_file_is_a_PDF()
+    {
+        TestServices.EnsureInitialized("en");
+        var availability = AppHost.Get<PresetAvailability>();
+        var crop = BuiltInData.CreatePresets().Single(p => p.Id == "tool-pdf-crop");
+        var pdf = Filee.Core.Formats.FormatRegistry.Get("pdf");
+        var png = Filee.Core.Formats.FormatRegistry.Get("png");
+
+        Assert.Null(availability.Check(crop, [pdf]));
+        Assert.Equal(new PresetJudgement(PresetUse.Usable, null), availability.ForPalette([pdf]).Judge(crop));
+        Assert.Equal("This file type isn't supported", availability.Check(crop, [png]));
+        Assert.Equal("This file type isn't supported", availability.Check(crop, [pdf, png]));
         Assert.Equal("This file type isn't supported", availability.Check(crop, []));
     }
 
