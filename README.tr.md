@@ -29,6 +29,7 @@
 <p align="center">
   <a href="https://trendshift.io/repositories/276987"><img src="https://trendshift.io/api/badge/trendshift/repositories/276987/weekly?language=C%23&v=2" alt="Filee: Trendshift'te haftanın #1 C# deposu" width="250" height="55"></a>
   <a href="https://trendshift.io/repositories/276987"><img src="https://trendshift.io/api/badge/trendshift/repositories/276987/daily?language=C%23&v=2" alt="Filee: Trendshift'te günün #1 C# deposu" width="250" height="55"></a>
+  <a href="https://hellogithub.com/repository/KnifeLemon/Filee" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=0847caedd5bd4077a70b90f83afdf83c&claim_uid=jAlIvVMhn0kcEsU" alt="Featured｜HelloGitHub" width="250" height="54" /></a>
 </p>
 
 <p align="center">
@@ -46,7 +47,8 @@
   <a href="README.pt-PT.md">Português (Portugal)</a> ·
   <a href="README.fr.md">Français</a> ·
   <a href="README.th.md">ไทย</a> ·
-  <b>Türkçe</b>
+  <b>Türkçe</b> ·
+  <a href="README.id.md">Bahasa Indonesia</a>
 </p>
 
 <table>
@@ -57,7 +59,7 @@
       Formatlar zaten bulunduğunuz yerde görünür; yalnızca sürüklediğiniz dosyalara uygun olanlar listelenir.
     </td>
     <td width="33%" valign="top">
-      <b>268 format, başka yazılım gerekmez</b><br>
+      <b>270 format, başka yazılım gerekmez</b><br>
       Görseller, PDF, Word, Excel, PowerPoint, HWP, e-kitaplar, arşivler, yazı tipleri, CAD, 3B modeller ve coğrafi veriler; Office, Hancom Office veya LibreOffice olmadan çalışır.
     </td>
     <td width="33%" valign="top">

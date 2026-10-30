@@ -29,6 +29,7 @@
 <p align="center">
   <a href="https://trendshift.io/repositories/276987"><img src="https://trendshift.io/api/badge/trendshift/repositories/276987/weekly?language=C%23&v=2" alt="Filee: #1 C# repository of the week on Trendshift" width="250" height="55"></a>
   <a href="https://trendshift.io/repositories/276987"><img src="https://trendshift.io/api/badge/trendshift/repositories/276987/daily?language=C%23&v=2" alt="Filee: #1 C# repository of the day on Trendshift" width="250" height="55"></a>
+  <a href="https://hellogithub.com/repository/KnifeLemon/Filee" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=0847caedd5bd4077a70b90f83afdf83c&claim_uid=jAlIvVMhn0kcEsU" alt="Featured｜HelloGitHub" width="250" height="54" /></a>
 </p>
 
 <p align="center">
@@ -46,7 +47,8 @@
   <a href="README.pt-PT.md">Português (Portugal)</a> ·
   <a href="README.fr.md">Français</a> ·
   <a href="README.th.md">ไทย</a> ·
-  <a href="README.tr.md">Türkçe</a>
+  <a href="README.tr.md">Türkçe</a> ·
+  <a href="README.id.md">Bahasa Indonesia</a>
 </p>
 
 <table>
@@ -57,7 +59,7 @@
       फ़ॉर्मैट वहीं दिखते हैं जहाँ आप पहले से हैं, और सिर्फ़ वही जो आपकी खींची जा रही फ़ाइलों के लिए सही हों।
     </td>
     <td width="33%" valign="top">
-      <b>268 फ़ॉर्मैट, कोई और सॉफ़्टवेयर नहीं</b><br>
+      <b>270 फ़ॉर्मैट, कोई और सॉफ़्टवेयर नहीं</b><br>
       इमेज, PDF, Word, Excel, PowerPoint, HWP, ई-बुक, आर्काइव, फ़ॉन्ट, CAD, 3D मॉडल और भू-स्थानिक डेटा Office, Hancom Office या LibreOffice के बिना काम करते हैं।
     </td>
     <td width="33%" valign="top">
