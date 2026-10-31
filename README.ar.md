@@ -48,7 +48,8 @@
   <a href="README.fr.md">Français</a> ·
   <a href="README.th.md">ไทย</a> ·
   <a href="README.tr.md">Türkçe</a> ·
-  <a href="README.id.md">Bahasa Indonesia</a>
+  <a href="README.id.md">Bahasa Indonesia</a> ·
+  <a href="README.it.md">Italiano</a>
 </p>
 
 <div dir="rtl">
@@ -139,7 +140,7 @@ Set-ProcessMitigation -Name filee-cli.exe -Disable UserShadowStack
 - **مراقبة المجلدات**: يُحوَّل كل ملف يصل إلى المجلد المراقَب.
 - **التحويلات الأخيرة** في الصفحة الرئيسية، لكل نتيجة صورة مصغّرة: افتح الملف، أو افتحه باستخدام تطبيق آخر.
 - **طرق أخرى**: قائمة النقر بالزر الأيمن، واختصار لوحة المفاتيح، ومنطقة الإفلات، و[الأمر `filee`](#سطر-الأوامر).
-- مظهر فاتح وداكن، باللون المميّز وشفافية الشريط الدائري اللذين تختارهما، وباللغات: English · Español · 日本語 · 한국어 · 简体中文 · 繁體中文 · Polski · हिन्दी · Русский · العربية (من اليمين إلى اليسار) · Português (Brasil) · Français · नेपाली · ไทย · Türkçe · Português (Portugal) · Deutsch · Italiano.
+- مظهر فاتح وداكن، باللون المميّز وشفافية الشريط الدائري اللذين تختارهما، وباللغات: English · Español · 日本語 · 한국어 · 简体中文 · 繁體中文 · Polski · हिन्दी · Русский · العربية (من اليمين إلى اليسار) · Português (Brasil) · Français · नेपाली · ไทย · Türkçe · Português (Portugal) · Deutsch · Italiano · Bahasa Indonesia.
 
 ## لقطات الشاشة
 

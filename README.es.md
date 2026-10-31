@@ -48,7 +48,8 @@
   <a href="README.fr.md">Français</a> ·
   <a href="README.th.md">ไทย</a> ·
   <a href="README.tr.md">Türkçe</a> ·
-  <a href="README.id.md">Bahasa Indonesia</a>
+  <a href="README.id.md">Bahasa Indonesia</a> ·
+  <a href="README.it.md">Italiano</a>
 </p>
 
 <table>
@@ -133,7 +134,7 @@ Para deshacerlo, quita esas entradas en Seguridad de Windows → Control de apli
 - **Carpetas supervisadas** que convierten cada archivo que llega a ellas.
 - **Conversiones recientes** en Inicio, cada una con su miniatura: abre el resultado o ábrelo con otra aplicación.
 - **Otras formas de usarlo**: el menú contextual, un atajo de teclado, la zona de suelta y el [comando `filee`](#línea-de-comandos).
-- Temas claro y oscuro con tu propio color de acento y la opacidad del menú circular, en English, Español, 日本語, 한국어, 简体中文, 繁體中文, Polski, हिन्दी, Русский, العربية (de derecha a izquierda), Português (Brasil), Français, नेपाली, ไทย, Türkçe, Português (Portugal), Deutsch e Italiano.
+- Temas claro y oscuro con tu propio color de acento y la opacidad del menú circular, en English, Español, 日本語, 한국어, 简体中文, 繁體中文, Polski, हिन्दी, Русский, العربية (de derecha a izquierda), Português (Brasil), Français, नेपाली, ไทย, Türkçe, Português (Portugal), Deutsch, Italiano y Bahasa Indonesia.
 
 ## Capturas de pantalla
 
