@@ -186,6 +186,7 @@ public sealed class RadialController(
             _window.DonutControl.LeaveProgressMode();
         }
         _visible = false;
+        ReturnKeyboard();
         WatchFlipKey();
         _grace.Cancel();
         ReplaceWeb(null);
@@ -261,6 +262,7 @@ public sealed class RadialController(
                 return;
             viewModel.Load(files, clickMode: false);
             donut.PlayOpenAnimation();
+            TakeKeyboard(window);
             WatchFlipKey();
         };
         window.Dropped += (hit, dropped) =>
@@ -283,6 +285,13 @@ public sealed class RadialController(
             log.LogInformation("Drag over the donut: {Events} move event(s), ended on {Kind} {Index}, drawn lit {Lit:0.00}{Drop}",
                 events, hit.Kind, hit.Index, lit, dropped ? "" : ", left without a drop");
         window.EscapePressed += () => Close();
+        // The flip key comes from the window while it has the keyboard, else from the hook (WatchFlipKey): followed by
+        // the value, which the Activated event may come before.
+        window.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Avalonia.Controls.WindowBase.IsActiveProperty)
+                WatchFlipKey();
+        };
         window.Deactivated += (_, _) =>
         {
             if (!viewModel.IsClickMode || _editing)
@@ -301,10 +310,11 @@ public sealed class RadialController(
         };
 
         donut.ActiveIndexChanged += (_, index) => viewModel.ShowHint(index, donut.ActiveSubIndex, donut.IsCenterHot);
-        // Drag mode: the flip key and the wheel seen by the global hook (click mode gets them in the focused window).
+        // Drag mode: the flip key and the wheel seen by the global hook (click mode gets them in the focused window, and so
+        // does a drag-mode donut that has the keyboard: see TakeKeyboard).
         triggers.FlipKeyPressed += (_, _) =>
         {
-            if (FlipsFromHook)
+            if (HookFlipsKey)
                 donut.Flip();
         };
         triggers.FlipWheelTurned += (_, _) =>
@@ -352,6 +362,7 @@ public sealed class RadialController(
         {
             log.LogInformation("Opening {Preset} for {Count} file(s)", preset.Id, sources.Count);
             var near = _window?.Position;
+            KeepKeyboard(); // for the tool's window
             Close(animate: false);
             if (web is null)
                 windows.ShowTool(sources, preset, near);
@@ -363,8 +374,19 @@ public sealed class RadialController(
         // Merged PDFs, joined clips, slideshows and merged pictures follow the order the user picks.
         if ((preset.TargetFormat == "pdf" && preset.Pdf.MergeIntoSingle || preset.JoinsIntoOneMedia || preset.JoinsImages) && sources.Count > 1)
         {
+            KeepKeyboard(); // for the order window
             Close(animate: false);
             _ = MergeInOrderAsync(sources, preset.Clone(), web, _toClipboard);
+            return;
+        }
+
+        // "Ask every time" for the pages (#981): a small window per PDF first, then the save dialog when that asks too; the
+        // toast shows the jobs, the donut has closed for the window.
+        if (AskedPages.Asks(preset) && sources.Any(AskedPages.IsPdf))
+        {
+            KeepKeyboard(); // for the pages window
+            Close(animate: false);
+            _ = AskPagesThenConvertAsync(sources, preset, web, _toClipboard);
             return;
         }
 
@@ -372,6 +394,7 @@ public sealed class RadialController(
         // shortcut: files from a browser aren't asked about, they save into the download folder as "next to the source".
         if (preset.Output.AskEveryTime && (web is null || preset.IsCopyToFolder))
         {
+            KeepKeyboard(); // for the save dialog
             Close(animate: false);
             _ = AskThenConvertAsync(sources, preset, _toClipboard, web);
             return;
@@ -387,6 +410,7 @@ public sealed class RadialController(
         }
         _converted = true;
         ShowProgress(job);
+        ReturnKeyboard(); // the ring shows the conversion; nothing here needs the keyboard any more
     }
 
     private async Task MergeInOrderAsync(IReadOnlyList<string> files, Preset preset, WebDrop? web, bool toClipboard)
@@ -437,6 +461,85 @@ public sealed class RadialController(
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             log.LogWarning(ex, "Could not remember the layout of merged pictures");
+        }
+    }
+
+    /// <summary>
+    /// "Choose pages" (#981): one window per PDF, in the order dropped, each with its own page count, so two PDFs can
+    /// give two different chapters. Cancelling any of them starts nothing. PDFs given the same pages convert as one
+    /// job; other files dropped with them convert as the preset says. Files from a browser are saved first, as for a
+    /// tool: the window counts the pages of the PDF itself.
+    /// </summary>
+    private async Task AskPagesThenConvertAsync(IReadOnlyList<string> files, Preset preset, WebDrop? web, bool toClipboard)
+    {
+        try
+        {
+            if (web is not null)
+            {
+                var drop = web;
+                web = null; // saving it disposes it
+                files = await conversions.SaveBrowserFilesAsync(drop, (placeholder, ex) =>
+                    log.LogWarning(ex, "Saving {File} from a browser for {Preset} failed", Path.GetFileName(placeholder), preset.Id));
+            }
+            var pdfs = files.Where(AskedPages.IsPdf).ToList();
+            var chosen = new List<(string File, PageChoice Choice)>();
+            var asked = preset;
+            for (var i = 0; i < pdfs.Count; i++)
+            {
+                if (await windows.AskPagesAsync(pdfs[i], asked, i, pdfs.Count) is not { } choice)
+                {
+                    log.LogInformation("Choosing the pages for {Preset} was cancelled; nothing converts", preset.Id);
+                    return;
+                }
+                chosen.Add((pdfs[i], choice));
+                // The next PDF's window starts with this one's choice of one PDF or one file per page.
+                asked = AskedPages.Apply(preset, preset.Pdf.PageRange, choice.SplitPages);
+            }
+            if (chosen.Count == 0)
+                return;
+            RememberSplitChoice(preset, chosen[^1].Choice);
+
+            var runs = new List<(IReadOnlyList<string> Files, Preset Preset)>();
+            var others = files.Where(file => !AskedPages.IsPdf(file)).ToList();
+            if (others.Count > 0)
+                runs.Add((others, preset));
+            runs.AddRange(chosen.GroupBy(c => c.Choice).Select(group =>
+                ((IReadOnlyList<string>)[.. group.Select(c => c.File)], AskedPages.Apply(preset, group.Key.Range, group.Key.SplitPages))));
+            log.LogInformation("Converting {Count} PDF(s) with preset {Preset} on the pages chosen", pdfs.Count, preset.Id);
+            foreach (var (runFiles, runPreset) in runs)
+            {
+                if (runPreset.Output.AskEveryTime)
+                    await AskThenConvertAsync(runFiles, runPreset, toClipboard);
+                else
+                    conversions.Start(runFiles, runPreset, toClipboard: toClipboard);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            log.LogError(ex, "Could not convert on the pages chosen");
+        }
+        finally
+        {
+            web?.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// "Choose pages": one PDF or one file per page, as chosen last (<paramref name="chosen"/>), goes into the preset as
+    /// saved, so the window starts with it next time (as "Merge images" keeps its layout). The range is not kept.
+    /// </summary>
+    private void RememberSplitChoice(Preset preset, PageChoice chosen)
+    {
+        if (!AskedPages.OffersSplit(preset) || store.FindPreset(preset.Id) is not { } saved || saved.Pdf.SplitPages == chosen.SplitPages)
+            return;
+        saved.Pdf.SplitPages = chosen.SplitPages;
+        try
+        {
+            store.SaveLibrary();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log.LogWarning(ex, "Could not remember one PDF or one file per page");
         }
     }
 
@@ -540,6 +643,7 @@ public sealed class RadialController(
     private void HideWindow()
     {
         _visible = false;
+        ReturnKeyboard();
         WatchFlipKey();
         _window?.DonutControl.CollapseGroup();
         _window?.Hide();
@@ -574,13 +678,50 @@ public sealed class RadialController(
     private void WatchFlipKey()
     {
         triggers.WatchFlipKey = FlipsFromHook;
-        // One source per press: the hook in drag mode, the window in click mode (#504).
+        // One source per press (#504): the window while it has the keyboard (click mode, or a drag-mode donut that took
+        // it), else the hook.
         if (_window is not null)
-            _window.DonutControl.FlipKeyFromHook = FlipsFromHook;
+            _window.DonutControl.FlipKeyFromHook = HookFlipsKey;
     }
 
     /// <summary>A drag-mode donut shows files and nothing was dropped yet: the hook's flip key and wheel flip it.</summary>
     private bool FlipsFromHook => _visible && !_dropped && !viewModel.IsClickMode && viewModel.HasFiles;
+
+    /// <summary>The hook's flip key flips the donut: in drag mode, while its window doesn't have the keyboard.</summary>
+    private bool HookFlipsKey => FlipsFromHook && _window?.IsActive != true;
+
+    // The donut took the keyboard during a drag (TakeKeyboard) and hasn't given it back yet.
+    private bool _tookKeyboard;
+
+    /// <summary>
+    /// macOS: once files are dragged onto the donut, it takes the keyboard (Filee comes to the front), so the flip key
+    /// reaches its window as a key press like any other. Watched from outside by the global hook it may not: while an
+    /// app holds Secure Input (Terminal with Secure Keyboard Entry, which can keep it from the background) macOS
+    /// gives no keys to anything watching, only to the app in front. The drag carries on; the keyboard goes back to the
+    /// app that had it once the conversion starts or the donut closes (<see cref="ReturnKeyboard"/>), and stays with
+    /// Filee when the drop opens a window of its own: a tool, the merge order, the save dialog (<see cref="KeepKeyboard"/>).
+    /// Not on Windows, where a window taking the keyboard during a drag breaks Explorer's drag.
+    /// </summary>
+    private void TakeKeyboard(RadialWindow window)
+    {
+        if (!OperatingSystem.IsMacOS() || _tookKeyboard || window.IsActive)
+            return;
+        platform.RememberFrontApp();
+        _tookKeyboard = true;
+        window.Activate();
+    }
+
+    /// <summary>The drop opens a window of Filee's own: the keyboard stays with Filee for it, not given back on close.</summary>
+    private void KeepKeyboard() => _tookKeyboard = false;
+
+    /// <summary>Gives the keyboard back to the app the donut took it from, if the donut still has it.</summary>
+    private void ReturnKeyboard()
+    {
+        if (!_tookKeyboard)
+            return;
+        _tookKeyboard = false;
+        platform.ReturnFocus();
+    }
 
     /// <summary>
     /// Top-left corner of a <paramref name="sidePx"/> square window centred on <paramref name="cursor"/>, moved into

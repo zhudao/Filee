@@ -112,6 +112,22 @@ public sealed class CliTests : IDisposable
     public void Sort_is_refused_by_watch_rather_than_ignored() =>
         Assert.Contains("--sort", CliOptions.Parse(["watch", "inbox", "--to", "pdf", "--sort", "name"]).Error);
 
+    [Fact]
+    public async Task Converts_to_a_format_of_a_turned_off_field()
+    {
+        File.WriteAllText(Path.Combine(_settings, "settings.json"), """{"schemaVersion":58,"turnedOffFields":["video-pro"]}""");
+        var srt = Path.Combine(_folder, "a.srt");
+        File.WriteAllText(srt, "1\n00:00:01,000 --> 00:00:02,000\nHello\n");
+        var (code, output, errors) = await Run("convert", srt, "--to", "ass");
+        Assert.True(code == Cli.Success, output + errors);
+        var result = Path.Combine(_folder, "a.ass");
+        Assert.True(File.Exists(result));
+        Assert.True(new FileInfo(result).Length > 0);
+        (code, output, errors) = await Run("formats", "srt");
+        Assert.True(code == Cli.Success, errors);
+        Assert.Contains("ass", output);
+    }
+
     private static readonly ushort[] FitCrcTable =
         [0x0000, 0xCC01, 0xD801, 0x1400, 0xF001, 0x3C00, 0x2800, 0xE401, 0xA001, 0x6C00, 0x7800, 0xB401, 0x5000, 0x9C01, 0x8801, 0x4400];
 
@@ -255,6 +271,35 @@ public sealed class CliTests : IDisposable
         Assert.Contains("scan_compressed_compressed.pdf (Couldn't make it smaller", output);
     }
 
+    /// <summary>
+    /// --pages (#981): the range on the command line, over the preset's; Split PDF, which asks on the donut in a new
+    /// install, takes it here without asking.
+    /// </summary>
+    [Fact]
+    public async Task Pages_takes_the_range_of_a_pdf_over_the_presets()
+    {
+        var source = Path.Combine(_folder, "book.pdf");
+        using (var document = new PdfSharp.Pdf.PdfDocument())
+        {
+            for (var i = 0; i < 6; i++)
+                document.AddPage();
+            document.Save(source);
+        }
+
+        var (code, output, errors) = await Run("convert", source, "--preset", "pdf-split", "--pages", "2\u20133, 5");
+
+        Assert.Equal(Cli.Success, code);
+        Assert.Equal("", errors);
+        Assert.Contains("Converted 1 of 1", output);
+        Assert.Equal(["book_p2.pdf", "book_p3.pdf", "book_p5.pdf"],
+            Directory.EnumerateFiles(Path.Combine(_folder, "book"), "*.pdf").Select(path => Path.GetFileName(path)).Order().ToArray());
+
+        (code, _, errors) = await Run("convert", source, "--to", "pdf", "--pages", "4-", "-o", Path.Combine(_folder, "out"));
+        Assert.Equal(Cli.Success, code);
+        using var extract = PdfSharp.Pdf.IO.PdfReader.Open(Path.Combine(_folder, "out", "book.pdf"), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        Assert.Equal(3, extract.PageCount);
+    }
+
     [Fact]
     public async Task A_folder_converts_the_files_filee_knows()
     {
@@ -299,6 +344,7 @@ public sealed class CliTests : IDisposable
     [InlineData(new[] { "convert", "a.png", "--preset", "rotate" }, "rotate-left, rotate-right, rotate-180")]
     [InlineData(new[] { "convert", "--to", "jpg" }, "at least one file")]
     [InlineData(new[] { "convert", "a.png", "--to", "jpg", "--quality", "300" }, "--quality")]
+    [InlineData(new[] { "convert", "a.png", "--to", "pdf", "--pages", "1-x" }, "--pages")]
     [InlineData(new[] { "frobnicate" }, "Unknown command")]
     public async Task Wrong_arguments_explain_themselves_with_exit_code_2(string[] args, string message)
     {
