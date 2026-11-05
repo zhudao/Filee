@@ -54,8 +54,9 @@ public static class FormatRegistry
         // Read on Windows only, with its own codec (HDR screenshots of Windows are JPEG XR).
         new("jxr", "JPEG XR", FormatCategory.Image, ["jxr", "wdp", "hdp"], Writable: false),
         new("xcf", "XCF", FormatCategory.Image, ["xcf"], Writable: false),
-        // Krita's own file (#903): a ZIP whose merged picture (mergedimage.png) is read, as Krita shows it.
-        new("kra", "Krita (KRA)", FormatCategory.Image, ["kra"], Writable: false),
+        // Krita's own file (#903): a ZIP whose merged picture (mergedimage.png) is read, as Krita shows it. ".kra~" is the
+        // backup Krita keeps of the previous save, the same file under another name (#1077).
+        new("kra", "Krita (KRA)", FormatCategory.Image, ["kra", "kra~"], Writable: false),
         // iPhone Live Photo as one ZIP (iCloud downloads): the photo, or its video with FFmpeg.
         new("livp", "Live Photo (LIVP)", FormatCategory.Image, ["livp"], Writable: false),
         new("raw", "RAW", FormatCategory.Image,
@@ -108,6 +109,9 @@ public static class FormatRegistry
         new("pub", "PUB", FormatCategory.Document, ["pub"], Writable: false),
         new("eml", "EML", FormatCategory.Document, ["eml"]),
         new("msg", "MSG", FormatCategory.Document, ["msg"], Writable: false),
+        // A signed envelope (CMS / PKCS #7, CAdES; #1010): Italian e-invoices (invoice.xml.p7m) and signed PDFs. It is
+        // converted as the file inside it (IEnvelopeOpener), and named after it: invoice.pdf.p7m → invoice.pdf.
+        new("p7m", "P7M", FormatCategory.Document, ["p7m"], Writable: false),
 
         // Korean word processor (Hancom)
         new("hwpx", "HWPX", FormatCategory.Hwp, ["hwpx"]),
@@ -240,6 +244,9 @@ public static class FormatRegistry
         new("dav", "DAV", FormatCategory.Video, ["dav"], Writable: false),
         // Bink Video, the game cutscene format of RAD Game Tools (#751): FFmpeg's bink demuxer reads it. Never a target.
         new("bik", "BIK", FormatCategory.Video, ["bik"], Writable: false),
+        // FLIC, the animations of Autodesk Animator (.fli) and Animator Pro (.flc), also in DOS games and pixel-art tools
+        // (#940): FFmpeg's flic demuxer reads them. FFmpeg has no FLIC encoder, so never a target.
+        new("flc", "FLIC", FormatCategory.Video, ["flc", "fli"], Writable: false),
         // Raw H.265 / H.264 streams with no container, as security cameras and VMS software export them (issue #301).
         new("h265", "H.265", FormatCategory.Video, ["h265", "265", "hevc"], Writable: false),
         new("h264", "H.264", FormatCategory.Video, ["h264", "264"], Writable: false),
@@ -402,11 +409,20 @@ public static class FormatRegistry
         return Path.GetExtension(name).TrimStart('.');
     }
 
-    /// <summary>The file name without its (possibly two-part) extension: "backup.tar.gz" → "backup".</summary>
+    /// <summary>
+    /// The file name without its (possibly two-part) extension: "backup.tar.gz" → "backup". An envelope's name loses
+    /// the extension of the file inside too, when it has one Filee knows: "invoice.pdf.p7m" → "invoice".
+    /// </summary>
     public static string NameWithoutExtension(string path)
     {
         var name = Path.GetFileName(path);
         var extension = ExtensionOf(name);
-        return extension.Length == 0 ? name : name[..^(extension.Length + 1)];
+        if (extension.Length == 0)
+            return name;
+        var stem = name[..^(extension.Length + 1)];
+        return Envelopes.Contains(extension) && Detect(stem) is not null ? NameWithoutExtension(stem) : stem;
     }
+
+    /// <summary>Extensions of envelopes, which are named after the file inside (<see cref="NameWithoutExtension"/>).</summary>
+    private static readonly HashSet<string> Envelopes = new(["p7m"], StringComparer.OrdinalIgnoreCase);
 }
