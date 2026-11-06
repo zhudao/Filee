@@ -127,7 +127,7 @@ public sealed partial class DonutMenu : Control
     private string? _previewLabel;
     private bool _previewGroup;
     internal bool PreviewIsGroup => _previewGroup;
-    private (int Index, Point Start, PointerPressedEventArgs Args)? _press;
+    private (int Index, string? Id, Point Start, PointerPressedEventArgs Args)? _press;
 
     static DonutMenu()
     {
@@ -431,6 +431,10 @@ public sealed partial class DonutMenu : Control
         // The window is reused: a keyboard hold from the last time it was open must not swallow the first moves now.
         _keyboardHold = _ringFromKeys = false;
         _keyAnchor = _lastPointer = null;
+        // The editor's slice under a press is gone: moving on must not drag what took its place. New items with the
+        // same slice keep it, and the live donut reads its click from the release.
+        if (IsEditMode && _press is { Index: >= 0 } press && Items?.ElementAtOrDefault(press.Index)?.Id != press.Id)
+            _press = null;
         InvalidateMeasure();
         InvalidateVisual();
     }
@@ -447,7 +451,7 @@ public sealed partial class DonutMenu : Control
             return;
         }
 
-        if (_press is { } press && IsEditMode && Distance(p, press.Start) > DragStartDistance && press.Index >= 0)
+        if (_press is { } press && IsEditMode && press.Args.Pointer == e.Pointer && Distance(p, press.Start) > DragStartDistance && press.Index >= 0)
         {
             _press = null;
             SegmentDragStarted?.Invoke(this, (press.Index, e));
@@ -486,12 +490,15 @@ public sealed partial class DonutMenu : Control
             OnProgressPointerMoved(new Point(double.MaxValue / 4, 0));
             return;
         }
-        if (_press is null && !LeftThroughSeam(e.GetPosition(this)))
+        if ((_press is null || PressHeldByAnother(e.Pointer)) && !LeftThroughSeam(e.GetPosition(this)))
         {
             CollapseGroup();
             SetHover(-1);
         }
     }
+
+    /// <summary>In the editor a pressed slice is its pointer's: no other finger or mouse can move or end it.</summary>
+    private bool PressHeldByAnother(IPointer pointer) => IsEditMode && _press is { Index: >= 0 } press && press.Args.Pointer != pointer;
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -503,7 +510,7 @@ public sealed partial class DonutMenu : Control
         {
             if (point.Properties.IsLeftButtonPressed)
             {
-                _press = (-1, point.Position, e);
+                _press = (-1, null, point.Position, e);
                 e.Handled = true;
             }
             return;
@@ -524,17 +531,26 @@ public sealed partial class DonutMenu : Control
             return;
         }
 
-        if (point.Properties.IsLeftButtonPressed)
+        if (point.Properties.IsLeftButtonPressed && !PressHeldByAnother(e.Pointer))
         {
-            _press = (hit.Kind == DonutHitKind.Segment ? hit.Index : -1, point.Position, e);
+            var pressed = hit.Kind == DonutHitKind.Segment ? hit.Index : -1;
+            _press = (pressed, pressed >= 0 ? Items![pressed].Id : null, point.Position, e);
             e.Handled = true;
         }
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        // The editor's press can't become a drag without the capture. The live donut reads its click from the release.
+        if (IsEditMode && !PressHeldByAnother(e.Pointer))
+            _press = null;
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (_press is null)
+        if (_press is null || PressHeldByAnother(e.Pointer))
             return;
         _press = null;
 
