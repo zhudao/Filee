@@ -56,7 +56,7 @@ namespace Filee.Core.Conversion;
 /// asking for it the route starts with it.
 /// </param>
 /// <param name="Caption">
-/// The edge transcribes speech to SRT subtitles using Whisper (<see cref="Presets.MediaOptions.Caption"/>).
+/// The edge transcribes speech to SRT subtitles or plain text using Whisper (<see cref="Presets.MediaOptions.Caption"/>).
 /// </param>
 /// <param name="Metadata">
 /// The edge writes a file's metadata changes into a copy of it in its own format, the picture, sound or document itself
@@ -66,7 +66,7 @@ namespace Filee.Core.Conversion;
 public readonly record struct ConversionEdge(
     string From, string To, int Cost = 10, bool ImageSourcesOnly = false, bool NotForImageSources = false,
     bool DirectOnly = false, bool FrameSequence = false, bool Unshaped = false, bool MotionPhoto = false, bool LivePhoto = false,
-    bool Ocr = false, bool Caption = false, bool Translate = false, bool Metadata = false);
+    bool Ocr = false, bool Caption = false, bool Translate = false, bool Metadata = false, bool Upscale = false);
 
 /// <summary>
 /// A conversion an engine refuses with a reason the user can act on, shown in their language (the file's

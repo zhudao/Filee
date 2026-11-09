@@ -26,7 +26,7 @@ Filee chooses engines automatically. Settings → *Engines* shows their status, 
 | Data | built in (System.Text.Json, YamlDotNet, Tomlyn, System.Xml) | **JSON, JSON Lines, YAML, TOML, XML, CSV ↔ each other** (CSV for tables); **vCard, iCalendar ↔ CSV**; FreeMASTER oscilloscope TXT → CSV; spreadsheets, contacts and events reach JSON / YAML / TOML / XML through CSV |
 | **E-books** | built in | **EPUB, MOBI/AZW/AZW3/PRC, FB2, HTMLZ, TXTZ → EPUB, HWPX (→ PDF), TXT, HTML, Markdown, FB2, HTMLZ, TXTZ**; HTML, Markdown, TXT, DOCX → EPUB/FB2/HTMLZ/TXTZ; HTML → TXT; comics CBZ/CBR/CB7/CBT/CBC → PDF, EPUB, CBZ; PDF → CBZ; AZW4 → PDF; **EPUB ↔ KEPUB** (Kobo) |
 | CAD (ACadSharp + built-in renderer) | built in (library) | **DWG ↔ DXF**; DWG/DXF → **PDF** (vector), **SVG**, PNG, JPG, WEBP, TIFF, BMP, GIF, ICO, AVIF |
-| **Subtitles** | built in | **SRT, ASS/SSA, WebVTT, SAMI (SMI), LRC, TTML, MicroDVD, SCC → SRT, ASS, WebVTT, SAMI, LRC, TTML, MicroDVD**, always UTF-8 (Korean CP949 / EUC-KR files read correctly) |
+| **Subtitles** | built in | **SRT, ASS/SSA, WebVTT, SAMI (SMI), LRC, TTML, MicroDVD, SCC → SRT, ASS, WebVTT, SAMI, LRC, TTML, MicroDVD, TXT**, always UTF-8 (Korean CP949 / EUC-KR files read correctly) |
 | 3D models (SharpGLTF for glTF) | built in (library) | **GLB, glTF, STL, OBJ (+ MTL), 3MF, PLY ↔ each other**; FBX → each of them; → PNG, JPG, … (an isometric preview) |
 | Pictures to 3D relief | built in | **PNG, JPG, WEBP, … (every picture ImageMagick reads) → GLB, glTF, STL, OBJ, 3MF, PLY**: a relief, brighter areas higher |
 | **Geospatial vector data** | built in | **GeoJSON, KML, KMZ, GPX, Shapefile ↔ each other and CSV** (longitude / latitude or WKT); Garmin FIT (activities, read only) → each of them and CSV; projected Shapefiles (UTM, Web Mercator, Lambert, Albers) are converted to WGS 84; through CSV to XLSX, JSON, … (see below) |
@@ -39,7 +39,7 @@ Filee chooses engines automatically. Settings → *Engines* shows their status, 
 | Apple Vision | part of macOS (Mac only) | **text recognition (OCR) on a Mac**, the same step as Tesseract without a download; Tesseract reads the languages Vision doesn't (see "Apple Vision on macOS") |
 | FFmpeg | **optional download** (~100 MB, 272 MB on disk) | **all video and audio**: video ↔ video (H.264, HEVC, AV1), video → animated GIF / APNG, a still frame or every frame, audio and subtitle extraction, audio ↔ audio (also APE, WavPack, TTA, DSD, DTS, ALAC, …), GIF, APNG and photos → MP4/WEBM/MOV, Live / Motion Photos → their video, a clip of a video → an iPhone Live Photo or Android Motion Photo (experimental), images → HEIC, clips or audio files joined into one, pictures → a slideshow MP4, copies without metadata (see "Media tools") |
 | Calibre | **optional download** (~216 MB, 660 MB on disk) | rare e-book formats: LIT, LRF, CHM, PDB, PML, RB, SNB, TCR, OEB → EPUB; EPUB → MOBI, AZW3, LIT, LRF, PDB, PML, RB, SNB, TCR; e-books → PDF (ranked above the HWPX writer, see below) |
-| Whisper | **optional download** (Windows only; ~157 MB with model, ~160 MB on disk) | **Speech-to-text transcription**: video and audio → SRT subtitles in ~100 languages using OpenAI Whisper (whisper.cpp); runs locally and offline; needs FFmpeg |
+| Whisper | **optional download** (Windows only; ~157 MB with model, ~160 MB on disk) | **Speech-to-text transcription**: video and audio → SRT subtitles or plain TXT in ~100 languages using OpenAI Whisper (whisper.cpp); runs locally and offline; needs FFmpeg |
 | ExifTool | **optional download** (~11 MB on Windows, ~8 MB elsewhere; 30 MB on disk) | **the Metadata tool**: reads every metadata field of pictures, PDFs, video and sound, and writes changes into a copy in the file's own format without re-encoding it (JPG, PNG, TIFF, WEBP, HEIC, AVIF, JPEG XL, GIF, PSD, camera RAW, PDF, MP4, MOV, M4A, 3GP, …; not MP3, FLAC, WAV, MKV, AVI or BMP, which it shows read-only). Without it the Metadata tool shows nothing and offers it |
 
 DOCX, XLSX, XLS, ODS and PPTX → PDF need neither Microsoft Office nor LibreOffice: they are read in-process, written as HWPX
@@ -59,8 +59,10 @@ when Settings → *Engines* doesn't choose it for documents. Without LibreOffice
 LibreOffice to convert correctly" and the script's name instead of becoming a broken PDF. The same scan also finds
 text rhwp has no widths for: its width tables cover only ASCII and Latin-1, general punctuation, math, the CJK forms
 and Hangul (rhwp#8143), so a letter of any other script — Polish, Turkish, Vietnamese, Greek, Cyrillic, ... — or a
-combining mark is drawn but laid out at a fixed half-em. Such a document takes a route without unshaped edges when
-one exists and is never refused when none does: the overlapping text stays readable. Only letters inside words
+combining mark is laid out at a fixed half-em. Such a document takes a route without unshaped edges when one exists
+and is never refused when none does: Filee then gives those letters a letter spacing that takes rhwp's half-em to the
+real width in the font rhwp draws them with (LATIN for Latin Extended, HANGUL for other scripts; issue #1262), so
+they don't overlap. Combining marks keep the half-em. Only letters inside words
 count (an extended Latin letter next to any letter, a letter of another script next to one of its own script), so a
 symbol or unit on its own (α, Ω, μm in a Korean report) keeps rhwp, and an HWPX stays with rhwp for this (only text
 that needs shaping sends it elsewhere). Documents in French, German or Spanish (Latin-1 letters only), Chinese,
@@ -205,17 +207,25 @@ in it also builds the package (artifact `windows-arm64-package`).
   one of these (animated GIF ↔ animated WebP ↔ APNG ↔ MNG ↔ JPEG XL ↔ AVIF, WebP lossy or lossless as the preset says,
   #988) and becomes a multi-page TIFF;
   other targets get the first frame. Multi-page TIFFs and PDFs stay one image per page in WebP and AVIF.
-  - **Animated AVIF** (#1200) needs no FFmpeg: the bundled ImageMagick writes several frames as an AVIF image sequence
-    (`avis`) through libheif, with the first frame also stored as the still picture for viewers that don't play
-    sequences, and reads such a file back frame by frame, also one FFmpeg wrote. Transparency stays (one alpha track, so
-    `ImageEncoder.MatchAlpha` gives every frame an alpha channel when any frame is transparent, and none when all are
-    opaque). An AVIF source is an animation only when it is a sequence (`Magick/AvifSequence.cs`: major brand `avis` and a
-    `moov` box). The items of any other AVIF (a burst, a visible gain map, pictures of their own sizes) stay separate
-    pictures, one `_pN` file each. A still picture takes the same one-picture path as ever. The writer stores no loop
-    count, so an animation that plays a set number of times loops for ever as AVIF. Encoding takes much longer than WebP (about half a second per busy
-    480 × 270 frame, and the write can't be interrupted). On the way to video an AVIF counts as a photo
-    (`ImageEncoder.Edge`): nearly all of them are, so an animated one becomes a video of its first frame rather than
-    every AVIF going through a 256-colour GIF.
+  - **Animated AVIF** (#1200) needs no FFmpeg, but goes much faster with it. ImageMagick reads the frames and applies
+    the preset either way. With FFmpeg and its libaom-av1 encoder (Filee's FFmpeg download has it),
+    `Media/AvifSequenceWriter.cs` packs the frames into an APNG in the work folder (`Magick/Apng.cs`, exact delays) and
+    FFmpeg's avif muxer writes the image sequence (`avis`): FFmpeg encodes 60 busy 480 × 270 frames in about 3 s, where
+    ImageMagick's writer takes 50 s or more. Cancelling stops it, and the loop count stays (the muxer's `-loop`, the edit list's repeat). Only
+    libaom-av1 is used: the avif muxer takes the alpha track as one grey plane, which SVT-AV1 doesn't encode, and
+    FFmpeg's SVT-AV1 wrapper passes no packet durations, so the last frame's length would be a guess (a GIF's long
+    pause at the end cut short). Colour is full-range BT.709 4:2:0 tagged as sRGB, the preset's quality the quantizer
+    libheif would pick. An FFmpeg without libaom-av1, or one whose run fails (an old avif muxer), leaves the file to
+    ImageMagick, which writes the sequence through libheif. Its writer stores no loop count (an animation that plays a
+    set number of times loops for ever) and can't be interrupted. Both ways, the first frame is also stored as the
+    still picture for viewers that don't play sequences, and ImageMagick reads such a file back frame by frame, also
+    one FFmpeg wrote. Transparency stays (one alpha track, so `ImageEncoder.MatchAlpha` gives every frame an alpha
+    channel when any frame is transparent, and none when all are opaque, which leaves out the alpha track). An AVIF
+    source is an animation only when it is a sequence (`Magick/AvifSequence.cs`: major brand `avis` and a `moov` box).
+    The items of any other AVIF (a burst, a visible gain map, pictures of their own sizes) stay separate pictures, one
+    `_pN` file each. A still picture takes the same one-picture path as ever. On the way to video an AVIF counts as a
+    photo (`ImageEncoder.Edge`): nearly all of them are, so an animated one becomes a video of its first frame rather
+    than every AVIF going through a 256-colour GIF.
 - **Playback speed** (preset option *Playback speed*, `ImageOptions.AnimationSpeed`: 0.25×, 0.5×, 0.75×, 1×, 1.5×,
   2×, 4×; shown for GIF, WebP, APNG, MNG, JPEG XL, AVIF and "same as source") rewrites the frame delays of an animation that stays
   animated (`Magick/AnimationTiming.cs`). Delays are divided by the speed in the target's own units (hundredths of a
@@ -1514,6 +1524,29 @@ bundled with the installer), never a 7-Zip installed on the PC. It runs as a sep
 - Tests (`ArchiveTests.cs`) build ALZ, EGG and lzip files in code (`ArchiveBuilders.cs`, with bzip2 and LZMA streams
   written by 7-Zip) and skip the 7-Zip parts when `engines/7zip` is missing.
 
+## ISO images
+
+A dropped folder opens a small **Folders** donut with **ISO image**. Each selected folder creates a separate ISO,
+with its contents at the disc root. The ISO preset is available in Settings > Toolbar for users to add to the
+Archives donut; it is not on that donut by default. Supported archives can also be converted to ISO: Filee
+safely extracts them into its temporary work folder, then writes their contents into the image.
+Password-protected archives fail with a clear message.
+
+CLI: `filee convert "path/to/folder" --to iso` or `filee convert "backup.zip" --to iso`.
+DiscUtils.Iso9660 writes ISO 9660 with Joliet in-process, preserving Unicode BMP names and empty directories.
+There are no filesystem or compression options. ISO writing needs no external program; archive reading uses
+the existing extraction engine. Images are data discs, not bootable clones. UDF is not included.
+
+Individual names must fit 62 UTF-16 characters, leaving room for DiscUtils' version suffix; relative disc paths
+must fit 240 characters. Control characters, semicolons, backslashes, `*`, `:`, `?` and supplementary Unicode
+characters are rejected clearly. Individual files must be smaller than 4 GiB. Drive roots and symbolic links/junctions
+are refused. Timestamps are clamped to 1900-2155 in the image;
+source timestamps are unchanged. On Windows, a marked input file transfers Mark of the Web to the image.
+
+File contents are streamed, progress reports bytes written, and cancellation is checked during enumeration and
+streaming. A previous destination inside the source is excluded. A new image replaces its destination only after
+all expected bytes have been written; failures and cancellation preserve any previous image.
+
 ## LibreOffice
 
 - Each parallel worker gets its own profile under `%APPDATA%\Filee\libreoffice-profiles` (LibreOffice silently
@@ -1608,6 +1641,7 @@ SRT or SAMI file in CP949 comes out as UTF-8).
 | TTML / DFXP | TTML 1 and the 2006 DFXP namespace; times relative to their parents; clock, frames (`ttp:frameRate`), ticks and offset times; spans and referenced styles | TTML 1 with a bottom region and tts: spans |
 | MicroDVD (.sub) | `{frame}{frame}text` with the rate of a `{1}{1}25` first line (else 23.976), `\|` between lines, `{y:i}` / `{c:$BBGGRR}`; VobSub `.sub` (pictures) and SubViewer fail with a clear message | 23.976 fps, first line states it, plain text, `{Y:i}` for all-italic cues |
 | SCC | CEA-608 caption channel 1: pop-on, paint-on and roll-up captions, row preambles, italics, special and extended characters, doubled control codes, drop-frame time codes | — |
+| TXT | — | the spoken text only (#1274): a line per cue with its lines joined, no times or styles, a line the same as the one before left out; UTF-8 with BOM, CRLF. Only straight from a subtitle file, never from a video's subtitle track |
 
 - **Encodings**: a byte order mark (UTF-8, UTF-16) or valid UTF-8 decide first, then a `charset=` / `encoding=` the
   file declares. Otherwise CP949 when the bytes are CP949 pairs, most of them Hangul syllables of KS X 1001 and hardly
@@ -1951,6 +1985,8 @@ Tesseract and is registered before it, so the route planner takes it; on Windows
 ## Whisper
 
 Filee transcribes speech in video and audio files into SRT subtitle files using OpenAI Whisper (`whisper.cpp`).
+A preset converting to TXT with *Generate subtitles* on gets the text alone (#1274): Whisper's SRT goes through the
+subtitle engine's TXT writer (see *Subtitles*).
 Transcription runs entirely locally and offline on your computer; no audio or data is sent to external servers.
 
 - **Platform**: Windows only (x64). On macOS and Linux, the Whisper package is not offered and the engine reports
@@ -1976,3 +2012,17 @@ Filee translates documents, books, and text files locally using a local Ollama i
   - **Documents & E-books**: DOCX, HWPX, EPUB, KEPUB, FB2, HTMLZ, TXTZ, MD, TXT, and HTML are translated in place, preserving document structure, headings, bold/italic runs, tables, lists, images, and notes.
   - **Kindle e-books**: MOBI, AZW, AZW3, and PRC formats are translated via EPUB, and can then be routed to any supported target format.
   - **PDF target**: When a document is translated with PDF as the target format, the route planner translates the document model first and then routes the translated document through Filee's standard document-to-PDF export pipeline.
+
+## Image Quality Models (Offline AI Upscaler)
+
+Filee upscales and restores images locally using an offline AI super-resolution engine based on Vulkan/NCNN (`upscayl-bin` / `upscayl-ncnn`) and curated open-source neural network models (`upscayl/custom-models`). All processing runs 100% offline on your computer; no image data is ever uploaded or sent to external servers.
+
+- **Offline privacy & local execution**: Like all Filee features, image upscaling processes every pixel locally on your machine via direct Vulkan GPU acceleration. No network connection is used during upscaling. Requires a Vulkan-compatible graphics device.
+- **Models catalog**: Curated selection of high-quality image models for photos, digital art, illustration, and restoration:
+  - Fast & lightweight models (integrated and entry-level GPUs): `4xLSDIRCompactC3`, `RealESRGAN_General_x4_v3`, `RealESRGAN_General_WDN_x4_v3`.
+  - Detailed & high-fidelity models (recommended for dedicated GPUs): `4x_NMKD-Siax_200k`, `4x_NMKD-Superscale-SP_178000_G`, `4xLSDIR`, `4xLSDIRplusC`, `4xNomos8kSC`, `4xHFA2k`.
+- **Where it lives**:
+  - **Palette**: The **Upscale** preset opens the interactive Upscale dialog to select models, scale factors (2× to 4×), preview output resolution, and upscale directly.
+  - **Settings → Presets**: The "Upscale Image" tool preset can be configured with preferred default models and scale factors.
+  - **Settings → Engines**: "Upscayl (AI image upscaler)" engine package provides the local `upscayl-bin` binary, with models downloaded on demand with live progress and uninstall support in the Upscale dialog.
+- **Supported formats**: PNG, JPG, WEBP, ICO, AVIF, BMP, and TIFF.

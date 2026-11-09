@@ -13,6 +13,7 @@ using Filee.Core.Presets;
 using Filee.Core.Settings;
 using Filee.Engines.Ocr;
 using Filee.Engines.Translation;
+using Filee.Engines.Upscale;
 
 namespace Filee.App.ViewModels;
 
@@ -101,25 +102,27 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     private readonly Preset _edit;
     private readonly ILocalizer _loc;
 
-    public PresetEditorViewModel(Preset preset, ILocalizer loc, IReadOnlySet<string>? turnedOff = null)
-        : this(preset, loc, turnedOff, null)
+    public PresetEditorViewModel(Preset preset, ILocalizer loc, IReadOnlySet<string>? turnedOff = null, bool folderInput = false)
+        : this(preset, loc, turnedOff, null, folderInput)
     {
     }
 
     /// <param name="visionReads">Which languages Apple Vision reads, for tests; by default what this computer's does.</param>
-    internal PresetEditorViewModel(Preset preset, ILocalizer loc, IReadOnlySet<string>? turnedOff, Func<string, bool>? visionReads)
+    internal PresetEditorViewModel(Preset preset, ILocalizer loc, IReadOnlySet<string>? turnedOff, Func<string, bool>? visionReads,
+        bool folderInput = false)
     {
         _original = preset;
         _edit = preset.Clone();
         _loc = loc;
+        FolderInput = folderInput || preset.TargetFormat == "iso";
 
         // ~150 formats in registry order, which groups them by category; the category is shown next to each name
         // and typing the first letters of a name jumps to it.
         Targets =
         [
-            new Choice<string>(BuiltInData.SameAsSource, loc["presets.same_as_source"]),
+            .. FolderInput ? Array.Empty<Choice<string>>() : [new Choice<string>(BuiltInData.SameAsSource, loc["presets.same_as_source"])],
             .. FormatRegistry.Known
-                .Where(f => f.Writable && (turnedOff is null || FormatFields.IsShown(f.Id, turnedOff)))
+                .Where(f => f.Writable && (!FolderInput || BuiltInData.SupportsFolderTarget(f.Id)) && (turnedOff is null || FormatFields.IsShown(f.Id, turnedOff)))
                 .Select(f => new Choice<string>(
                     f.Id,
                     f.Id == FormatRegistry.Folder ? loc["presets.target_folder"] : f.DisplayName,
@@ -196,7 +199,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
             _hiddenTargetNote = loc.Format("presets.target_hidden", hidden.DisplayName);
         }
         else
-            _target = Targets.FirstOrDefault(t => t.Value == _edit.TargetFormat) ?? Targets[1];
+            _target = Targets.FirstOrDefault(t => t.Value == _edit.TargetFormat) ?? Targets.First(t => t.Value == (FolderInput ? "iso" : BuiltInData.SameAsSource));
         _resize = ResizeModes.First(r => r.Value == (_edit.Image.CustomSize is not null ? ResizeMode.Custom
             : _edit.Image.ClampedMinShortEdge is not null ? ResizeMode.MinShortEdge
             : _edit.Image.Resize));
@@ -263,6 +266,9 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         ];
         _targetLanguage = TranslationLanguageChoices.FirstOrDefault(l => string.Equals(l.Value, _edit.Translate.TargetLanguage, StringComparison.OrdinalIgnoreCase))
             ?? TranslationLanguageChoices[0];
+        _upscaleScale = _edit.Upscale.Scale > 0 ? _edit.Upscale.Scale : 4;
+        _selectedUpscaleModel = UpscaleModels.FirstOrDefault(m => string.Equals(m.Id, _edit.Upscale.Model, StringComparison.OrdinalIgnoreCase))
+            ?? UpscaleModels.FirstOrDefault();
         _archiveLevel = ArchiveLevels.First(l => l.Value == _edit.Archive.Level);
         _combineIntoOne = _edit.Archive.CombineIntoOne;
         _saveEveryFrame = _edit.Media.SaveEveryFrame;
@@ -339,6 +345,9 @@ public sealed partial class PresetEditorViewModel : ObservableObject
 
     public bool IsTool => _original.IsTool;
     public bool CanChangeTarget => !IsTool;
+    /// <summary>Folder actions only offer directory-capable targets and preserve the source directory.</summary>
+    public bool FolderInput { get; }
+    public bool ShowReplaceOriginal => !FolderInput && !IsCopyToFolder;
 
     public IReadOnlyList<Choice<string>> Targets { get; }
     public IReadOnlyList<Choice<ResizeMode>> ResizeModes { get; }
@@ -401,6 +410,12 @@ public sealed partial class PresetEditorViewModel : ObservableObject
             IsTestingTranslation = false;
         }
     }
+
+    public bool ShowUpscale => _original.IsUpscaleTool || _edit.Upscale.Enabled;
+    public IReadOnlyList<UpscaleModel> UpscaleModels { get; } = Filee.Engines.Upscale.UpscaleModels.All;
+    [ObservableProperty] private UpscaleModel? _selectedUpscaleModel;
+    [ObservableProperty] private int _upscaleScale = 4;
+
 
     /// <summary>What "Recognize text" needs: Tesseract, or on a Mac Apple Vision (Tesseract only for other languages).</summary>
     public string OcrHint { get; }
@@ -1051,8 +1066,8 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     public bool ShowVideoCodec => TargetIsVideo && VideoCodecs.Count > 1;
     /// <summary>Hardware encoding applies to H.264, HEVC and AV1 only (not VP9, MPEG-2, …).</summary>
     public bool ShowHardwareEncoding => TargetIsVideo && MediaCodecs.TakesHardwareEncoding(TargetId, _videoCodecValue);
-    /// <summary>Generate Whisper AI subtitles for speech.</summary>
-    public bool ShowCaption => TargetId == "srt";
+    /// <summary>Generate Whisper AI subtitles for speech, or its text alone for TXT.</summary>
+    public bool ShowCaption => MediaOptions.CaptionTargets.Contains(TargetId);
     /// <summary>M4A / M4B can hold Apple Lossless besides AAC.</summary>
     public bool ShowAudioCodec => AudioCodecs.Count > 1;
     public bool ShowMediaQuality => TargetIsLossyMedia;
@@ -1068,7 +1083,8 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         && !_original.Media.JoinIntoOne && !_isSlideshow && TargetId is not ("vob" or "dv");
     public bool ShowAudioBitrate => TargetIsLossyMedia;
     public bool ShowRemoveAudio => TargetIsVideo;
-    public bool ShowArchive => TargetCategory == FormatCategory.Archive;
+    /// <summary>ISO creation has no archive compression settings.</summary>
+    public bool ShowArchive => TargetCategory == FormatCategory.Archive && TargetId != "iso";
     public bool ShowArchiveOptions => ShowArchive && TargetId != FormatRegistry.Folder;
     /// <summary>"Extract" has nothing to set; a line says what it does instead.</summary>
     public bool ShowExtractNote => TargetId == FormatRegistry.Folder;
@@ -1279,7 +1295,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         media.LivePhotoLength = Seconds(LivePhotoLength, 3, MediaOptions.MinLivePhotoLength, MediaOptions.MaxLivePhotoLength);
         media.LivePhotoCover = Seconds(LivePhotoCover, 1.5, 0, MediaOptions.MaxLivePhotoLength);
         _original.Archive.Level = ArchiveLevel.Value;
-        _original.Archive.CombineIntoOne = CombineIntoOne;
+        _original.Archive.CombineIntoOne = TargetId != "iso" && CombineIntoOne;
         _original.Trace.Mode = TraceMode.Value;
         _original.Trace.Colors = Math.Clamp(TraceColors, TracingOptions.MinColors, TracingOptions.MaxColors);
         _original.Trace.Detail = Math.Clamp(TraceDetail, 0, 100);
@@ -1289,6 +1305,12 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         _original.Cad.Colors = ShowCadColors ? CadColors.Value : default;
         _original.Translate.TargetLanguage = TargetLanguage.Value;
         _original.Translate.Enabled = ShowTranslate;
+        if (ShowUpscale)
+        {
+            _original.Upscale.Enabled = true;
+            _original.Upscale.Model = SelectedUpscaleModel?.Id;
+            _original.Upscale.Scale = UpscaleScale;
+        }
 
         var output = _original.Output;
         // Asking keeps the location it had: a Filee that can't ask (or one from before it) saves there.
@@ -1304,7 +1326,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         output.KeepDates = KeepDates;
         // Only for geospatial targets, where it is offered: a box ticked for Shapefile must not zip a later PNG.
         output.ZipResult = ShowZipResult && ZipResult;
-        output.ReplaceOriginal = !IsCopyToFolder && ReplaceOriginal;
+        output.ReplaceOriginal = ShowReplaceOriginal && ReplaceOriginal;
         output.MoveInsteadOfCopy = IsCopyToFolder && MoveInsteadOfCopy;
         return true;
     }
