@@ -162,6 +162,13 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         // "Pages per sheet" (#737): a number set outside the editor (a hand-edited preset file) is offered too.
         SheetLayouts = [.. PdfOptions.SheetLayouts.Append(_edit.Pdf.PagesPerSheet).Where(n => n is > 1 and <= 16).Distinct().Order()
             .Select(n => new Choice<int>(n, $"{n}"))];
+        PageOutputChoices =
+        [
+            new(ViewModels.PageOutput.OnePdf, loc["pages.one_pdf"]),
+            new(ViewModels.PageOutput.EachPage, loc["presets.split"]),
+            new(ViewModels.PageOutput.Groups, loc["pages.groups"]),
+        ];
+        GroupKinds = PageOutputs.Kinds(loc);
         SheetPapers = Enum.GetValues<PdfSheetPaper>().Select(v => new Choice<PdfSheetPaper>(v, loc[$"presets.sheet_paper.{v}"])).ToList();
         SheetOrientations = Enum.GetValues<PdfSheetOrientation>().Select(v => new Choice<PdfSheetOrientation>(v, loc[$"presets.sheet_orientation.{v}"])).ToList();
         SheetOrders = Enum.GetValues<PdfSheetOrder>().Select(v => new Choice<PdfSheetOrder>(v, loc[$"presets.sheet_order.{v}"])).ToList();
@@ -303,6 +310,13 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         _customWidth = _edit.Image.CustomSize?.Width ?? 1920;
         _customHeight = _edit.Image.CustomSize?.Height ?? 1080;
         _lockAspect = _edit.Image.CustomSize?.LockAspect ?? false;
+        _shrinkOnly = _edit.Image.CustomSize?.ShrinkOnly ?? false;
+        // A side left empty is stored as the largest one (CustomImageSize.FreeSide) and comes back empty.
+        if (_lockAspect && _customWidth >= CustomImageSize.FreeSide)
+            _customWidth = null;
+        if (_lockAspect && _customHeight >= CustomImageSize.FreeSide)
+            _customHeight = null;
+        _maxSizeKeepsPixels = _edit.Image.MaxSizeKeepsPixels;
         _minShortEdge = _edit.Image.ClampedMinShortEdge ?? 1080;
         _setDpi = _edit.Image.Dpi.HasValue;
         _dpi = _edit.Image.Dpi ?? 300;
@@ -321,7 +335,9 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         _renderDpi = _edit.Pdf.RenderDpi;
         _pageRange = _edit.Pdf.PageRange;
         _askPageRange = _edit.Pdf.AskPageRange;
-        _splitPages = _edit.Pdf.SplitPages;
+        _pageOutput = PageOutputChoices.First(c => c.Value == PageOutputs.Of(_edit.Pdf));
+        _groupKind = GroupKinds.First(k => k.Value == PageOutputs.KindOf(_edit.Pdf));
+        _groupSize = PageOutputs.SizeOf(_edit.Pdf);
         _combinePages = _edit.Pdf.CombinePages;
         _trimPageMargins = _edit.Pdf.TrimPageMargins;
         _splitTallImage = _edit.Pdf.SplitTallImage;
@@ -433,6 +449,10 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     /// <summary>"Crop video": the picture inside the black bars, or a ratio.</summary>
     public IReadOnlyList<Choice<string>> CropFrames { get; }
     public IReadOnlyList<Choice<int>> SheetLayouts { get; }
+
+    /// <summary>PDF → PDF: one PDF, one file per page, or several pages per file (#1259).</summary>
+    public IReadOnlyList<Choice<PageOutput>> PageOutputChoices { get; }
+    public IReadOnlyList<Choice<PageGroupKind>> GroupKinds { get; }
     public IReadOnlyList<Choice<PdfSheetPaper>> SheetPapers { get; }
     public IReadOnlyList<Choice<PdfSheetOrientation>> SheetOrientations { get; }
     public IReadOnlyList<Choice<PdfSheetOrder>> SheetOrders { get; }
@@ -458,7 +478,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowImage), nameof(ShowTurnForPdf), nameof(ShowQuality), nameof(ShowTiff), nameof(ShowMultiPageTiff), nameof(ShowWebp), nameof(ShowIco),
         nameof(ShowFitsTiff), nameof(ShowFitsDebayer),
-        nameof(ShowZipResult), nameof(ShowPdf), nameof(ShowPdfBuild), nameof(ShowDocument), nameof(ShowLeaveOutPictures), nameof(ShowPdfSplit), nameof(ShowPdfCombine),
+        nameof(ShowZipResult), nameof(ShowPdf), nameof(ShowPdfBuild), nameof(ShowDocument), nameof(ShowLeaveOutPictures), nameof(ShowPdfSplit), nameof(ShowPageGroups), nameof(ShowPdfCombine),
         nameof(ShowAskPages), nameof(ShowAskPagesHint),
         nameof(ShowPdfCompression), nameof(ShowPdfCompressionOptions), nameof(ShowSheets), nameof(ShowOcr), nameof(ShowPageSize), nameof(ShowPdfTablesNote),
         nameof(ShowMedia), nameof(ShowMediaQuality), nameof(ShowMaxHeight), nameof(ShowVideoMaxSize), nameof(ShowAudioBitrate), nameof(ShowRemoveAudio),
@@ -467,7 +487,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         nameof(ShowArchive), nameof(ShowArchiveOptions), nameof(ShowExtractNote),
         nameof(ShowSaveEveryFrame), nameof(ShowAnimationSpeed), nameof(ShowTrace), nameof(ShowCad), nameof(ShowCadColors), nameof(ShowExtractMotionPhoto), nameof(ShowSlideshow),
         nameof(ShowLivePhotoChoice), nameof(LivePhotoKinds), nameof(LivePhotoChoice), nameof(IsLivePhoto), nameof(LivePhotoHint),
-        nameof(ShowImageSize), nameof(SizeRangeError), nameof(IsValid))]
+        nameof(ShowImageSize), nameof(SizeRangeError), nameof(CustomSizeError), nameof(IsValid))]
     private Choice<string> _target;
 
     // A target whose fields are all turned off isn't added to Targets (the list follows the switches), but it stays the
@@ -517,7 +537,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
                 return;
             _livePhotoValue = value.Value;
             OnPropertyChanged();
-            foreach (var name in (string[])[nameof(IsLivePhoto), nameof(LivePhotoHint), nameof(ShowImage), nameof(ShowPdf), nameof(ShowSaveEveryFrame), nameof(ShowImageSize), nameof(SizeRangeError), nameof(IsValid)])
+            foreach (var name in (string[])[nameof(IsLivePhoto), nameof(LivePhotoHint), nameof(ShowImage), nameof(ShowPdf), nameof(ShowSaveEveryFrame), nameof(ShowImageSize), nameof(SizeRangeError), nameof(CustomSizeError), nameof(IsValid)])
                 OnPropertyChanged(name);
         }
     }
@@ -609,6 +629,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     }
 
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowPercent), nameof(ShowLongEdge), nameof(ShowWidth), nameof(ShowCustom), nameof(ShowMinShortEdge))]
+    [NotifyPropertyChangedFor(nameof(CustomSizeError), nameof(IsValid))]
     private Choice<ResizeMode> _resize;
 
     [ObservableProperty] private Choice<ImageRotation> _rotation;
@@ -631,7 +652,13 @@ public sealed partial class PresetEditorViewModel : ObservableObject
 
     /// <summary>A picture's size range (#553, #662) in <see cref="ImageSizeUnit"/>; 0 or empty = none.</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(SizeRangeError), nameof(IsValid))] private decimal? _imageMinSize;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(SizeRangeError), nameof(IsValid))] private decimal? _imageMaxSize;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(SizeRangeError), nameof(IsValid), nameof(HasImageMaxSize))] private decimal? _imageMaxSize;
+
+    /// <summary>With a maximum: keep the pixels and lower only the quality (ImageOptions.MaxSizeKeepsPixels, #1270).</summary>
+    [ObservableProperty] private bool _maxSizeKeepsPixels;
+
+    /// <summary>A maximum is set, so keeping the pixels has something to do.</summary>
+    public bool HasImageMaxSize => ImageMaxSize > 0;
 
     /// <summary>KB or MB, for both ends of the range; not saved (the preset keeps megabytes).</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(SizeFormat), nameof(SizeIncrement))] private Choice<FileSizeUnit> _imageSizeUnit;
@@ -685,10 +712,13 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     [ObservableProperty] private int _resizePercent;
     [ObservableProperty] private int _longEdge;
     [ObservableProperty] private int _width;
-    [ObservableProperty] private int _customWidth;
-    [ObservableProperty] private int _customHeight;
+    /// <summary>With Custom: the box, in px; one of them may be left empty while the aspect is kept (#1270).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CustomSizeError), nameof(IsValid))] private int? _customWidth;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CustomSizeError), nameof(IsValid))] private int? _customHeight;
     /// <summary>With Custom: keep each file's shape and fit inside, instead of stretching (ImageOptions.LockAspect).</summary>
-    [ObservableProperty] private bool _lockAspect;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CustomSizeError), nameof(IsValid))] private bool _lockAspect;
+    /// <summary>With Custom and the aspect kept: never enlarge a picture that already fits (CustomImageSize.ShrinkOnly).</summary>
+    [ObservableProperty] private bool _shrinkOnly;
     /// <summary>With MinShortEdge: the shortest the shorter edge may be (ImageOptions.MinShortEdge).</summary>
     [ObservableProperty] private int _minShortEdge;
     [ObservableProperty] private bool _setDpi;
@@ -732,7 +762,21 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     /// <summary>"Ask every time" for the pages (PdfOptions.AskPageRange, #981).</summary>
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowAskPagesHint))]
     private bool _askPageRange;
-    [ObservableProperty] private bool _splitPages;
+
+    /// <summary>One PDF, one file per page or several pages per file (PdfOptions.SplitPages, SplitEvery, SplitParts).</summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowPageGroups))]
+    private Choice<PageOutput> _pageOutput;
+
+    partial void OnPageOutputChanged(Choice<PageOutput>? oldValue, Choice<PageOutput> newValue) =>
+        Choices.Restore(oldValue, newValue, v => PageOutput = v);
+
+    /// <summary>With several pages per file: the number is the pages per file, or the equal parts.</summary>
+    [ObservableProperty] private Choice<PageGroupKind> _groupKind;
+
+    partial void OnGroupKindChanged(Choice<PageGroupKind>? oldValue, Choice<PageGroupKind> newValue) =>
+        Choices.Restore(oldValue, newValue, v => GroupKind = v);
+
+    [ObservableProperty] private int _groupSize;
 
     [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowPdfCompressionOptions))]
     private Choice<PdfCompression> _compressionLevel;
@@ -758,7 +802,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
 
     /// <summary>Recognize the text of scans and pictures (PdfOptions.Ocr), in <see cref="OcrLanguage"/>.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowPdfSplit), nameof(ShowPdfCompression), nameof(ShowPdfCompressionOptions), nameof(ShowPageSize))]
+    [NotifyPropertyChangedFor(nameof(ShowPdfSplit), nameof(ShowPageGroups), nameof(ShowPdfCompression), nameof(ShowPdfCompressionOptions), nameof(ShowPageSize))]
     private bool _ocr;
 
     /// <summary>
@@ -1033,6 +1077,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     /// <summary>Page size and margin of a PDF built from pictures; not with text recognition (<see cref="Recognizes"/>).</summary>
     public bool ShowPageSize => ShowPdfBuild && !Recognizes;
     public bool ShowPdfSplit => TargetId == "pdf" && !Recognizes;
+    public bool ShowPageGroups => ShowPdfSplit && PageOutput.Value == ViewModels.PageOutput.Groups;
 
     /// <summary>
     /// "Ask every time" under Pages: wherever the pages are, except a merge, where one range would go for every file
@@ -1044,7 +1089,7 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     /// <summary>Compression is for PDF → PDF; Ghostscript and metadata only matter while it is on.</summary>
     public bool ShowPdfCompression => TargetId == "pdf" && !Recognizes;
 
-    /// <summary>XLSX: what a PDF becomes (its ruled tables, PdfTablesConverter).</summary>
+    /// <summary>XLSX: what a PDF, a Word document or a web page becomes (its tables, PdfTablesConverter and DocumentTablesConverter).</summary>
     public bool ShowPdfTablesNote => TargetId == "xlsx";
     public bool ShowPdfCompressionOptions => ShowPdfCompression && CompressionLevel.Value != PdfCompression.None;
 
@@ -1124,7 +1169,14 @@ public sealed partial class PresetEditorViewModel : ObservableObject
     private static double SizeLimit(decimal? megabytes) => (double)Math.Clamp(megabytes ?? 0, 0, 4096);
 
     public string? NameError => string.IsNullOrWhiteSpace(Name) ? _loc["presets.name_required"] : null;
-    public bool IsValid => NameError is null && SizeRangeError is null && DestinationError is null;
+    public bool IsValid => NameError is null && SizeRangeError is null && DestinationError is null && CustomSizeError is null;
+
+    /// <summary>
+    /// The width × height boxes, while shown: a stretch needs both sides, a box that keeps the aspect at least one.
+    /// </summary>
+    public string? CustomSizeError => ShowImage && ShowCustom && (LockAspect ? CustomWidth is null && CustomHeight is null : CustomWidth is null || CustomHeight is null)
+        ? _loc["presets.custom_size_missing"]
+        : null;
 
     /// <summary>A size from the range's boxes in megabytes.</summary>
     private decimal? Megabytes(decimal? size) => ImageSizeUnit.Value == FileSizeUnit.KB ? size / 1000 : size;
@@ -1145,13 +1197,20 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         // Only where the field is shown, as with SaveEveryFrame below: a limit left behind by a JPG target fits nothing.
         image.MaxSizeMb = ShowQuality ? SizeLimit(Megabytes(ImageMaxSize)) : 0;
         image.MinSizeMb = ShowImageSize ? SizeLimit(Megabytes(ImageMinSize)) : 0;
+        image.MaxSizeKeepsPixels = image.MaxSizeMb > 0 && MaxSizeKeepsPixels;
         if (Resize.Value == ResizeMode.Custom)
         {
             // Custom sizing is stored as CustomSize with Resize None, never as a resize name an older version rejects
             // (it would read presets.json as broken and fall back to the built-in presets, and the next save would
             // write those over the user's own; issue #576).
             image.Resize = ResizeMode.None;
-            image.CustomSize = new CustomImageSize { Width = Math.Clamp(CustomWidth, CustomImageSize.MinSide, CustomImageSize.MaxSide), Height = Math.Clamp(CustomHeight, CustomImageSize.MinSide, CustomImageSize.MaxSide), LockAspect = LockAspect };
+            // An empty side is free with the aspect kept (#1270). The card can be hidden for another target, where a box
+            // nobody can fix falls back to the defaults instead of blocking the save.
+            var (width, height) = (CustomWidth, CustomHeight);
+            if (!LockAspect || width is null && height is null)
+                (width, height) = (width ?? 1920, height ?? 1080);
+            static int Side(int? side) => side is { } px ? Math.Clamp(px, CustomImageSize.MinSide, CustomImageSize.MaxSide) : CustomImageSize.FreeSide;
+            image.CustomSize = new CustomImageSize { Width = Side(width), Height = Side(height), LockAspect = LockAspect, ShrinkOnly = LockAspect && ShrinkOnly };
             image.MinShortEdge = null;
         }
         else if (Resize.Value == ResizeMode.MinShortEdge)
@@ -1204,7 +1263,11 @@ public sealed partial class PresetEditorViewModel : ObservableObject
         pdf.RenderDpi = Math.Clamp(RenderDpi, 36, 1200);
         pdf.PageRange = PageRange.Trim();
         pdf.AskPageRange = ShowAskPages && AskPageRange;
-        pdf.SplitPages = SplitPages;
+        var (split, every, parts) = PageOutputs.Settings(PageOutput.Value, GroupKind.Value, GroupSize);
+        pdf.SplitPages = split;
+        // One PDF keeps the numbers of a split, as the pages window does, for when it is chosen again.
+        if (split)
+            (pdf.SplitEvery, pdf.SplitParts) = (every, parts);
         pdf.CombinePages = CombinePages;
         pdf.TrimPageMargins = TrimPageMargins;
         pdf.SplitTallImage = SplitTallImage;
