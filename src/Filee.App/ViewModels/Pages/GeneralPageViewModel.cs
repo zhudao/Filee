@@ -13,6 +13,10 @@ namespace Filee.App.ViewModels.Pages;
 
 public sealed partial class GeneralPageViewModel : ObservableObject, IDisposable
 {
+    /// <summary>Portable copies leave installed startup and file-manager entries alone.</summary>
+    public bool IsPortable => PortableMode.IsEnabled;
+    public bool CanChangeSystemIntegration => !IsPortable;
+    public string PortableDataDirectory => PortableMode.DataDirectory ?? "";
     private readonly UserDataStore _store;
     private readonly ILocalizer _loc;
     private readonly IPlatformServices _platform;
@@ -37,6 +41,7 @@ public sealed partial class GeneralPageViewModel : ObservableObject, IDisposable
         _startWithSystem = store.Settings.StartWithSystem;
         _showInDock = store.Settings.ShowInDock;
         _showMenuBarIcon = store.Settings.ShowMenuBarIcon;
+        _coloredMenuBarIcon = store.Settings.ColoredMenuBarIcon;
         _contextMenu = store.Settings.ContextMenuEnabled;
         _noHistory = !store.Settings.KeepHistory;
         _historyLimit = store.Settings.EffectiveHistoryLimit;
@@ -65,6 +70,8 @@ public sealed partial class GeneralPageViewModel : ObservableObject, IDisposable
     public bool HasSystemIntegration => _platform is not NullPlatformServices;
     /// <summary>Whether this platform supports changing Filee's Dock visibility.</summary>
     public bool SupportsDockVisibility => _platform.SupportsDockVisibility;
+    /// <summary>The icon colour choice only matters while there is a menu bar icon.</summary>
+    public bool ShowColoredMenuBarIconOption => SupportsDockVisibility && ShowMenuBarIcon;
     public string ContextMenuText => _loc[OperatingSystem.IsMacOS() ? "general.context_menu_macos"
         : OperatingSystem.IsLinux() ? "general.context_menu_linux" : "general.context_menu"];
     public string? IntegrationMessage => _integration?.Error ?? (OperatingSystem.IsMacOS()
@@ -147,7 +154,9 @@ public sealed partial class GeneralPageViewModel : ObservableObject, IDisposable
     [ObservableProperty] private Choice<string> _language;
     [ObservableProperty] private bool _startWithSystem;
     [ObservableProperty] private bool _showInDock;
-    [ObservableProperty] private bool _showMenuBarIcon;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ShowColoredMenuBarIconOption))]
+    private bool _showMenuBarIcon;
+    [ObservableProperty] private bool _coloredMenuBarIcon;
     [ObservableProperty] private string? _dockStatus;
     [ObservableProperty] private bool _contextMenu;
     [ObservableProperty] private string? _libraryMessage;
@@ -163,9 +172,9 @@ public sealed partial class GeneralPageViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] private string? _modernMenuStatus;
 
-    public bool ShowModernMenu => ContextMenu && ModernMenuState != ModernContextMenuState.Unsupported;
-    public bool CanAddModernMenu => !ModernMenuBusy && ModernMenuState is ModernContextMenuState.Off or ModernContextMenuState.Outdated;
-    public bool CanRemoveModernMenu => !ModernMenuBusy && ModernMenuState is ModernContextMenuState.On or ModernContextMenuState.Outdated;
+    public bool ShowModernMenu => CanChangeSystemIntegration && ContextMenu && ModernMenuState != ModernContextMenuState.Unsupported;
+    public bool CanAddModernMenu => CanChangeSystemIntegration && !ModernMenuBusy && ModernMenuState is ModernContextMenuState.Off or ModernContextMenuState.Outdated;
+    public bool CanRemoveModernMenu => CanChangeSystemIntegration && !ModernMenuBusy && ModernMenuState is ModernContextMenuState.On or ModernContextMenuState.Outdated;
 
     partial void OnLanguageChanged(Choice<string>? oldValue, Choice<string> newValue)
     {
@@ -204,6 +213,8 @@ public sealed partial class GeneralPageViewModel : ObservableObject, IDisposable
 
     partial void OnShowMenuBarIconChanged(bool value) => Save(s => s.ShowMenuBarIcon = value);
 
+    partial void OnColoredMenuBarIconChanged(bool value) => Save(s => s.ColoredMenuBarIcon = value);
+
     partial void OnContextMenuChanged(bool value)
     {
         Save(s => s.ContextMenuEnabled = value);
@@ -219,7 +230,7 @@ public sealed partial class GeneralPageViewModel : ObservableObject, IDisposable
 
     private async Task ChangeModernMenu(bool enabled)
     {
-        if (Environment.ProcessPath is not { } exe)
+        if (!CanChangeSystemIntegration || Environment.ProcessPath is not { } exe)
             return;
         ModernMenuBusy = true;
         ModernMenuStatus = _loc["general.modern_menu_busy"];

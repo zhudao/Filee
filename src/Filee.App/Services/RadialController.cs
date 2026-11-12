@@ -165,6 +165,22 @@ public sealed class RadialController(
         WatchFlipKey();
     }
 
+    public void ShowForConnect(int x, int y)
+    {
+        ReleaseProgressToToast();
+        _grace.Cancel();
+        ReplaceWeb(null);
+        _toClipboard = false;
+        var window = EnsureWindow();
+        _dropped = false;
+        _converted = false;
+        viewModel.LoadForConnect();
+        viewModel.FitToThisDonut();
+        window.DonutControl.AllowContextEdit = false;
+        window.DonutControl.PlayOpenAnimation();
+        PlaceAndShow(window, x, y, activate: true);
+    }
+
     /// <summary>
     /// Adds files of later launches to the donut that is open for earlier ones, without opening it again. False when
     /// there is no such donut (closed, opened for something else, or a conversion took its files): they need their own.
@@ -387,6 +403,13 @@ public sealed class RadialController(
     /// </summary>
     private void Convert(int index, int sub, IReadOnlyList<string> files, WebDrop? web = null)
     {
+        if (viewModel.IsConnectMode || viewModel.PresetAt(index, sub)?.Id == "preset.filee_connect")
+        {
+            KeepKeyboard();
+            Close(animate: false);
+            windows.ShowFileeConnect();
+            return;
+        }
         // Placeholders whose drop is gone (the drag listed files it didn't hand over in the end) can't be converted.
         var orphaned = web is null && files.Any(WebDrop.IsPlaceholder);
         if (viewModel.PresetAt(index, sub) is not { } preset || SourcesFor(preset, files) is not { Count: > 0 } sources || orphaned)
@@ -630,11 +653,10 @@ public sealed class RadialController(
     }
 
     /// <summary>
-    /// What <paramref name="preset"/> converts of <paramref name="files"/>: folders only go into "Compress into one
-    /// archive"; any other preset converts the files beside them (issue #186).
+    /// Keeps folders for direct folder actions and combined archives; other presets convert only the files beside them.
     /// </summary>
     internal static IReadOnlyList<string> SourcesFor(Preset preset, IReadOnlyList<string> files) =>
-        preset.PacksIntoOneArchive || preset.IsCopyToFolder || preset.TargetFormat == "iso" ? files : [.. files.Where(path => !Directory.Exists(path))];
+        preset.PacksIntoOneArchive || BuiltInData.AcceptsFolders(preset) ? files : [.. files.Where(path => !Directory.Exists(path))];
 
     // ───────── Progress ring ─────────
 
@@ -817,7 +839,7 @@ public sealed class RadialController(
         var scaling = OperatingSystem.IsMacOS() ? 1 : screen?.Scaling ?? 1;
 
         // Window size follows the donut size (SizeToContent); compute it up front to centre on the cursor.
-        var side = DonutMenu.SideFor(viewModel.OuterRadius, viewModel.ReserveSubRing);
+        var side = DonutMenu.SideFor(viewModel.OuterRadius, viewModel.ReserveSubRing, viewModel.GroupRingSize);
         var sidePx = (int)Math.Ceiling(side * scaling);
         var position = WindowPosition(cursor, screen?.WorkingArea, sidePx);
 
