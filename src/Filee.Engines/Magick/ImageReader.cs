@@ -2,8 +2,8 @@
 // (LibRaw settings), layered PSD/PSB/XCF (one flattened picture instead of one file per layer) and Windows
 // metafiles (rendered at the preset's DPI), APNG (Filee's own reader composes the frames) and uncompressed DICOM
 // (Filee's own reader, as ImageMagick's Q8 build reads only 8-bit DICOM), FITS (Filee's own reader, stretched and
-// debayered as the preset says), the photo of an iPhone LIVP, the merged picture of a Krita KRA and the icon of a Windows
-// program. Used by every engine that takes a raster image as input.
+// debayered as the preset says), the photo of an iPhone LIVP, the merged picture of a Krita KRA, the layers of a Paint.NET
+// PDN merged as Paint.NET shows them and the icon of a Windows program. Used by every engine that takes a raster image as input.
 
 using System.Buffers.Binary;
 using Filee.Core.Formats;
@@ -27,12 +27,16 @@ internal static class ImageReader
     {
         if (formatId == "apng")
             return Apng.Read(path);
+        if (formatId == "ani")
+            return Ani.Read(path);
         if (formatId == "dcm" && Dicom.TryRead(path) is { } scan)
             return scan;
         if (formatId == "livp")
             return ReadLivePhoto(path, preset);
         if (formatId == "kra")
             return ReadPackaged(Krita.ReadMerged(path), "png", preset);
+        if (formatId == "pdn")
+            return [PaintNet.ReadFlattened(path)];
         if (formatId == FormatRegistry.Program)
             return ReadPackaged(ProgramIcon.Read(path), "ico", preset);
         if (formatId == "fits")

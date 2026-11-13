@@ -75,14 +75,14 @@ public static class FormatFields
         (FormatGrade.Specialist,
         [
             "jp2", "psd", "psb", "ppm", "icns", "qoi", "dds", "cur", "xpm", "xbm", "pam", "pfm", "miff", "dcm",
-            "exr", "hdr", "fits", "xcf", "kra", "raw", "eps", "ps", "ai", "cdr", "cgm", "plt", "dst", "fodg", "fodt",
-            "fods", "fodp", "rst", "tex", "org", "adoc", "typ", "mediawiki", "dbk", "ipynb", "textile", "man",
+            "exr", "hdr", "fits", "xcf", "kra", "pdn", "raw", "eps", "ps", "ai", "cdr", "cgm", "plt", "dst", "fodg",
+            "fodt", "fods", "fodp", "rst", "tex", "org", "adoc", "typ", "mediawiki", "dbk", "ipynb", "textile", "man",
             "jsonl", "yaml", "toml", "har", "plist", "htmlz", "txtz", "chm", "dv", "mxf", "cavs", "usm", "m4s", "dav", "bik",
             "h265", "h264", "ac3", "caf", "mp2", "dss", "wv", "tta", "w64", "eac3", "ape", "tak", "dsf", "dff",
             "dts", "tar", "tgz", "tbz2", "txz", "tar7z", "tlz", "gz", "bz2", "xz", "lz", "lzma", "jar", "zxp", "mcpack", "mcaddon",
             "mcworld", "mctemplate", "mrpack", "cab",
             "cpio", "deb", "rpm", "dwg", "ttf", "otf", "woff", "woff2", "ass", "ssa", "ttml", "scc", "glb", "gltf",
-            "stl", "obj", "3mf", "ply", "fbx", "geojson", "kml", "kmz", "gpx", "shp", "fit", "osm", "xm", "it"
+            "stl", "obj", "3mf", "ply", "fbx", "geojson", "kml", "kmz", "gpx", "shp", "fit", "osm", "xm", "it", "ani"
         ]),
         (FormatGrade.Legacy,
         [
@@ -97,7 +97,7 @@ public static class FormatFields
     private static readonly Dictionary<string, FormatField[]> Overlaps = BuildOverlaps(
     [
         // Layout, print, photo post-production, signs and embroidery.
-        (["psd", "psb", "exr", "hdr", "xcf", "kra", "raw", "eps", "ps", "ai", "cdr", "plt", "dst"], ["design"]),
+        (["psd", "psb", "exr", "hdr", "xcf", "kra", "pdn", "raw", "eps", "ps", "ai", "cdr", "plt", "dst"], ["design"]),
         // Game textures and cutscenes, Minecraft packs and modpacks.
         (["dds", "usm", "bik", "mcpack", "mcaddon", "mcworld", "mctemplate", "mrpack"], ["game"]),
         // Medical imaging and astronomy.
@@ -105,7 +105,7 @@ public static class FormatFields
         // Software work: raw image formats of graphics tools, app icons and cursors, config and data files, flat XML
         // ODF for version control, man pages, streaming segments, packages and compressed archives.
         ([
-            "ppm", "icns", "qoi", "cur", "xpm", "xbm", "pam", "pfm", "miff", "fodg", "fodt", "fods", "fodp", "man",
+            "ppm", "icns", "qoi", "cur", "ani", "xpm", "xbm", "pam", "pfm", "miff", "fodg", "fodt", "fods", "fodp", "man",
             "jsonl", "yaml", "toml", "har", "plist", "m4s", "tar", "tgz", "tbz2", "txz", "tar7z", "tlz", "gz", "bz2", "xz",
             "lz", "lzma", "jar", "zxp", "cab", "cpio", "deb", "rpm"
         ], ["developer"]),

@@ -42,6 +42,8 @@ public static class FormatRegistry
         new("dds", "DDS", FormatCategory.Image, ["dds"]),
         new("pcx", "PCX", FormatCategory.Image, ["pcx"]),
         new("cur", "CUR", FormatCategory.Image, ["cur"]),
+        // Windows animated cursor (#1365), read by Filee: every step with its time, or the first one as a picture.
+        new("ani", "Animated cursor (ANI)", FormatCategory.Image, ["ani"], Writable: false),
         new("xpm", "XPM", FormatCategory.Image, ["xpm"]),
         new("xbm", "XBM", FormatCategory.Image, ["xbm"]),
         new("wbmp", "WBMP", FormatCategory.Image, ["wbmp"]),
@@ -63,6 +65,8 @@ public static class FormatRegistry
         // Krita's own file (#903): a ZIP whose merged picture (mergedimage.png) is read, as Krita shows it. ".kra~" is the
         // backup Krita keeps of the previous save, the same file under another name (#1077).
         new("kra", "Krita (KRA)", FormatCategory.Image, ["kra", "kra~"], Writable: false),
+        // Paint.NET's own file, read and written by Filee: layers merged for other pictures, kept between PDN and PSD.
+        new("pdn", "Paint.NET (PDN)", FormatCategory.Image, ["pdn"]),
         // iPhone Live Photo as one ZIP (iCloud downloads): the photo, or its video with FFmpeg.
         new("livp", "Live Photo (LIVP)", FormatCategory.Image, ["livp"], Writable: false),
         // A Windows program or library (#1188), read as its icon: the picture Explorer shows for the file.
