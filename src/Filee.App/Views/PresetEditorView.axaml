@@ -436,6 +436,7 @@
             <NumericUpDown Value="{Binding RingtoneLength}" Minimum="1" Maximum="40" Increment="1" FormatString="0.##" AutomationProperties.Name="{DynamicResource presets.ringtone_length}" />
           </StackPanel>
         </UniformGrid>
+        <CheckBox Content="{DynamicResource presets.ask_ringtone}" IsChecked="{Binding AskRingtonePart}" IsVisible="{Binding ShowRingtone}" />
         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{DynamicResource presets.ringtone_hint}" IsVisible="{Binding ShowRingtone}" />
         <!-- #1353: a small window asks for the quality or bitrate of the files dropped on the donut. -->
         <StackPanel Spacing="2" IsVisible="{Binding ShowAskCompressionMedia}">
@@ -733,6 +734,21 @@
           </StackPanel>
         </Grid>
         <TextBlock Classes="caption" Text="{DynamicResource presets.cad_colors_hint}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <!-- G-code (3D printers, CNC) drawn into a PDF, SVG or picture: from above, isometric or the slicer's preview. After
+         the CAD card, and only while the 3D or CAD field is on. -->
+    <Border x:Name="GcodeCard" Classes="card" IsVisible="{Binding ShowGcode}" Padding="14">
+      <StackPanel Spacing="10">
+        <TextBlock Classes="h2" Text="{DynamicResource presets.group.gcode}" />
+        <Grid ColumnDefinitions="*,12,*">
+          <StackPanel>
+            <TextBlock Classes="label" Text="{DynamicResource presets.gcode_view}" />
+            <ComboBox ItemsSource="{Binding GcodeViews}" SelectedItem="{Binding GcodeView}" HorizontalAlignment="Stretch" AutomationProperties.Name="{DynamicResource presets.gcode_view}" />
+          </StackPanel>
+        </Grid>
+        <TextBlock Classes="caption" Text="{DynamicResource presets.gcode_view_hint}" TextWrapping="Wrap" />
       </StackPanel>
     </Border>
 

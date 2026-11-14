@@ -15,6 +15,7 @@
 using System.Diagnostics;
 using System.Formats.Tar;
 using System.IO.Compression;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using Filee.Core.Conversion;
 using Microsoft.Extensions.Logging;
@@ -83,13 +84,17 @@ public sealed class EngineInstaller
     private readonly IReadOnlyDictionary<string, EngineComponent> _components;
     private readonly ILogger _logger;
     private readonly IReadOnlyList<EnginePackage> _packages;
+    private readonly Func<EngineComponent, Uri?> _mirror;
 
     /// <param name="root">Folder that receives one sub folder per engine (default: EngineEnvironment.DownloadRoot).</param>
     /// <param name="components">Download list; engines.json when null (tests pass their own).</param>
     /// <param name="packages">Known packages (tests pass their own); EngineDownloads.Packages when null.</param>
-    public EngineInstaller(HttpClient http, string? root = null, IReadOnlyDictionary<string, EngineComponent>? components = null, ILogger? logger = null, IReadOnlyList<EnginePackage>? packages = null)
+    /// <param name="mirror">Where a component is taken from when its URL fails (<see cref="EngineDownloads.MirrorUrl"/> when null; tests pass their own).</param>
+    public EngineInstaller(HttpClient http, string? root = null, IReadOnlyDictionary<string, EngineComponent>? components = null, ILogger? logger = null,
+        IReadOnlyList<EnginePackage>? packages = null, Func<EngineComponent, Uri?>? mirror = null)
     {
         _http = http;
+        _mirror = mirror ?? EngineDownloads.MirrorUrl;
         _root = root ?? EngineEnvironment.DownloadRoot;
         _components = components ?? EngineDownloads.Components;
         _logger = logger ?? NullLogger.Instance;
@@ -393,8 +398,38 @@ public sealed class EngineInstaller
     /// </summary>
     private async Task FetchAsync(EngineComponent component, string? localFile, string file, Action<long> reportBytes, CancellationToken cancellationToken)
     {
+        if (localFile is not null)
+        {
+            await FetchAsync(component, null, localFile, file, reportBytes, cancellationToken);
+            return;
+        }
+        try
+        {
+            await FetchAsync(component, new Uri(component.Url), null, file, reportBytes, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or TaskCanceledException && !cancellationToken.IsCancellationRequested
+                                   && _mirror(component) is { } mirror)
+        {
+            // The pinned URL is gone or broken (a retired version, a moved release, a cut or timed-out connection, a file
+            // that was replaced): Filee's own copy, checked against the same SHA-256. The first error is the one to report.
+            _logger.LogWarning(ex, "Downloading {Component} from {Url} failed; trying {Mirror}", component.Id, component.Url, mirror);
+            try
+            {
+                await FetchAsync(component, mirror, null, file, reportBytes, cancellationToken);
+            }
+            catch (Exception mirrorError) when (mirrorError is HttpRequestException or IOException or InvalidDataException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning(mirrorError, "Downloading {Component} from {Mirror} failed too", component.Id, mirror);
+                ExceptionDispatchInfo.Throw(ex);
+            }
+        }
+    }
+
+    /// <summary>One attempt: from <paramref name="url"/>, or from <paramref name="localFile"/> when it's null.</summary>
+    private async Task FetchAsync(EngineComponent component, Uri? url, string? localFile, string file, Action<long> reportBytes, CancellationToken cancellationToken)
+    {
         var partial = file + ".part";
-        using var response = localFile is null ? await GetFollowingRedirectsAsync(new Uri(component.Url), cancellationToken) : null;
+        using var response = url is not null ? await GetFollowingRedirectsAsync(url, cancellationToken) : null;
         response?.EnsureSuccessStatusCode();
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         try
@@ -573,9 +608,10 @@ public sealed class EngineInstaller
             {
                 case "zip":
                     ZipFile.ExtractToDirectory(file, staging);
-                    RenameExifTool(component.Id, SingleRoot(staging));
-                    EnsureExecutablePrograms(component.Id, SingleRoot(staging));
-                    Replace(component.Id, SingleRoot(staging));
+                    var root = component.Id == "weasyprint" ? WeasyPrintFolder(staging) : SingleRoot(staging);
+                    RenameExifTool(component.Id, root);
+                    EnsureExecutablePrograms(component.Id, root);
+                    Replace(component.Id, root);
                     break;
                 case "tar.gz":
                 case "tar.xz":
@@ -899,6 +935,26 @@ public sealed class EngineInstaller
             foreach (var dll in dlls)
                 File.Copy(dll, Path.Combine(targetDir, Path.GetFileName(dll)), overwrite: true);
         }
+    }
+
+    /// <summary>
+    /// WeasyPrint's Windows "onedir" zip holds LICENSE and README.rst at its top and the program in
+    /// onedir/weasyprint (weasyprint.exe with its _internal folder of Python, Pango, HarfBuzz, ...): that folder is
+    /// kept, with the licence moved into it.
+    /// </summary>
+    internal static string WeasyPrintFolder(string staging)
+    {
+        var program = EngineEnvironment.ProgramName("weasyprint.exe");
+        var found = Directory.EnumerateFiles(staging, program, SearchOption.AllDirectories).FirstOrDefault()
+                    ?? throw new InvalidDataException($"{program} not found in the WeasyPrint package.");
+        var folder = Path.GetDirectoryName(found)!;
+        foreach (var name in new[] { "LICENSE", "README.rst" })
+        {
+            var top = Path.Combine(staging, name);
+            if (File.Exists(top) && !File.Exists(Path.Combine(folder, name)))
+                File.Move(top, Path.Combine(folder, name));
+        }
+        return folder;
     }
 
     /// <summary>An archive with a single top-level folder is unpacked without that extra level.</summary>

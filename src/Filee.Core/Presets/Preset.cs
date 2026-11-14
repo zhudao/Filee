@@ -126,6 +126,9 @@ public sealed class Preset
     /// <summary>Options used when a DWG or DXF is written or drawn.</summary>
     public CadOptions Cad { get; set; } = new();
 
+    /// <summary>Options used when a G-code toolpath becomes a PDF, SVG or picture.</summary>
+    public GcodeOptions Gcode { get; set; } = new();
+
     /// <summary>Options used for offline AI translation.</summary>
     public TranslateOptions Translate { get; set; } = new();
 
@@ -380,10 +383,11 @@ public sealed class Preset
 
     /// <summary>
     /// True if converting a <paramref name="sourceFormat"/> file cuts a clip of it (<see cref="MediaOptions.Clip"/>,
-    /// set by the clip window on the conversion it starts): the file is a video. Other files convert as usual.
+    /// set by the clip window on the conversion it starts): the file is a video or a sound. Other files convert as usual.
     /// </summary>
     public bool CutsClipOf(string sourceFormat) =>
-        Media.Clip is { Parts.Count: > 0 } && Formats.FormatRegistry.FindById(sourceFormat)?.Category == Formats.FormatCategory.Video;
+        Media.Clip is { Parts.Count: > 0 }
+        && Formats.FormatRegistry.FindById(sourceFormat)?.Category is Formats.FormatCategory.Video or Formats.FormatCategory.Audio;
 
     /// <summary>
     /// True if converting a <paramref name="sourceFormat"/> file splits it into parts by stream copy
@@ -444,6 +448,7 @@ public sealed class Preset
         Archive = Archive.Clone(),
         Trace = Trace.Clone(),
         Cad = Cad.Clone(),
+        Gcode = Gcode.Clone(),
         Translate = Translate.Clone(),
         Upscale = Upscale.Clone(),
         Metadata = Metadata?.Clone(),
@@ -1567,6 +1572,12 @@ public sealed class MediaOptions
     public double RingtoneLength { get; set; } = DefaultRingtoneLength;
 
     /// <summary>
+    /// M4R (iPhone ringtone): ask for the part of each sound every time, in the "Cut a clip" window (#1291), instead
+    /// of using <see cref="RingtoneStart"/> and <see cref="RingtoneLength"/>.
+    /// </summary>
+    public bool AskRingtonePart { get; set; }
+
+    /// <summary>
     /// The part of a sound of <paramref name="sourceSeconds"/> (null when unknown) that becomes the ringtone: where it
     /// starts and how long it is. A hand-edited preset file may hold anything, so both are brought within their limits:
     /// the length to 1–40 s and, when the sound's length is known, the window to the sound: a start past its end moves
@@ -1873,6 +1884,30 @@ public sealed class CadOptions
     public CadColors Colors { get; set; }
 
     public CadOptions Clone() => (CadOptions)MemberwiseClone();
+}
+
+/// <summary>What a G-code file (3D printer or CNC) shows when it becomes a picture, an SVG or a PDF.</summary>
+public enum GcodeView
+{
+    /// <summary>The toolpath seen from above.</summary>
+    Top,
+    /// <summary>The toolpath seen from the front left corner, above the bed, so the height of the print shows.</summary>
+    Isometric,
+    /// <summary>
+    /// The preview the slicer saved in the file (PrusaSlicer, Cura, OrcaSlicer, Bambu Studio …), for pictures; the
+    /// toolpath from above for SVG and PDF, and for a file without one.
+    /// </summary>
+    Thumbnail,
+}
+
+/// <summary>Options for G-code files drawn into a PDF, SVG or picture.</summary>
+public sealed class GcodeOptions
+{
+    /// <summary>A choice from a newer Filee reads as <see cref="GcodeView.Top"/>.</summary>
+    [JsonConverter(typeof(LenientEnumJsonConverter<GcodeView>))]
+    public GcodeView View { get; set; }
+
+    public GcodeOptions Clone() => (GcodeOptions)MemberwiseClone();
 }
 
 /// <summary>Options for offline AI document translation.</summary>
