@@ -428,16 +428,18 @@ public sealed class Preset
     }
 
     /// <summary>
-    /// A copy fit to leave this computer (an exported bundle): no PDF password and no path to a file of one's own
-    /// (Add background's picture, which would tell where one's files are).
+    /// A copy fit to leave this computer (an exported bundle): no PDF password, no path to a file of one's own
+    /// (Add background's picture, which would tell where one's files are), and without "Move the original to the Recycle
+    /// Bin / Trash", which is on only where its owner ticked it on their own PC (#1387).
     /// </summary>
     public Preset ForSharing()
     {
         var copy = WithoutPassword(mark: false);
-        if (copy.Gallery is not null)
+        if (copy.Gallery is not null || copy.Output.TrashOriginalAfterConvert)
         {
             copy = ReferenceEquals(copy, this) ? Clone() : copy;
             copy.Gallery = null;
+            copy.Output.TrashOriginalAfterConvert = false;
         }
         if (copy.Image.Backdrop?.Picture is null && copy.Image.BackdropLook?.Picture is null)
             return copy;
@@ -1826,12 +1828,23 @@ public enum ArchiveLevel
 /// <summary>Archive options.</summary>
 public sealed class ArchiveOptions
 {
+    /// <summary>Filesystem used for ISO creation; absent values retain Joliet.</summary>
+    public IsoFileSystem IsoFileSystem { get; set; }
     /// <summary>Put all dropped files into one archive instead of one archive per file.</summary>
     public bool CombineIntoOne { get; set; }
 
     public ArchiveLevel Level { get; set; } = ArchiveLevel.Normal;
 
     public ArchiveOptions Clone() => (ArchiveOptions)MemberwiseClone();
+}
+
+/// <summary>Filesystems available when creating a disc image.</summary>
+public enum IsoFileSystem
+{
+    /// <summary>ISO 9660 with Joliet, the existing default.</summary>
+    Joliet,
+    /// <summary>Universal Disk Format revision 2.01.</summary>
+    Udf201,
 }
 
 /// <summary>How a raster image is traced.</summary>

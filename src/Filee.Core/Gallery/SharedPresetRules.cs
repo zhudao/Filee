@@ -301,6 +301,7 @@ internal static class SharedPresetRules
             ("copyAudioWhenPossible", Flag),
             ("removeMetadata", Flag))),
         ("archive", Obj(
+            ("isoFileSystem", Enum<IsoFileSystem>()),
             ("combineIntoOne", Flag),
             ("level", Enum<ArchiveLevel>()))),
         ("trace", Obj(
@@ -346,6 +347,7 @@ internal static class SharedPresetRules
             ("zipResult", Flag),
             ("onlyIfSmaller", Flag),
             ("replaceOriginal", Flag),
+            ("trashOriginalAfterConvert", Flag),
             ("moveInsteadOfCopy", Flag))));
 
     /// <summary>The fields of one toolbar profile (a donut).</summary>
