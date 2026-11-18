@@ -1176,6 +1176,23 @@ internal static class SettingsMigrations
         // v94: Valve textures (.vtf) learn the images donut; custom claims stay put.
         if (from < 94)
             changed |= LearnExtensions(profiles, out _, ["vtf"]);
+        // v95: Windows app packages and bundles learn the archives donut, without taking custom claims (#1521).
+        if (from < 95)
+            changed |= LearnExtensions(profiles, out _, ["msix", "appx", "msixbundle", "appxbundle"]);
+        // v96: Source engine files: Garry's Mod addons (.gma), Valve paks (.vpk) and maps (.bsp, for the files packed into
+        //      them) learn the archives donut; custom claims stay put.
+        if (from < 96)
+            changed |= LearnExtensions(profiles, out _, ["gma", "vpk", "bsp"]);
+        // v97: "GMA" (packing a folder into a Garry's Mod addon) joins the game packs in the palette, not a donut; the
+        //      game packs the user removed stay removed.
+        if (from < 97)
+            changed |= AddGma(presets);
+        // v98: "VTF" (any picture to a Valve texture) joins the palette after HEIC, not a donut.
+        if (from < 98 && presets.All(p => p.Id != BuiltInData.VtfId))
+            changed |= AddLikeNewLibrary(presets, BuiltInData.VtfId);
+        // v99: CrossOver logs (.cxlog, #1383) learn the text donut; custom claims stay put.
+        if (from < 99)
+            changed |= LearnExtensions(profiles, out _, ["cxlog"]);
         return changed;
     }
 
@@ -1231,6 +1248,22 @@ internal static class SettingsMigrations
             changed = true;
         }
         return changed;
+    }
+
+    /// <summary>
+    /// "GMA" after the last game pack of the library (else after "TAR", else at the end); the game packs the user removed
+    /// stay removed.
+    /// </summary>
+    private static bool AddGma(List<Preset> presets)
+    {
+        if (presets.Any(p => p.Id == "to-gma"))
+            return false;
+        var packs = BuiltInData.GamePackPresets().Select(p => p.Id).ToHashSet();
+        var at = presets.FindLastIndex(p => packs.Contains(p.Id));
+        if (at < 0)
+            at = presets.FindIndex(p => p.Id == "to-tar");
+        presets.Insert(at < 0 ? presets.Count : at + 1, BuiltInData.GamePackPresets().Single(p => p.Id == "to-gma"));
+        return true;
     }
 
     private static bool AddCropVideo(List<Preset> presets)

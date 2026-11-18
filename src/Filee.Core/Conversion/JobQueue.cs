@@ -275,7 +275,7 @@ public sealed partial class JobQueue : IAsyncDisposable
     /// <summary>
     /// Makes the PDFs among <paramref name="outputs"/> PDF/A when the preset asks for it (<see cref="DocumentOptions.PdfA"/>),
     /// after the finishing, which would undo it. Without Ghostscript they stay as they are and the file says so, rather
-    /// than pass for PDF/A.
+    /// than pass for PDF/A. Otherwise the file says when form fields were made page content, which can't be filled in.
     /// </summary>
     /// <param name="changed">Rewritten since the engine wrote it: a PDF/A from LibreOffice no longer is one.</param>
     private async Task ArchivePdfsAsync(Preset preset, IReadOnlyList<string> outputs, FileResult file, string workDir, bool changed,
@@ -284,10 +284,22 @@ public sealed partial class JobQueue : IAsyncDisposable
         if (!preset.Document.PdfA)
             return;
         var archiver = _catalog.All.OfType<IPdfArchiver>().FirstOrDefault();
+        var notArchived = false;
+        var withoutFormFields = false;
         foreach (var pdf in outputs.Where(o => FormatRegistry.Detect(o)?.Id == "pdf"))
         {
-            if (archiver is null || !await archiver.ArchiveAsync(pdf, changed, workDir, ct))
-                file.NoticeKey = "notice.pdfa_needs_ghostscript";
+            var outcome = archiver is null ? PdfArchiveOutcome.NotArchived : await archiver.ArchiveAsync(pdf, changed, workDir, ct);
+            notArchived |= outcome == PdfArchiveOutcome.NotArchived;
+            withoutFormFields |= outcome == PdfArchiveOutcome.ArchivedWithoutFormFields;
+        }
+        // A PDF that didn't become PDF/A matters more than fields that can't be filled in any more.
+        if (notArchived)
+            file.NoticeKey = "notice.pdfa_needs_ghostscript";
+        else if (withoutFormFields)
+        {
+            file.NoticeKey = "notice.pdfa_form_fields";
+            file.NoticeReasonKey = null;
+            file.NoticeDetail = null;
         }
     }
 
@@ -851,6 +863,33 @@ public sealed partial class JobQueue : IAsyncDisposable
         var target = !finalOutput ? intermediate
             : runWith.TargetFormat == BuiltInData.SameAsSource ? runWith.CropsVideo ? VideoCrop.TargetFor(from.Id) : from.Id
             : runWith.TargetFormat;
+
+        // "Same format as the audio" (#1490): the format that holds the video's sound as it is, read from the file.
+        if (target == BuiltInData.SameAsAudio)
+        {
+            var reader = _catalog.All.OfType<IAudioCopyTarget>().FirstOrDefault();
+            if (from.Category != FormatCategory.Video || reader is null || reader is IConverter { } engine && !engine.GetStatus().IsAvailable)
+                return Fail(file, "error.no_route", $"{from.Id} → mka", new RouteRequest(from.Id, "mka"));
+            try
+            {
+                target = await reader.AudioCopyTargetAsync(file.SourcePath, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                file.State = FileState.Cancelled;
+                Notify(job);
+                return [];
+            }
+            catch (ConversionRefusedException ex)
+            {
+                return Fail(file, ex.ErrorKey, ex.Detail);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Reading the sound of {File} failed", file.SourcePath);
+                return Fail(file, "error.conversion_failed", ex.Message);
+            }
+        }
 
         // "Save every frame": a video becomes a folder of pictures in one step of its own; "Extract Live/Motion Photo
         // video" likewise takes a photo's video, and "Live / Motion Photo" makes one of a video. Never for an
